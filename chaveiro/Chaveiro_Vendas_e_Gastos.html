@@ -587,7 +587,8 @@
      - só o recibo da venda é sticky (desktop), preso à área da venda; cards comuns nunca são sticky;
      - listas sem rolagem interna (a paginação da Fase 2 já limita o tamanho).
      ===================================================================== */
-  :root:not([data-theme="dark"]) { --ink-soft: #786A53; --pix: #17695D; }   /* texto secundário com contraste AA */
+  :root:not([data-theme="dark"]) { --ink-soft: #746650; --pix: #17695D; }   /* texto secundário com contraste AA (4,75:1 no fundo) */
+  :root:not([data-theme="dark"]) .sale-item .s-time { color: var(--brass-strong); }   /* etiqueta de horário: 6,3:1 no claro (no escuro, 9,6:1) */
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ink-soft: #A89B82; --pix: #6FD0BF; } }
   :root[data-theme="dark"] { --ink-soft: #A89B82; --pix: #6FD0BF; }
   html { scroll-padding-top: calc(var(--stick-top, 96px) + 10px); }
@@ -785,6 +786,7 @@
     <button class="tab-btn" data-tab="resumo"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M7 15l4-4 3 3 5-6"/></svg>Resumo</button>
     </div>
   </header>
+  <main>
   <div class="databar" id="dataBar" style="display:none"></div>
 
   <div class="day-warn" id="dayWarn" role="status" hidden></div>
@@ -817,6 +819,7 @@
   <div id="resumoSection" style="display:none">
     <div id="resumoContent"></div>
   </div>
+  </main>
 </div>
 
 <div class="modal-bg" id="modal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalMsg"><p id="modalMsg"></p><div class="modal-btns"><button type="button" class="clear-btn" id="modalNo"></button><button type="button" class="registrar-btn" id="modalYes"></button></div></div></div>
@@ -1406,7 +1409,7 @@
     var cats = CATEGORIES.filter(function (c) { return c.group === g.id; });
     var open = groupOpen[g.id] !== false;
     var count = cats.reduce(function (s, c) { return s + itemState[c.id].qty; }, 0);
-    function stepper(c) { return '<div class="stepper"><button class="step-btn minus" data-cat="' + c.id + '">−</button><span class="step-count">' + itemState[c.id].qty + '</span><button class="step-btn plus" data-cat="' + c.id + '">+</button></div>'; }
+    function stepper(c) { return '<div class="stepper"><button class="step-btn minus" data-cat="' + c.id + '" aria-label="Diminuir ' + escAttr(c.label) + '">−</button><span class="step-count">' + itemState[c.id].qty + '</span><button class="step-btn plus" data-cat="' + c.id + '" aria-label="Aumentar ' + escAttr(c.label) + '">+</button></div>'; }
     var head = '<button class="ghead" data-group="' + g.id + '" aria-expanded="' + open + '"><span class="item-info"><span class="item-label">' + g.label + '</span><span class="item-price">avulso ' + brl(PRECO_AVULSO) + ' · troca no controle ' + brl(PRECO_TROCA) + '</span></span><span class="gr">' + (count > 0 ? '<span class="badge">' + count + '</span>' : '') + '<span class="chev' + (open ? ' open' : '') + '">▶</span></span></button>';
     var body = '';
     if (open) {
@@ -1463,7 +1466,7 @@
     }
     return '<div class="item-row tile-row' + (it.qty > 0 ? ' on' : '') + '" data-block="c-' + c.id + '"><span class="ico">' + KEY_SVG + '</span>' +
       '<div class="item-info"><span class="item-label">' + c.label + '</span><span class="item-price">' + priceLabel + '</span></div>' +
-      '<div class="stepper"><button class="step-btn minus" data-cat="' + c.id + '">−</button><span class="step-count">' + it.qty + '</span><button class="step-btn plus" data-cat="' + c.id + '">+</button></div>' +
+      '<div class="stepper"><button class="step-btn minus" data-cat="' + c.id + '" aria-label="Diminuir ' + escAttr(c.label) + '">−</button><span class="step-count">' + it.qty + '</span><button class="step-btn plus" data-cat="' + c.id + '" aria-label="Aumentar ' + escAttr(c.label) + '">+</button></div>' +
       extra + '</div>';
   }
   function stockSelRowHtml(k) {
@@ -1783,10 +1786,10 @@
     if (ed && !EXPENSE_CATEGORIES.some(function (c) { return c.id === ed.cat; })) catOptions = '<option value="' + escAttr(ed.cat) + '"' + (selCat === ed.cat ? ' selected' : '') + '>' + escAttr(expCatLabel(ed.cat)) + '</option>' + catOptions;
     var vDesc = dr ? dr.desc : (ed ? ed.desc : ''), vValor = dr ? dr.valor : (ed ? String(ed.valor).replace('.', ',') : '');
     wrap.innerHTML = '<div class="card"><div class="card-title">' + (ed ? 'Editando gasto de ' + escAttr(fmtDayLong(ed.day)) + (ed.day !== viewDay ? ' <small class="mini">(continua nesse dia)</small>' : '') : 'Novo gasto' + dayTxt) + '</div>' +
-      '<div class="extra-fields" style="padding:10px 0 0;"><div class="field-wrap"><label>Descrição</label><div class="money-input"><input class="text-input" type="text" id="expDesc" placeholder="ex: compra de chaves virgens" value="' + escAttr(vDesc) + '"></div></div></div>' +
+      '<div class="extra-fields" style="padding:10px 0 0;"><div class="field-wrap"><label for="expDesc">Descrição</label><div class="money-input"><input class="text-input" type="text" id="expDesc" placeholder="ex: compra de chaves virgens" value="' + escAttr(vDesc) + '"></div></div></div>' +
       '<div class="extra-fields" style="padding:10px 0;">' +
-      '<div class="field-wrap"><label>Categoria</label><select id="expCat" class="select-input">' + catOptions + '</select></div>' +
-      '<div class="field-wrap" id="expValorWrap"><label>Valor (R$)</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="expValor" placeholder="0,00" value="' + escAttr(vValor) + '"></div><span class="hint" id="expValorHint" style="display:none">Informe um valor maior que zero, ex: 45 ou 45,90.</span></div>' +
+      '<div class="field-wrap"><label for="expCat">Categoria</label><select id="expCat" class="select-input">' + catOptions + '</select></div>' +
+      '<div class="field-wrap" id="expValorWrap"><label for="expValor">Valor (R$)</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="expValor" placeholder="0,00" value="' + escAttr(vValor) + '"></div><span class="hint" id="expValorHint" style="display:none">Informe um valor maior que zero, ex: 45 ou 45,90.</span></div>' +
       '</div>' +
       '<button class="registrar-btn" id="registrarGastoBtn">' + (ed ? 'Salvar alterações' : (isTodayKey(viewDay) ? 'Registrar gasto' : 'Registrar gasto em ' + fmtDM(viewDay))) + '</button>' + (ed ? '<button class="clear-btn" id="cancelEditExpBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') + '</div>';
     var cancelExp = document.getElementById('cancelEditExpBtn');
@@ -2051,13 +2054,13 @@
     if (!x) { estUi.form = null; box.innerHTML = ''; return; }
     var dec = function (v) { return v === '' || v == null ? '' : String(v).replace('.', ','); };
     var isG = !isNew && !!x.g, used = !isNew && salesIndex().pids.has(x.id);
-    var f = function (id, label, v, mode, ro) { return '<div class="field-wrap"><label>' + label + '</label><div class="money-input"><input class="text-input" type="text"' + (mode ? ' inputmode="' + mode + '"' : '') + ' id="' + id + '" value="' + escAttr(v) + '"' + (ro ? ' readonly' : '') + '></div></div>'; };
+    var f = function (id, label, v, mode, ro) { return '<div class="field-wrap"><label for="' + id + '">' + label + '</label><div class="money-input"><input class="text-input" type="text"' + (mode ? ' inputmode="' + mode + '"' : '') + ' id="' + id + '" value="' + escAttr(v) + '"' + (ro ? ' readonly' : '') + '></div></div>'; };
     var catList = STOCK_CATS.indexOf(x.cat) < 0 && x.cat ? [x.cat].concat(STOCK_CATS) : STOCK_CATS; // categoria antiga não é trocada em silêncio
     var delBtn = isNew ? '' : isG ? '<div class="item-price" style="margin-top:10px">Baterias e pilhas fazem parte da tela de vendas e não podem ser excluídas. O preço da venda é fixo (avulso ' + brl(PRECO_AVULSO) + ' · troca no controle ' + brl(PRECO_TROCA) + '); aqui você ajusta quantidade e aviso de mínimo.</div>'
       : used ? '<button class="clear-btn" id="fToggle" style="width:100%;margin-top:8px">' + (x.inativo ? 'Reativar produto' : 'Desativar produto') + '</button><div class="item-price" style="margin-top:6px">Este produto tem vendas registradas, por isso não pode ser excluído (o histórico e a devolução ao estoque dependem dele). Desativado, ele some da busca de vendas e da lista de compras.</div>'
       : '<button class="clear-btn" id="fDel" style="width:100%;margin-top:8px;color:var(--danger)">Excluir produto</button>';
     box.innerHTML = '<div class="card" style="margin:12px 0 0;border-color:var(--brass)"><div class="card-title">' + (isNew ? 'Novo produto' : 'Editar produto') + (x.inativo ? ' <span class="tag-off">desativado</span>' : '') + '</div>' +
-      '<div class="extra-fields"><div class="field-wrap"><label>Categoria</label><select class="select-input" id="fCat"' + (isG ? ' disabled' : '') + '>' + opts(catList, x.cat) + '</select></div>' + f('fMarca', 'Marca', x.marca, '', isG) + f('fModelo', 'Modelo / numeração', x.modelo, '', isG) + '</div>' +
+      '<div class="extra-fields"><div class="field-wrap"><label for="fCat">Categoria</label><select class="select-input" id="fCat"' + (isG ? ' disabled' : '') + '>' + opts(catList, x.cat) + '</select></div>' + f('fMarca', 'Marca', x.marca, '', isG) + f('fModelo', 'Modelo / numeração', x.modelo, '', isG) + '</div>' +
       '<div class="extra-fields" style="padding-top:10px">' + f('fQtd', 'Quantidade', x.qty, 'numeric') + f('fPreco', isG ? 'Preço (fixo na venda)' : 'Preço de venda (R$)', isG ? dec(PRECO_AVULSO) : dec(x.preco), 'decimal', isG) + f('fMin', 'Avisar quando ≤', x.min, 'numeric') + '</div>' +
       '<div class="hint" id="fErr" style="display:none;margin-top:8px"></div>' +
       '<button class="registrar-btn" id="fSave">Salvar produto</button>' + (isNew ? '<button class="clear-btn" id="fAgain" style="width:100%;margin-top:8px">Salvar e cadastrar outro da mesma marca</button>' : '') +
@@ -2126,7 +2129,7 @@
       var isLow = isLowStock(x), id = escAttr(x.id);
       var row = '<div class="sale-item"><div class="s-left"><span class="s-desc"><b>' + escAttr(pname(x)) + '</b>' + (x.inativo ? ' <span class="tag-off">desativado</span>' : '') + '</span><span class="s-time">venda ' + (prodPrice(x) > 0 ? brl(prodPrice(x)) + (x.g ? ' (avulso)' : '') : 'sem preço') + (x.min > 0 ? ' · avisa com ≤ ' + escAttr(x.min) : '') + '</span></div>' +
         '<div class="s-right"><span class="qty' + (isLow ? ' low' : '') + '">' + escAttr(x.qty) + '</span><button class="est-btn alt" data-in="' + id + '">Entrada</button><button class="s-edit" data-ed="' + id + '" aria-label="Editar">✎</button></div></div>';
-      if (estUi.entrada === x.id) row += '<div class="sale-item" style="flex-wrap:wrap;background:var(--brass-wash);border-radius:10px;padding:10px"><div class="extra-fields" style="padding:0"><div class="field-wrap"><label>Quantidade que chegou</label><div class="money-input"><input class="text-input" inputmode="numeric" id="eQtd"></div><span class="hint" id="eHint" style="display:none">Digite quantas unidades chegaram (número maior que zero).</span></div></div>' +
+      if (estUi.entrada === x.id) row += '<div class="sale-item" style="flex-wrap:wrap;background:var(--brass-wash);border-radius:10px;padding:10px"><div class="extra-fields" style="padding:0"><div class="field-wrap"><label for="eQtd">Quantidade que chegou</label><div class="money-input"><input class="text-input" inputmode="numeric" id="eQtd"></div><span class="hint" id="eHint" style="display:none">Digite quantas unidades chegaram (número maior que zero).</span></div></div>' +
         '<div style="display:flex;gap:8px;margin-top:8px"><button class="est-btn" id="eSave">Salvar entrada</button><button class="est-btn alt" id="eCancel">Cancelar</button></div></div>';
       return row;
     }).join('') + (list.length > shown.length ? '<button class="showmore" id="estMore">Mostrar mais (' + fmtInt(Math.min(EST_PAGE, list.length - shown.length)) + ' de ' + fmtInt(list.length - shown.length) + ' restantes)</button>' : '');
@@ -2339,7 +2342,7 @@
   function payHtml() {
     return '<div class="paybox"><div class="pay-l">Como o cliente pagou?</div><div class="pay-opts">' + Object.keys(PAY).map(function (k) { return '<button class="pay-btn' + (payState === k ? ' on' : '') + '" data-pay="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</div>' +
       (!payValid(payState) && editingSaleId ? '<div class="mini" style="margin-top:6px">' + (payState ? 'Forma de pagamento original desta venda: “' + escAttr(payState) + '” — é mantida se você não escolher outra.' : 'Esta venda antiga não tem forma de pagamento registrada — continua assim se você não escolher uma.') + '</div>' : '') +
-      (payState === 'fiado' ? '<div class="field-wrap" style="margin-top:8px"><label>Nome do cliente (obrigatório no fiado)</label><div class="money-input"><input class="text-input" type="text" id="clienteInput" value="' + escAttr(clienteState) + '"></div></div>' : '') + '</div>';
+      (payState === 'fiado' ? '<div class="field-wrap" style="margin-top:8px"><label for="clienteInput">Nome do cliente (obrigatório no fiado)</label><div class="money-input"><input class="text-input" type="text" id="clienteInput" value="' + escAttr(clienteState) + '"></div></div>' : '') + '</div>';
   }
   function bindPay() {
     document.querySelectorAll('#saleTotalsWrap .pay-btn').forEach(function (b) { b.addEventListener('click', function () { payState = b.getAttribute('data-pay'); renderSaleForm(); }); });
@@ -2387,7 +2390,10 @@
     var yes = document.getElementById('modalYes'), no = document.getElementById('modalNo');
     yes.textContent = okLabel; no.textContent = cancelLabel;
     function close() { m.hidden = true; document.removeEventListener('keydown', onKey); }
-    function onKey(ev) { if (ev.key === 'Escape') close(); }
+    function onKey(ev) {
+      if (ev.key === 'Escape') close();
+      else if (ev.key === 'Tab') { ev.preventDefault(); (document.activeElement === no ? yes : no).focus(); } // foco não sai do aviso
+    }
     yes.onclick = function () { close(); onOk(); };
     no.onclick = close; m.onclick = function (ev) { if (ev.target === m) close(); };
     m.hidden = false; document.addEventListener('keydown', onKey); no.focus();
@@ -2877,6 +2883,25 @@
   if (window.ResizeObserver) { var hd = document.querySelector('header'); if (hd) new ResizeObserver(syncStickyOffsets).observe(hd); }
   // sem ResizeObserver (navegadores antigos): recalcula ao trocar de aba (a navegação de dia aparece/some)
   else document.querySelectorAll('.tab-btn').forEach(function (b) { b.addEventListener('click', function () { setTimeout(syncStickyOffsets, 0); }); });
+  // Atalhos de teclado (balcão com teclado): Alt+1..4 troca de aba; "/" vai para a busca da aba;
+  // Ctrl+Enter registra a venda/gasto em andamento. Nada acontece com um aviso (modal) aberto.
+  var TABS = ['vendas', 'estoque', 'despesas', 'resumo'];
+  document.querySelectorAll('.tab-btn').forEach(function (b) { b.title = 'Alt+' + (TABS.indexOf(b.getAttribute('data-tab')) + 1); });
+  document.addEventListener('keydown', function (ev) {
+    var m = document.getElementById('modal'); if (m && !m.hidden) return;
+    var t = ev.target, typing = t && (/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable);
+    var n = /^Digit[1-4]$/.test(ev.code) ? +ev.code.slice(5) : 0;
+    if (ev.altKey && !ev.ctrlKey && !ev.metaKey && n) { ev.preventDefault(); var tb = document.querySelector('.tab-btn[data-tab="' + TABS[n - 1] + '"]'); if (tb) tb.click(); return; }
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+      var rb = document.getElementById(currentTab === 'vendas' ? 'registrarBtn' : currentTab === 'despesas' ? 'registrarGastoBtn' : '');
+      if (rb && !rb.disabled) { ev.preventDefault(); rb.click(); }
+      return;
+    }
+    if (ev.key === '/' && !typing && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+      var se = document.getElementById(currentTab === 'vendas' ? 'histSearch' : currentTab === 'estoque' ? 'estSearch' : '');
+      if (se) { ev.preventDefault(); se.focus(); se.select(); }
+    }
+  });
   // Seletores de dia/mês também pelo teclado (Enter/Espaço).
   ['dateBtn', 'monthBtn'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('keydown', function (ev) { if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); el.click(); } }); });
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
