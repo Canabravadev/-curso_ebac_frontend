@@ -576,7 +576,6 @@
   .modal-list { margin: -4px 0 14px; padding-left: 18px; max-height: 40vh; overflow-y: auto; font-size: .88rem; line-height: 1.4; }
   .modal-btns { display: flex; gap: 8px; } .modal-btns > * { flex: 1; margin: 0 !important; width: auto !important; }
   .stk-sel.need-price { flex-wrap: wrap; } .stk-sel.need-price .extra-fields { padding-left: 46px; }
-  .tile-go { white-space: nowrap; }
   .stk-nostock { margin-top: 6px; border: none; background: none; color: var(--brass-strong); text-decoration: underline; font: inherit; font-size: .8rem; cursor: pointer; }
   .tag-off { font-size: .68rem; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--line); color: var(--ink-soft); }
   .sl-btn:disabled, .step-btn:disabled { opacity: .35; cursor: default; }
@@ -868,6 +867,7 @@
     { id: 'carro', label: 'Carro', price: null },
     { id: 'outros', label: 'Outros', price: null }
   ];
+  var GENERIC_KEYS = { simples: 1, tetra: 1, moto: 1 }; // itens genéricos de chave (não são produtos do estoque)
   var PRECO_AVULSO = 20, PRECO_TROCA = 30;
   var GROUPS = [
     { id: 'bateria', label: 'Bateria', models: ['CR2032', 'CR2016', 'CR1620', 'CR2025', 'CR1616', 'CR2450'] },
@@ -932,8 +932,8 @@
       CATEGORIES.some(function (c) { return itemState[c.id].qty > 0; });
   }
   function availQty(pr) { return pr ? (Number(pr.qty) || 0) + (editBase[pr.id] || 0) : 0; }
-  // Tiles de chave sem vínculo com o estoque (B12): o "+" abre a busca do estoque correspondente.
-  var TILE_SEARCH = { simples: { box: 1 }, tetra: { box: 2 }, moto: { box: 0, q: 'moto' } };
+  // Chave Simples / Tetra / Moto (Fase 7): itens GENÉRICOS de venda, como "Carro" — preço fixo da tabela
+  // CATEGORIES (14 / 35 / 50), − quantidade +, sem modelo e SEM baixa no estoque (não têm pid).
   function payValid(p) { return Object.prototype.hasOwnProperty.call(PAY, p); }
   function payLabel(p) { return payValid(p) ? PAY[p] : (p ? String(p) : 'Não informado'); }
 
@@ -1490,13 +1490,7 @@
   // Linha de uma categoria simples (chave, carro, serviço...). data-block permite trocar só esta linha.
   function catRowHtml(c) {
     var it = itemState[c.id];
-    var priceLabel = c.price !== null ? brl(c.price) + ' un.' : 'valor variável';
-    if (TILE_SEARCH[c.id]) {
-      if (it.qty === 0) return '<div class="item-row tile-row" data-block="c-' + c.id + '"><span class="ico">' + KEY_SVG + '</span>' +
-        '<div class="item-info"><span class="item-label">' + c.label + '</span><span class="item-price">busque o modelo no estoque</span></div>' +
-        '<button class="est-btn alt tile-go" data-tile-search="' + c.id + '">Buscar no estoque</button></div>';
-      priceLabel += ' · sem baixa no estoque';
-    }
+    var priceLabel = c.price !== null ? brl(c.price) + ' un.' + (GENERIC_KEYS[c.id] ? ' · sem baixa no estoque' : '') : 'valor variável';
     var extra = '';
     if (c.price === null && it.qty > 0) {
       var invalidClass = (!(num(it.price) > 0)) ? ' invalid' : '';
@@ -1529,12 +1523,6 @@
   }
   // Preço de venda de um produto: bateria/pilha avulsa usa o preço fixo da tela de vendas (B17).
   function prodPrice(x) { return x.g ? PRECO_AVULSO : (Number(x.preco) || 0); }
-  function goStockSearch(catId) {
-    var t = TILE_SEARCH[catId]; if (!t) return;
-    var inp = document.querySelector('#saleFormWrap [data-stock-box="' + t.box + '"]'); if (!inp) return;
-    if (t.q && !inp.value) { inp.value = t.q; inp.dispatchEvent(new Event('input')); }
-    inp.focus({ preventScroll: true }); inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  }
 
   /* ----- Atualização parcial do formulário de venda -----
      Cada bloco (linha de categoria, grupo de baterias/pilhas, "Outros", produto do estoque escolhido, cabeçalho
@@ -1569,7 +1557,6 @@
     wrap.addEventListener('click', function (ev) {
       var b = ev.target.closest('button'); if (!b || !wrap.contains(b)) return;
       var v;
-      if ((v = b.getAttribute('data-tile-search')) !== null) return goStockSearch(v);
       if ((v = b.getAttribute('data-cat')) !== null) return changeCat(v, b.classList.contains('plus') ? 1 : -1);
       if (b.classList.contains('stk-minus') || b.classList.contains('stk-plus')) return changeStock(b.getAttribute('data-pid'), b.classList.contains('stk-plus') ? 1 : -1);
       if ((v = b.getAttribute('data-outro-minus')) !== null) { var o = outrosList[+v]; if (o) o.qty = Math.max(1, o.qty - 1); return refreshOutros(); } // "−" nunca remove (B24)
@@ -2550,7 +2537,7 @@
       Object.keys(_fav.cnt).forEach(function (k) {
         var id = k.slice(2), name;
         if (k.charAt(0) === 'p') { var pr = estoqueFind(id); if (!pr || pr.inativo) return; name = pname(pr); }
-        else { if (!itemState[id] || TILE_SEARCH[id]) return; name = catLabel(id); }
+        else { if (!itemState[id]) return; name = catLabel(id); }
         out.push({ k: k, n: _fav.cnt[k], name: name });
       });
       _fav.top = out.sort(function (a, b) { return b.n - a.n; }).slice(0, 6); _fav.e = es;
@@ -2621,13 +2608,13 @@
     recs.forEach(function (e) { recPag[e.r.pay] = (recPag[e.r.pay] || 0) + Number(e.r.valor); });
     var recRows = Object.keys(recPag).map(function (k) { return '<div class="totals-row"><span>Fiado recebido · ' + escAttr(payLabel(k)) + '</span><span>' + brl(money(recPag[k])) + '</span></div>'; }).join('');
     var svc = SERVICES.reduce(function (s, c) { return s + (porCat[c.id] ? porCat[c.id].valor : 0); }, 0);
-    var rank = Object.keys(porCat).filter(function (k) { return porCat[k].qty > 0; }).sort(function (a, b) { return porCat[b].qty - porCat[a].qty; }).slice(0, 8);
+    var rank = Object.keys(porCat).filter(function (k) { return k !== 'outros' && porCat[k].qty > 0; }).sort(function (a, b) { return porCat[b].qty - porCat[a].qty; }).slice(0, 8);
     var pend = salesIndex().fiado;
     var pendTotal = money(pend.reduce(function (s, v) { return s + saldoFiado(v); }, 0));
     var h = '<div class="card"><div class="card-title">Por forma de pagamento</div>' + (payRows || '<div class="empty">Nenhuma venda neste mês.</div>') +
       (recRows ? '<div class="item-price" style="padding-top:8px">Recebimentos de fiado neste mês (entram no dia em que foram recebidos; a venda continua como fiado):</div>' + recRows : '') +
       (svc ? '<div class="totals-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;"><span>Mão de obra (serviços)</span><span>' + brl(svc) + '</span></div>' : '') + '</div>';
-    h += '<div class="card"><div class="card-title">Mais vendidos do mês</div>' + (rank.length ? capList('rank-' + mKeyR, rank, 5, function (k, i) { return '<div class="totals-row"><span>' + (i + 1) + '. ' + escAttr(porCat[k].label) + '</span><span>' + porCat[k].qty + ' un.</span></div>'; }) : '<div class="empty">Nenhuma venda neste mês.</div>') + '</div>';
+    h += '<div class="card"><div class="card-title">Mais vendidos do mês</div>' + (rank.length ? capList('rank-' + mKeyR, rank, 5, function (k, i) { return '<div class="totals-row"><span>' + (i + 1) + '. ' + escAttr(porCat[k].label) + '</span><span>' + porCat[k].qty + ' un.</span></div>'; }) : '<div class="empty">' + (vendas.length ? 'Nenhum produto vendido neste mês ("Outros" não entra no ranking).' : 'Nenhuma venda neste mês.') + '</div>') + '</div>';
     if (pend.length) {
       // Agrupado pelo NOME (sem diferença de maiúsculas/acentos/espaços) — nome igual não prova que é a mesma
       // pessoa, então a tela diz "mesmo nome" e "Pagou tudo" sempre mostra a lista exata e pede confirmação.
