@@ -1825,7 +1825,21 @@
     renderApp();
     var f = document.getElementById('expenseFormWrap'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  function removerGasto(id) { var all = loadDespesas().filter(function (e) { return e.id !== id; }); if (saveDespesas(all) && editingExpId === id) { editingExpId = null; expDraft = null; } renderApp(); }
+  function removerGasto(id) {
+    var cur = loadDespesas(), pos = cur.findIndex(function (e) { return e.id === id; }); if (pos < 0) { renderApp(); return; }
+    var gone = cur[pos], all = cur.filter(function (e) { return e.id !== id; });
+    if (!saveDespesas(all)) { renderApp(); return; }
+    if (editingExpId === id) { editingExpId = null; expDraft = null; }
+    // Desfazer devolve o MESMO registro (todos os campos) na mesma posição, se ninguém o recriou.
+    setUndoRun(function () {
+      var now = loadDespesas().slice();
+      if (now.some(function (e) { return e.id === gone.id; })) { showToast('Não dá para desfazer: esse gasto já existe de novo. Nada foi mudado.', false, true); renderApp(); return; }
+      now.splice(Math.min(pos, now.length), 0, gone);
+      if (!saveDespesas(now)) return;
+      renderApp(); showToast('Desfeito: gasto de volta');
+    });
+    renderApp(); showToast('Gasto removido: ' + (gone.desc || 'sem descrição') + ' · ' + brl(Number(gone.valor) || 0), true);
+  }
 
   function renderExpenseHistoryAndTotal() {
     var key = viewDay;
@@ -1849,7 +1863,7 @@
           '<div class="s-right"><span class="s-total">' + brl(e.valor) + '</span><button class="s-edit" aria-label="Editar">✎</button><button class="s-del" aria-label="Remover">✕</button></div>';
         if (e.id === editingExpId) row.classList.add('editing');
         row.querySelector('.s-edit').addEventListener('click', function () { startEditExp(e); });
-        row.querySelector('.s-del').addEventListener('click', function () { confirmInline(row, 'Remover? Não dá para desfazer.', function () { removerGasto(e.id); }); });
+        row.querySelector('.s-del').addEventListener('click', function () { confirmInline(row, 'Remover?', function () { removerGasto(e.id); }); });
         histEl.appendChild(row);
       });
       histEl.insertAdjacentHTML('beforeend', moreHtml(expKey, sortedExp.length, nExp, 20));
@@ -1996,7 +2010,12 @@
   function renderEstoque() {
     var ix = estIndex(), all = ix.src;
     if (ix.un === undefined) ix.un = all.reduce(function (s, x) { return s + (Number(x.qty) || 0); }, 0);
-    var un = ix.un, low = ix.low;
+    // "Comprar": zerados primeiro, depois quem está mais longe do mínimo (proporcionalmente), depois o nome.
+    if (!ix.lowU) ix.lowU = ix.low.slice().sort(function (a, b) {
+      var qa = Number(a.qty) || 0, qb = Number(b.qty) || 0;
+      return ((qa > 0) - (qb > 0)) || (qa / a.min - qb / b.min) || pname(a).localeCompare(pname(b), 'pt-BR');
+    });
+    var un = ix.un, low = ix.lowU;
     var eb = document.getElementById('estBadge'); if (eb) { eb.textContent = low.length; eb.style.display = low.length ? 'inline-block' : 'none'; }
     // Card "Comprar": mostra 10 e cresce sob demanda; a lista do WhatsApp/cópia continua com todos.
     var lowShown = shownCount('comprar', 10, 50);
@@ -2044,7 +2063,7 @@
       '<button class="registrar-btn" id="fSave">Salvar produto</button>' + (isNew ? '<button class="clear-btn" id="fAgain" style="width:100%;margin-top:8px">Salvar e cadastrar outro da mesma marca</button>' : '') +
       '<button class="clear-btn" id="fCancel" style="width:100%;margin-top:8px">Cancelar</button>' + delBtn + '</div>';
     function fail(msg) { var e = document.getElementById('fErr'); e.textContent = msg; e.style.display = 'block'; }
-    function save(again) {
+    function save(again, dupOk) {
       var g = function (id) { return document.getElementById(id).value.trim(); };
       if (!g('fMarca') && !g('fModelo')) return fail('Informe a marca ou o modelo.');
       // Campos numéricos: vazio = 0; texto que não é número é recusado com explicação (não vira 0 em silêncio).
@@ -2054,6 +2073,14 @@
       if (isNaN(nm) || nm < 0) return fail('"Avisar quando ≤" inválido: digite um número (ex: 5) ou deixe vazio.');
       var es = loadEstoque().slice(), pos = isNew ? -1 : es.findIndex(function (y) { return y.id === x.id; });
       if (!isNew && pos < 0) { estUi.form = null; renderEstoque(); return; } // produto removido enquanto o formulário estava aberto
+      // Aviso de produto repetido (mesma categoria, marca e modelo, sem diferença de maiúsculas/acentos/espaços).
+      // Só avisa; quem decide é a pessoa. Na edição, só se o nome mudou (não incomoda quem já tem repetidos).
+      if (!isG && !dupOk) {
+        var nk = function (c, m, o) { return [c, m, o].map(function (t) { return norm(t).trim().replace(/\s+/g, ' '); }).join('|'); };
+        var key = nk(g('fCat'), g('fMarca'), g('fModelo')), mudou = isNew || key !== nk(x.cat, x.marca, x.modelo);
+        var dup = mudou && es.find(function (y) { return y.id !== x.id && !y.g && nk(y.cat, y.marca, y.modelo) === key; });
+        if (dup) return askConfirm('Já existe "' + pname(dup) + '" (' + (dup.inativo ? 'desativado, ' : '') + 'estoque ' + dup.qty + '). Salvar outro produto com o mesmo nome?', 'Salvar mesmo assim', 'Voltar', function () { save(again, true); });
+      }
       // Objeto novo (copy-on-write): preserva campos extras do produto e não altera o cache antes de gravar.
       var o = Object.assign({}, isNew ? { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5) } : es[pos],
         isG ? { qty: Math.round(nq), min: Math.round(nm) } // bateria/pilha: categoria, modelo e preço são fixos
@@ -2117,9 +2144,18 @@
         var qv = parseMoney(document.getElementById('eQtd').value), q = Math.round(qv);
         if (isNaN(qv) || q <= 0) { var eh = document.getElementById('eHint'); if (eh) eh.style.display = 'block'; return; }
         var arr = loadEstoque().slice(), k = arr.findIndex(function (y) { return y.id === estUi.entrada; }); if (k < 0) return;
+        var pid = arr[k].id, nome = pname(arr[k]);
         arr[k] = Object.assign({}, arr[k], { qty: (Number(arr[k].qty) || 0) + q });
         if (!saveEstoque(arr)) return;
-        estUi.entrada = null; renderEstoque();
+        // Desfazer tira só as unidades desta entrada (vendas feitas depois continuam descontadas).
+        setUndoRun(function () {
+          var es2 = loadEstoque().slice(), i = es2.findIndex(function (y) { return y.id === pid; });
+          if (i < 0) { showToast('Não dá para desfazer: o produto foi excluído. Nada foi mudado.', false, true); renderApp(); return; }
+          es2[i] = Object.assign({}, es2[i], { qty: (Number(es2[i].qty) || 0) - q });
+          if (!saveEstoque(es2)) return;
+          renderApp(); showToast('Desfeito: entrada de ' + q + ' removida (' + nome + ')');
+        });
+        estUi.entrada = null; renderEstoque(); showToast('Entrada: +' + q + ' em ' + nome + ' (agora ' + arr[k].qty + ')', true);
       });
     }
   }
@@ -2321,9 +2357,12 @@
      corrige o estoque apenas pelos itens dessas vendas. Alterações feitas depois (entrada de estoque, outras
      vendas) continuam intactas. */
   function setUndo(pairs) { undoState = pairs && pairs.length ? { pairs: pairs } : null; }
+  // Desfazer de outras ações (gasto removido, entrada de estoque): run() confere os dados ATUAIS e grava.
+  function setUndoRun(run) { undoState = { run: run }; }
   function sameRec(a, b) { return a === b || (!a && !b) || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b)); }
   function doUndo() {
     var u = undoState; if (!u) return; undoState = null;
+    if (u.run) { u.run(); return; }
     var all = loadVendas().slice(), es = loadEstoque().slice(), pos = new Map();
     all.forEach(function (v, i) { pos.set(v.id, i); });
     var ok = u.pairs.every(function (p) { var id = (p.after || p.before).id, i = pos.get(id); return sameRec(i === undefined ? null : all[i], p.after); });
