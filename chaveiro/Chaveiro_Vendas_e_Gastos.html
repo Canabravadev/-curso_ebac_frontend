@@ -8,6 +8,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
+  /* ORGANIZAÇÃO DO CSS
+     O visual foi construído em camadas (base → "Embelezamento" → v3 … v8 → Fases 1–4). A ORDEM IMPORTA: várias
+     regras posteriores refinam as anteriores com o mesmo peso de seletor, então os blocos não devem ser
+     reordenados. As declarações que nunca podiam vencer (sempre redefinidas mais abaixo pelo mesmo seletor) foram
+     removidas na Fase 5; o que ficou em cada camada ainda tem efeito.
+     Tema escuro: @media (prefers-color-scheme: dark) + :root[data-theme] (o atributo pode ser definido pelo
+     ambiente que hospeda a página). */
   :root {
     
     --steel: #837A66; --danger: #A6432A;
@@ -154,8 +161,6 @@
   .export-msg { text-align: center; font-size: 0.82rem; color: var(--ink-soft); padding: 0 20px 20px; }
   .daynav { max-width: 520px; margin-left: auto; margin-right: auto; }
   .cols { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); align-items: start; }
-  .cols.single { grid-template-columns: minmax(0, 1fr); }
-  .cols.single > .col:first-child { display: none; }
   .cols .totalbar { margin-top: 16px; }
   #resumoContent { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
   #resumoContent .card-wide, #resumoContent .footer-actions, #resumoContent .export-msg { grid-column: 1 / -1; }
@@ -179,7 +184,6 @@
   .mcell .stepper { gap: 6px; }
   .mcell .step-btn { width: 28px; height: 28px; font-size: 1rem; }
   .mcell .step-count { font-size: 1rem; min-width: 14px; }
-  .mcell .field-wrap { margin-top: 6px; min-width: 0; }
   @media (min-width: 861px) { .mgrid2 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
   .ghead { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; background: none; border: none; padding: 0; color: var(--ink); font-family: inherit; cursor: pointer; text-align: left; }
   .ghead .gr { display: flex; align-items: center; gap: 8px; }
@@ -249,8 +253,7 @@
   .stk-res { transition: all .12s; } .stk-res:hover { border-color: var(--brass); background: var(--brass-wash); }
   .mpop { box-shadow: var(--shadow-lg); }
   .empty { border: 1px dashed var(--line); border-radius: 12px; margin: 8px 0; }
-  .item-row > .field-wrap { margin-top: 0 !important; min-width: 0; }
-  @media (max-width: 640px) { .item-row > .field-wrap[style] { flex-basis: 100%; } header { padding-left: 14px; padding-right: 14px; } .card, .totals-card, .totalbar, .daynav, .history, .databar { margin-left: 12px; margin-right: 12px; } .history { padding-left: 0; padding-right: 0; } }
+  @media (max-width: 640px) { header { padding-left: 14px; padding-right: 14px; } .card, .totals-card, .totalbar, .daynav, .history, .databar { margin-left: 12px; margin-right: 12px; } .history { padding-left: 0; padding-right: 0; } }
   @media print { header, .daynav, .tabbar, .databar { display: none; } }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
@@ -262,7 +265,6 @@
   .sel-line .sel-v { font-family: 'JetBrains Mono', monospace; font-size: .88rem; white-space: nowrap; }
   
   .sel-empty { font-size: .85rem; color: var(--ink-soft); }
-  @keyframes selIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
   .stk-res:active { transform: scale(.99); }
   .item-row:last-of-type { border-radius: 0 0 12px 12px; }
 
@@ -284,7 +286,6 @@
   .registrar-btn:not(:disabled) { position: relative; overflow: hidden; }
   .registrar-btn:not(:disabled)::after { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, transparent 30%, rgba(255,255,255,.22) 50%, transparent 70%); transform: translateX(-120%); transition: transform .6s; }
   .registrar-btn:not(:disabled):hover::after { transform: translateX(120%); }
-  @keyframes cardIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   ::-webkit-scrollbar { width: 10px; } ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; border: 2px solid var(--bg); }
   @media (max-width: 480px) { .sel-line { grid-template-columns: 1fr auto; } .sel-line .sel-v { grid-column: 2; grid-row: 1; } .sel-line .sel-step { grid-column: 1 / -1; justify-self: start; } }
 
@@ -816,14 +817,22 @@
 <div class="toast" id="toast" role="status"></div>
 <script>
 (function () {
-  /* ÍNDICE DO CÓDIGO
-     1. Configuração   (categorias, preços, formas de pagamento)
-     2. Estado e dados (localStorage: vendas, gastos, estoque)
-     3. Aba Vendas     (formulário, resumo de itens, totais, histórico)
-     4. Aba Gastos     (formulário e histórico)
-     5. Aba Estoque    (produtos, entradas, busca na venda)
-     6. Aba Resumo     (mês, fiado, relatório CSV, backup)
-     7. Arquivo de dados no disco e navegação (dia/mês) */
+  /* ÍNDICE DO CÓDIGO (na ordem do arquivo)
+     1. Configuração ........ categorias, baterias/pilhas, serviços, formas de pagamento, chaves do localStorage
+     2. Estado da tela ...... dia/mês absolutos, formulário da venda, edição em andamento, rascunho do gasto
+     3. Dados ............... cache em memória (somente leitura) + índices: Map de produtos, vendas/gastos por dia/mês
+     4. Gravação segura ..... commit() tudo-ou-nada, leitura tolerante, validação/normalização, merge de backups
+     5. Datas e dinheiro .... dayKey/parseDay/fmt*, money(), parseMoney()
+     6. Aba Vendas .......... cálculo e validação, resumo da venda, blocos do formulário, registrar/editar/remover,
+                              histórico do dia
+     7. Aba Gastos .......... formulário (com rascunho) e histórico
+     8. Relatório CSV
+     9. Estoque ............. busca na venda (relevância) e aba Estoque (lista paginada, formulário, entradas)
+    10. Arquivo de dados .... sincronização em 3 vias com o arquivo, conflito, barra de avisos
+    11. Venda (apoio) ....... pagamento, desfazer granular, confirmação, avisos, meta, mais vendidos, gráficos
+    12. Resumo .............. fiado e recebimentos, backup/restore, resumo do mês
+    13. Navegação ........... renderApp, dia/mês, virada do dia, limpar o dia, seletores, inicialização
+    Diagnóstico: window.__chaveiroFreeze (só testes) congela o cache para provar que nada o altera diretamente. */
   var CATEGORIES = [
     { id: 'simples', label: 'Chave Simples', price: 14 },
     { id: 'tetra', label: 'Tetra', price: 35 },
@@ -885,7 +894,6 @@
   var groupOpen = (function () { try { return JSON.parse(localStorage.getItem('chaveiro_ui_v1')) || {}; } catch (e) { return {}; } })();
   if (groupOpen.svc === undefined) groupOpen.svc = false;
   function saveUi() { try { localStorage.setItem('chaveiro_ui_v1', JSON.stringify(groupOpen)); } catch (e) {} }
-  function cancelEdit() { cancelSaleEdit(); editingExpId = null; expDraft = null; }
   function cancelSaleEdit() { if (editingSaleId) { resetItemState(); finalValueRaw = ''; } editingSaleId = null; }
   // Há algo relevante no formulário de venda? (itens, desconto) — usado para não descartar em silêncio (B20).
   function hasDraft() {
@@ -1678,8 +1686,17 @@
     if (t === undefined) { t = norm(sale.items.map(function (it) { return itemName(it); }).join(' ')) + '\u0001' + norm(sale.day.split('-').reverse().join('/')) + '\u0001' + norm(PAY[sale.pay] || ''); _saleTxt.set(sale, t); }
     return t.indexOf(q) > -1;
   }
+  // Horário de um registro (vendas e gastos lançados em outro dia não têm horário).
+  function timeLabel(r) { return r.manual ? 'sem horário' : new Date(r.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); }
+  // Troca os botões da linha por "Remover? Sim/Não"; "Não" redesenha a tela (desiste).
+  function confirmInline(row, msg, onYes) {
+    var rightEl = row.querySelector('.s-right');
+    rightEl.innerHTML = '<span class="s-confirm-text">' + msg + '</span><button class="s-confirm-btn yes">Sim</button><button class="s-confirm-btn no">Não</button>';
+    rightEl.querySelector('.yes').addEventListener('click', onYes);
+    rightEl.querySelector('.no').addEventListener('click', renderApp);
+  }
   function buildSaleRow(sale, showDay) {
-    var time = new Date(sale.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); if (sale.manual) time = 'sem horário';
+    var time = timeLabel(sale);
     if (showDay) time = sale.day.split('-').reverse().join('/') + ' · ' + time;
     var summary = sale.items.map(function (it) {
       if (it.cat === 'outros') return (it.qty > 1 ? escAttr(it.qty) + 'x ' : '') + escAttr(itemName(it)) + ' — ' + brl((it.unitPrice || 0) * it.qty);
@@ -1691,13 +1708,8 @@
       '<div class="s-right"><span class="s-total">' + brl(sale.total) + '</span><button class="s-edit" aria-label="Editar">✎</button><button class="s-del" aria-label="Remover">✕</button></div>';
     if (sale.id === editingSaleId) row.classList.add('editing');
     row.querySelector('.s-edit').addEventListener('click', function () { requestEditSale(sale); });
-    row.querySelector('.s-del').addEventListener('click', function () {
-      var rightEl = row.querySelector('.s-right');
-      rightEl.innerHTML = '<span class="s-confirm-text">Remover?</span><button class="s-confirm-btn yes">Sim</button><button class="s-confirm-btn no">Não</button>';
-      rightEl.querySelector('.yes').addEventListener('click', function () { removerVenda(sale.id); });
-      // (pode ser desfeito pelo aviso que aparece em seguida)
-      rightEl.querySelector('.no').addEventListener('click', renderApp);
-    });
+    // remover venda pode ser desfeito pelo aviso que aparece em seguida
+    row.querySelector('.s-del').addEventListener('click', function () { confirmInline(row, 'Remover?', function () { removerVenda(sale.id); }); });
     return row;
   }
   var lastHistQ = '';
@@ -1823,18 +1835,13 @@
       var expKey = 'exp-' + key, sortedExp = despesas.slice().sort(function (a, b) { return b.ts - a.ts; });
       var nExp = Math.min(shownCount(expKey, 20, 20), sortedExp.length);
       sortedExp.slice(0, nExp).forEach(function (e) {
-        var time = new Date(e.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); if (e.manual) time = 'sem horário';
+        var time = timeLabel(e);
         var row = document.createElement('div'); row.className = 'sale-item';
         row.innerHTML = '<div class="s-left"><span class="s-time">' + time + '</span><span class="s-desc">' + (e.desc ? escAttr(e.desc) + ' — ' : '') + escAttr(expCatLabel(e.cat)) + '</span></div>' +
           '<div class="s-right"><span class="s-total">' + brl(e.valor) + '</span><button class="s-edit" aria-label="Editar">✎</button><button class="s-del" aria-label="Remover">✕</button></div>';
         if (e.id === editingExpId) row.classList.add('editing');
         row.querySelector('.s-edit').addEventListener('click', function () { startEditExp(e); });
-        row.querySelector('.s-del').addEventListener('click', function () {
-          var rightEl = row.querySelector('.s-right');
-          rightEl.innerHTML = '<span class="s-confirm-text">Remover? Não dá para desfazer.</span><button class="s-confirm-btn yes">Sim</button><button class="s-confirm-btn no">Não</button>';
-          rightEl.querySelector('.yes').addEventListener('click', function () { removerGasto(e.id); });
-          rightEl.querySelector('.no').addEventListener('click', renderApp);
-        });
+        row.querySelector('.s-del').addEventListener('click', function () { confirmInline(row, 'Remover? Não dá para desfazer.', function () { removerGasto(e.id); }); });
         histEl.appendChild(row);
       });
       histEl.insertAdjacentHTML('beforeend', moreHtml(expKey, sortedExp.length, nExp, 20));
@@ -2428,10 +2435,6 @@
     var mx = Math.max.apply(null, vals.concat([1])), line = 'M' + vals.map(function (v, i) { return (i * 400 / 6).toFixed(1) + ' ' + (72 - (v / mx) * 56).toFixed(1); }).join(' L');
     return '<defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD98A" stop-opacity=".55"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></linearGradient></defs><path d="' + line + ' V84 H0Z" fill="url(#sg)"/><path d="' + line + '" fill="none" stroke="#FFD98A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
   }
-  function paySummary(sales) {
-    var t = {}; sales.forEach(function (s) { if (s.pay) t[s.pay] = (t[s.pay] || 0) + s.total; });
-    return Object.keys(PAY).filter(function (k) { return t[k]; }).map(function (k) { return PAY[k] + ' ' + brl(t[k]); }).join(' · ');
-  }
   function payTag(s) {
     if (!s.pay) return '<span class="s-discount">Pagamento não registrado</span>';
     var t = payLabel(s.pay);
@@ -2767,15 +2770,16 @@
   });
   // A navegação de dia/mês fica dentro do header: a área fixa no topo é só a altura real do header.
   function syncStickyOffsets() {
-    var h = document.querySelector('header'), root = document.documentElement.style;
-    var hh = h ? h.offsetHeight : 0; root.setProperty('--hdr-h', hh + 'px'); root.setProperty('--stick-top', hh + 'px');
+    var h = document.querySelector('header');
+    document.documentElement.style.setProperty('--stick-top', (h ? h.offsetHeight : 0) + 'px');
   }
   window.addEventListener('resize', syncStickyOffsets);
   window.addEventListener('load', syncStickyOffsets);
-  if (window.ResizeObserver) { var ro = new ResizeObserver(syncStickyOffsets); var hd = document.querySelector('header'); if (hd) ro.observe(hd); }
+  if (window.ResizeObserver) { var hd = document.querySelector('header'); if (hd) new ResizeObserver(syncStickyOffsets).observe(hd); }
+  // sem ResizeObserver (navegadores antigos): recalcula ao trocar de aba (a navegação de dia aparece/some)
+  else document.querySelectorAll('.tab-btn').forEach(function (b) { b.addEventListener('click', function () { setTimeout(syncStickyOffsets, 0); }); });
   // Seletores de dia/mês também pelo teclado (Enter/Espaço).
   ['dateBtn', 'monthBtn'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('keydown', function (ev) { if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); el.click(); } }); });
-  document.querySelectorAll('.tab-btn').forEach(function (b) { b.addEventListener('click', function () { setTimeout(syncStickyOffsets, 0); }); });
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   renderApp();
   syncStickyOffsets();
