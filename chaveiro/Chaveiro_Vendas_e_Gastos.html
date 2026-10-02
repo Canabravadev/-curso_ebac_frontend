@@ -318,7 +318,7 @@
   .quick .tile-row:hover { border-color: color-mix(in srgb, var(--brass) 60%, var(--line)); background: var(--paper); }
   .quick .tile-row.on { border-color: var(--brass); background: color-mix(in srgb, var(--brass-wash) 55%, var(--paper)); box-shadow: 0 0 0 1px var(--brass); }
   .quick .tile-row .ico { display: none; }
-  .quick .item-label { font-family: var(--serif); font-size: 1.12rem; font-weight: 600; }
+  .quick .item-label { font-family: var(--serif); font-size: 1.04rem; font-weight: 600; }
   .quick .item-price { font-size: .72rem; }
   .quick .stepper { justify-content: space-between; }
   .quick .tile-row .extra-fields { padding-left: 0; margin-top: 0; }
@@ -338,10 +338,12 @@
   .stk-grid { display: grid; gap: 8px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .stk-box { min-width: 0; }
   .stk-box:first-child { grid-column: 1 / -1; }
-  .stk-head { display: flex; align-items: baseline; gap: 6px; margin: 0 0 4px 2px; }
+  .stk-head { display: flex; align-items: baseline; gap: 4px; margin: 0 0 4px 2px; }
+  .stk-head > span { display: flex; align-items: baseline; gap: 5px; }
   .stk-head .ico { display: none; }
   .stk-head b { font-size: .74rem; font-weight: 700; color: var(--ink-soft); } .stk-head small { color: var(--ink-faint); font-size: .72rem; }
   .stk-head small::before { content: '· '; }
+  .stk-head small { margin-left: -2px; }
   .stk-input { display: flex; align-items: center; gap: 8px; background: var(--paper-2); border: 1px solid var(--line); border-radius: var(--r-sm); padding: 0 10px; color: var(--ink-soft); transition: border-color .15s, box-shadow .15s, background .15s; }
   .stk-input:focus-within { border-color: var(--brass); background: var(--paper); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brass) 20%, transparent); }
   .stk-input input { border: none; background: none; outline: none; color: var(--ink); font-size: .92rem; padding: 10px 0; width: 100%; min-width: 0; }
@@ -412,7 +414,7 @@
   .sl-btn:disabled { opacity: .35; cursor: default; }
   .sel-line .sel-v { min-width: 76px; text-align: right; font-family: var(--mono); font-weight: 700; font-size: .9rem; white-space: nowrap; }
   .sel-line .sel-v.pend { color: var(--danger); font-weight: 600; font-size: .76rem; font-family: var(--sans); }
-  .sel-empty { text-align: center; padding: 16px 10px; color: var(--ink-soft); font-size: .86rem; line-height: 1.45; border: 1px dashed var(--line); border-radius: var(--r-md); }
+  .sel-empty { text-align: center; padding: 14px 10px 10px; color: var(--ink-soft); font-family: var(--mono); font-size: .76rem; letter-spacing: .08em; text-transform: uppercase; }
   .totals-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; font-size: .94rem; }
   .totals-row.discount-row input { border: 1px solid var(--line); background: var(--paper-2); color: var(--ink); font-family: var(--mono); padding: 6px 8px; width: 96px; text-align: right; border-radius: var(--r-sm); outline: none; }
   .totals-row.discount-row input:focus { border-color: var(--brass); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brass) 20%, transparent); background: var(--paper); }
@@ -461,7 +463,6 @@
   .s-discount { display: inline-block; width: fit-content; font-size: .7rem; color: var(--ink-soft); padding: 1px 7px; border-radius: 5px; background: var(--paper-2); }
   .s-discount.pay-tag { --pc: var(--ink-soft); font-family: var(--mono); font-weight: 700; letter-spacing: .04em; color: var(--pc); background: transparent; box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--pc) 70%, transparent); }
   .s-discount.pay-tag.pay-dinheiro { --pc: var(--cash); } .s-discount.pay-tag.pay-pix { --pc: var(--pix); } .s-discount.pay-tag.pay-cartao { --pc: var(--card); } .s-discount.pay-tag.pay-fiado { --pc: var(--fiado); }
-  .s-num { font-family: var(--mono); font-size: .68rem; color: var(--ink-faint); margin-left: 6px; }
   /* linha do tempo: trilho à esquerda com um ponto na tinta do pagamento */
   #history .sale-item { position: relative; padding-left: 26px; }
   #history .sale-item::before { content: ''; position: absolute; left: 10px; top: 0; bottom: -1px; width: 1.5px; background: var(--line); }
@@ -547,7 +548,7 @@
   /* calendário do mês: cada dia tingido pelo faturamento; tocar abre o dia em Vendas */
   .cal { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
   .cal-h { font-size: .64rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); text-align: center; padding-bottom: 2px; }
-  .cal-d { position: relative; aspect-ratio: 1 / .82; min-height: 34px; border-radius: 7px; border: 1px solid var(--line-soft); cursor: pointer; padding: 3px 5px; text-align: left;
+  .cal-d { position: relative; aspect-ratio: 1 / .82; min-height: 34px; max-height: 58px; border-radius: 7px; border: 1px solid var(--line-soft); cursor: pointer; padding: 3px 5px; text-align: left;
     display: flex; flex-direction: column; justify-content: space-between; color: var(--ink);
     background: color-mix(in srgb, var(--brass-hi) calc(var(--h, 0) * 85%), var(--paper)); transition: transform .1s, border-color .12s; }
   .cal-d span { font-family: var(--mono); font-size: .68rem; font-weight: 700; }
@@ -559,10 +560,6 @@
   .cal-d.pad { visibility: hidden; }
   .cal-leg { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: .72rem; color: var(--ink-soft); flex-wrap: wrap; }
   .cal-leg i { display: inline-block; width: 56px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, var(--paper), var(--brass-hi)); box-shadow: inset 0 0 0 1px var(--line); }
-  .chart { width: 100%; height: 130px; display: block; margin-top: 6px; }
-  .chart-leg { display: flex; gap: 14px; flex-wrap: wrap; font-size: .72rem; color: var(--ink-soft); margin-top: 6px; }
-  .chart-leg i { display: inline-block; vertical-align: middle; margin-right: 5px; }
-  .lg-bar { width: 10px; height: 10px; border-radius: 3px; background: var(--brass-hi); } .lg-dash { width: 14px; border-top: 2px dashed var(--ink-soft); }
   .insight { background: var(--paper-2); border-left: 3px solid var(--brass); border-radius: 8px; padding: 9px 12px; margin: 4px 0 10px; font-size: .9rem; }
   .hbars { display: flex; align-items: flex-end; gap: 4px; height: 92px; margin-top: 6px; }
   .hb { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
@@ -604,6 +601,7 @@
     .hero .spark { grid-area: spark; height: 56px; margin: 6px -24px 0; width: calc(100% + 48px); }
     .spark-days { height: 56px; }
     .hd-btn .hd-lbl { display: inline; }
+    .mgrid2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   }
   @media (min-width: 861px) and (max-width: 1400px) { .hd-btn .hd-lbl { display: none; } .hd-btn { padding: 0 8px; } }
   @media (min-width: 861px) and (max-width: 1100px) { .tab-btn { padding: 7px 9px; } .tab-btn .ti { display: none; } .hd-btn kbd, .hd-btn .hd-lbl { display: none; }
@@ -665,7 +663,8 @@
     .outro-line .stepper { grid-column: 1; } .outro-line .outro-del { grid-column: 2; justify-self: end; }
     #history .sale-item .s-right, #expHistory .sale-item .s-right { flex-wrap: wrap; justify-content: flex-end; width: 92px; row-gap: 0; }
     #history .sale-item .s-total, #expHistory .sale-item .s-total { min-width: 0; width: 100%; }
-    #estList .sale-item { gap: 8px; } #estList .s-right { gap: 4px; } #estList .est-btn { padding: 7px 9px; }
+    /* estoque no celular: nome inteiro na 1ª faixa; quantidade e ações na 2ª, à direita */
+    #estList .sale-item { flex-wrap: wrap; gap: 4px 8px; } #estList .s-left { flex: 1 1 100%; } #estList .s-right { margin-left: auto; gap: 6px; }
     .resumo-strip { grid-template-columns: 1fr 1fr; } .resumo-strip .saldo { grid-column: 1 / -1; } .resumo-strip b { font-size: 1.15rem; }
     .est-tools #estNew { flex: 1 1 100%; }
     .gav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -760,7 +759,7 @@
   <div id="despesasSection" style="display:none">
     <div class="cols" id="despesasCols"><div class="col"><div id="expenseFormWrap"></div></div><div class="col">
     <div class="totalbar"><span class="t-label">Gastos do dia</span><span class="t-count" id="expDayTotal">R$ 0,00</span></div>
-    <div class="section-title">Gastos do dia</div>
+    <div class="section-title">Comprovantes do dia</div>
     <div class="history" id="expHistory"></div>
     <div class="footer-actions" id="expFooterActions">
       <button class="clear-btn" id="clearExpBtn">Limpar gastos do dia</button>
@@ -1217,8 +1216,11 @@
   function addDays(k, n) { var d = parseDay(k); d.setDate(d.getDate() + n); return dayKey(d); }
   function addMonths(m, n) { return monthKeyOf(new Date(+m.slice(0, 4), +m.slice(5, 7) - 1 + n, 1)); }
   function isTodayKey(k) { return k === todayKey(); }
-  function fmtDayLong(k) { return parseDay(k).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }); }
-  function fmtDayMed(k) { return parseDay(k).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }); }
+  // Formatadores criados uma vez (toLocaleString/toLocaleDateString criam um novo a cada chamada; a saída é a mesma).
+  var F_LONG = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }), F_MED = new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'long' });
+  var F_BRL = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }), F_INT = new Intl.NumberFormat('pt-BR');
+  function fmtDayLong(k) { return F_LONG.format(parseDay(k)); }
+  function fmtDayMed(k) { return F_MED.format(parseDay(k)); }
   function fmtDayShort(k) { return String(k || '').split('-').reverse().join('/'); }
   // Dia curto para botões: "02/10" (com o ano só quando não é o ano atual, para não ficar ambíguo).
   function fmtDM(k) { return k.slice(8, 10) + '/' + k.slice(5, 7) + (k.slice(0, 4) === todayKey().slice(0, 4) ? '' : '/' + k.slice(0, 4)); }
@@ -1232,7 +1234,7 @@
   function monthKeyOf(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
   // Valor como se digita no balcão, sem "R$" nem milhar: 1234.5 -> "1234,50" (usado na busca).
   function moneyTxt(n) { return money(n).toFixed(2).replace('.', ','); }
-  function brl(n) { return (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
+  function brl(n) { return F_BRL.format(n || 0); }
   // Arredondamento monetário central: tudo que é dinheiro e vai ser gravado/somado passa por aqui (centavos).
   function money(n) { n = Number(n); if (!isFinite(n)) return 0; return Math.round((n + (n >= 0 ? 1e-9 : -1e-9)) * 100) / 100; }
   // Valor monetário digitado -> número, ou NaN se não der para interpretar sem ambiguidade.
@@ -1323,7 +1325,7 @@
       var idAttr = l.sp ? 'data-sp="' + escAttr(l.sp) + '"' : (l.so !== undefined ? 'data-so="' + l.so + '"' : 'data-sc="' + l.sc + '"');
       var isOutro = l.so !== undefined, minusOff = isOutro && l.q <= 1;
       return '<div class="sel-line" data-k="' + (l.sp ? 'sp:' + escAttr(l.sp) : l.so !== undefined ? 'so:' + l.so : 'sc:' + l.sc) + '"><span class="sel-name">' + escAttr(l.name) + '</span><span class="sel-step"><button class="sl-btn sl-minus" ' + idAttr + (minusOff ? ' disabled title="Quantidade mínima é 1. Para tirar o item, use 🗑."' : '') + ' aria-label="Diminuir">−</button><span class="sel-q">' + l.q + '</span><button class="sl-btn sl-plus" ' + idAttr + ' aria-label="Aumentar">+</button>' + (isOutro ? '<button class="sl-btn sl-del" data-so-del="' + l.so + '" aria-label="Remover este item" title="Remover este item">🗑</button>' : '') + '</span><span class="sel-v' + (l.pend ? ' pend' : '') + '">' + (l.pend ? 'sem valor' : brl(l.v)) + '</span></div>';
-    }).join('') : '<div class="sel-empty">Toque num produto ou busque no estoque para começar.</div>') + '</div>';
+    }).join('') : '<div class="sel-empty">— talão em branco —</div>') + '</div>';
   }
   // Problemas de pagamento da venda em edição (B21/B11).
   function payProblem() {
@@ -2052,7 +2054,7 @@
   }
   var expandState = {};
   // Listas longas: mostram "limit" itens e crescem de "step" em "step" ("Mostrar mais"), nunca a lista inteira de uma vez.
-  function fmtInt(n) { return Number(n).toLocaleString('pt-BR'); }
+  function fmtInt(n) { return F_INT.format(Number(n)); }
   function shownCount(key, limit, step) { return limit + (expandState[key] || 0) * (step || limit); }
   function moreHtml(key, total, shown, step) {
     var less = (expandState[key] || 0) > 0;
