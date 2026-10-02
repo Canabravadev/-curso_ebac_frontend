@@ -573,6 +573,7 @@
   .modal-bg[hidden] { display: none; }
   .modal { background: var(--bg-elevated); color: var(--ink); border-radius: 16px; padding: 18px; max-width: 420px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
   .modal p { margin: 0 0 14px; line-height: 1.45; }
+  .modal-list { margin: -4px 0 14px; padding-left: 18px; max-height: 40vh; overflow-y: auto; font-size: .88rem; line-height: 1.4; }
   .modal-btns { display: flex; gap: 8px; } .modal-btns > * { flex: 1; margin: 0 !important; width: auto !important; }
   .stk-sel.need-price { flex-wrap: wrap; } .stk-sel.need-price .extra-fields { padding-left: 46px; }
   .tile-go { white-space: nowrap; }
@@ -840,7 +841,7 @@
   </main>
 </div>
 
-<div class="modal-bg" id="modal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalMsg"><p id="modalMsg"></p><div class="modal-btns"><button type="button" class="clear-btn" id="modalNo"></button><button type="button" class="registrar-btn" id="modalYes"></button></div></div></div>
+<div class="modal-bg" id="modal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalMsg"><p id="modalMsg"></p><ul id="modalList" class="modal-list" hidden></ul><div class="modal-btns"><button type="button" class="clear-btn" id="modalNo"></button><button type="button" class="registrar-btn" id="modalYes"></button></div></div></div>
 <div class="toast" id="toast" role="status"></div>
 <script>
 (function () {
@@ -2498,9 +2499,11 @@
     renderApp(); showToast('Desfeito');
   }
   // Confirmação simples (texto + 2 botões). onOk só roda no botão de confirmar.
-  function askConfirm(msg, okLabel, cancelLabel, onOk) {
-    var m = document.getElementById('modal'); if (!m) { if (window.confirm(msg)) onOk(); return; }
+  function askConfirm(msg, okLabel, cancelLabel, onOk, lista) {
+    var m = document.getElementById('modal'); if (!m) { if (window.confirm(msg + (lista ? '\n\n' + lista.join('\n') : ''))) onOk(); return; }
     document.getElementById('modalMsg').textContent = msg;
+    var ul = document.getElementById('modalList');
+    if (ul) { ul.innerHTML = ''; (lista || []).forEach(function (t) { var li = document.createElement('li'); li.textContent = t; ul.appendChild(li); }); ul.hidden = !(lista && lista.length); }
     var yes = document.getElementById('modalYes'), no = document.getElementById('modalNo');
     yes.textContent = okLabel; no.textContent = cancelLabel;
     function close() { m.hidden = true; document.removeEventListener('keydown', onKey); }
@@ -2626,11 +2629,13 @@
       (svc ? '<div class="totals-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;"><span>Mão de obra (serviços)</span><span>' + brl(svc) + '</span></div>' : '') + '</div>';
     h += '<div class="card"><div class="card-title">Mais vendidos do mês</div>' + (rank.length ? capList('rank-' + mKeyR, rank, 5, function (k, i) { return '<div class="totals-row"><span>' + (i + 1) + '. ' + escAttr(porCat[k].label) + '</span><span>' + porCat[k].qty + ' un.</span></div>'; }) : '<div class="empty">Nenhuma venda neste mês.</div>') + '</div>';
     if (pend.length) {
-      // Agrupado por cliente (nome sem diferença de maiúsculas/acentos/espaços); clientes com a dívida mais
-      // antiga primeiro. O nome exibido é o que foi digitado na venda mais antiga — nada é renomeado.
+      // Agrupado pelo NOME (sem diferença de maiúsculas/acentos/espaços) — nome igual não prova que é a mesma
+      // pessoa, então a tela diz "mesmo nome" e "Pagou tudo" sempre mostra a lista exata e pede confirmação.
+      // Dívidas mais antigas primeiro. O nome exibido é o da venda mais antiga — nada é renomeado.
       var grupos = new Map();
       pend.slice().sort(function (a, b) { return a.day < b.day ? -1 : a.day > b.day ? 1 : a.ts - b.ts; }).forEach(function (v) {
-        var gk = norm(v.cliente || '').trim().replace(/\s+/g, ' '), g = grupos.get(gk);
+        // Fiado sem nome nunca é agrupado (cada venda é um grupo próprio): não há como saber de quem é.
+        var gk = norm(v.cliente || '').trim().replace(/\s+/g, ' ') || '\u0000' + v.id, g = grupos.get(gk);
         if (!g) grupos.set(gk, g = { nome: v.cliente || 'sem nome', vendas: [], saldo: 0 });
         g.vendas.push(v); g.saldo = money(g.saldo + saldoFiado(v));
       });
@@ -2641,7 +2646,7 @@
       _fiadoGrupos = lista.map(function (g) { return g.vendas.map(function (v) { return v.id; }); });
       h += capList('fiado-cli', lista, 15, function (g, gi) {
         var multi = g.vendas.length > 1;
-        return '<div class="fiado-cli">' + (multi ? '<div class="fiado-cli-head"><span><b>' + escAttr(g.nome) + '</b> · ' + g.vendas.length + ' vendas</span><b>' + brl(g.saldo) + '</b></div>' +
+        return '<div class="fiado-cli">' + (multi ? '<div class="fiado-cli-head"><span>Mesmo nome: <b>' + escAttr(g.nome) + '</b> · ' + g.vendas.length + ' vendas</span><b>' + brl(g.saldo) + '</b></div>' +
           '<div class="fiado-row">Pagou tudo hoje ' + payBtns('data-recall', gi) + '</div>' : '') +
           g.vendas.map(function (v) {
             var resumo = v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', '), rec = recebido(v), falta = saldoFiado(v);
@@ -2681,8 +2686,11 @@
   }
   // Cliente pagou tudo de uma vez: um recebimento do saldo inteiro em cada venda dele, gravados juntos
   // (tudo ou nada) e desfeitos juntos.
-  function receberTudoCliente(ids, how) {
-    var all = loadVendas().slice(), pairs = [], tot = 0, nome = '';
+  // esperado: {id: saldo mostrado na confirmação}. Se algum saldo mudou desde então (outra janela), nada é gravado.
+  function receberTudoCliente(esperado, how) {
+    var all = loadVendas().slice(), pairs = [], tot = 0, nome = '', ids = Object.keys(esperado);
+    var mudou = ids.some(function (id) { var s = all.find(function (x) { return x.id === id; }); return !s || saldoFiado(s) !== esperado[id]; });
+    if (mudou) { showToast('Os valores dessas vendas mudaram desde a confirmação (outra janela). Nada foi registrado; confira e tente de novo.', false, true); renderApp(); return; }
     ids.forEach(function (id) {
       var k = all.findIndex(function (x) { return x.id === id; }); if (k < 0) return;
       var s = all[k], falta = saldoFiado(s); if (!(falta > 0)) return;
@@ -2716,8 +2724,13 @@
     (root || document).querySelectorAll('[data-recall]').forEach(function (b) { b.addEventListener('click', function (ev) {
       if (repeatTap(ev)) return;
       var ids = _fiadoGrupos[+b.getAttribute('data-recall')] || [], how = b.getAttribute('data-how');
-      var tot = money(loadVendas().filter(function (x) { return ids.indexOf(x.id) > -1; }).reduce(function (t, x) { return t + saldoFiado(x); }, 0));
-      askConfirm('Registrar recebimento de ' + brl(tot) + ' (' + PAY[how] + ') hoje, quitando ' + ids.length + ' vendas fiado deste cliente?', 'Registrar', 'Cancelar', function () { receberTudoCliente(ids, how); });
+      var vs = loadVendas().filter(function (x) { return ids.indexOf(x.id) > -1 && saldoFiado(x) > 0; }).sort(function (a, c) { return a.day < c.day ? -1 : a.day > c.day ? 1 : a.ts - c.ts; });
+      if (!vs.length) return;
+      var esperado = {}; vs.forEach(function (x) { esperado[x.id] = saldoFiado(x); });
+      var tot = money(vs.reduce(function (t, x) { return t + saldoFiado(x); }, 0));
+      askConfirm('Quitar hoje (' + PAY[how] + ') estas ' + vs.length + ' vendas fiado com o nome "' + (vs[0].cliente || '').trim() + '", total ' + brl(tot) + '? Confira se são todas da mesma pessoa — nomes iguais podem ser pessoas diferentes. Se não forem, cancele e receba uma por uma.',
+        'Quitar ' + vs.length + ' vendas', 'Cancelar', function () { receberTudoCliente(esperado, how); },
+        vs.map(function (x) { return fmtDayShort(x.day) + ' · ' + x.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', ') + ' · ' + (x.cliente || '').trim() + ' · falta ' + brl(saldoFiado(x)); }));
     }); });
     (root || document).querySelectorAll('[data-unrec]').forEach(function (b) { b.addEventListener('click', function () {
       var sid = b.getAttribute('data-unrec'), rid = b.getAttribute('data-rid');
