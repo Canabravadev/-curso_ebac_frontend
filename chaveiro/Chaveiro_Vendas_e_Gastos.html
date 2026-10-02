@@ -607,6 +607,13 @@
     #history, #expHistory { max-height: calc(100vh - 380px); }
     #estList { max-height: calc(100vh - 360px); }
   }
+  /* ===== Fase 1 — estados de erro (integridade dos dados) ===== */
+  .reg-hint.err { color: var(--danger); font-weight: 600; } .reg-hint.err::before { content: '⚠ '; color: var(--danger); }
+  .totals-row.discount-row input.invalid { border-color: var(--danger); box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 18%, transparent); }
+  .toast.err { background: var(--danger); color: #fff; }
+  .databar.err { border-width: 2px; }
+  .databar .db-det { width: 100%; font-size: .78rem; color: var(--ink-soft); }
+  .databar button.alt { background: transparent; color: var(--brass-strong); }
 </style>
 </head>
 <body>
@@ -722,9 +729,11 @@
   var currentOffset = 0;
   var currentMonthOffset = 0;
 
-  var itemState = {}, stockItems = {}, stockQueries = {}, payState = 'cartao', clienteState = '', outrosList = [], outrosFocus = false;
+  // legacyItems: itens de uma venda em edição que não cabem no formulário (categoria antiga/desconhecida,
+  // linhas repetidas). São mostrados só para leitura e regravados intactos ao salvar.
+  var itemState = {}, stockItems = {}, stockQueries = {}, payState = 'cartao', clienteState = '', outrosList = [], outrosFocus = false, legacyItems = [];
   function resetItemState() {
-    stockItems = {}; stockQueries = {}; payState = 'cartao'; clienteState = ''; outrosList = [];
+    stockItems = {}; stockQueries = {}; payState = 'cartao'; clienteState = ''; outrosList = []; legacyItems = [];
     CATEGORIES.forEach(function (c) { itemState[c.id] = { qty: 0, price: c.price !== null ? c.price : '', desc: '', over: null }; });
   }
   resetItemState();
@@ -735,41 +744,253 @@
   function saveUi() { try { localStorage.setItem('chaveiro_ui_v1', JSON.stringify(groupOpen)); } catch (e) {} }
   function cancelEdit() { if (editingSaleId) { resetItemState(); finalValueRaw = ''; } editingSaleId = null; editingExpId = null; }
 
-  function loadVendas() { try { var r = localStorage.getItem(STORAGE_VENDAS); return r ? JSON.parse(r) : []; } catch (e) { return []; } }
-  function saveVendas(list) { try { localStorage.setItem(STORAGE_VENDAS, JSON.stringify(list)); } catch (e) {} touch(); }
-  function loadDespesas() { try { var r = localStorage.getItem(STORAGE_DESPESAS); return r ? JSON.parse(r) : []; } catch (e) { return []; } }
-  function saveDespesas(list) { try { localStorage.setItem(STORAGE_DESPESAS, JSON.stringify(list)); } catch (e) {} touch(); }
+  function loadVendas() { return readList(STORAGE_VENDAS, normSale, 'venda'); }
+  function saveVendas(list) { var m = {}; m[STORAGE_VENDAS] = list; return commit(m); }
+  function loadDespesas() { return readList(STORAGE_DESPESAS, normExp, 'gasto'); }
+  function saveDespesas(list) { var m = {}; m[STORAGE_DESPESAS] = list; return commit(m); }
+
+  /* ----- Camada de gravação segura -----
+     commit({chave: valor, ...}) grava tudo ou nada: se qualquer gravação falhar (ex.: armazenamento cheio),
+     desfaz as que já foram feitas, guarda o estado pretendido em memória (para o backup) e avisa o usuário.
+     Retorna true/false. Quem chama NÃO deve limpar formulário nem mostrar sucesso quando receber false. */
+  var STORAGE_QUAR = 'chaveiro_quarentena_v1', STORAGE_CORRUPT = 'chaveiro_corrompido_v1', STORAGE_SYNC = 'chaveiro_filesync_v1';
+  var saveError = null, unsavedState = null, corruptKeys = {}, loadWarning = '';
+  function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function commit(map, opt) {
+    var done = [], prev = {};
+    try {
+      Object.keys(map).forEach(function (k) {
+        if (corruptKeys[k]) throw new Error('corrupt');
+        prev[k] = localStorage.getItem(k);
+        localStorage.setItem(k, typeof map[k] === 'string' ? map[k] : JSON.stringify(map[k]));
+        done.push(k);
+      });
+    } catch (e) {
+      done.forEach(function (k) { try { if (prev[k] == null) localStorage.removeItem(k); else localStorage.setItem(k, prev[k]); } catch (e2) {} });
+      saveFailed(map, e);
+      return false;
+    }
+    if (saveError) { saveError = null; unsavedState = null; renderDataBar(); }
+    if (!(opt && opt.noTouch)) touch();
+    return true;
+  }
+  function saveFailed(map, e) {
+    unsavedState = unsavedState || {};
+    Object.keys(map).forEach(function (k) { unsavedState[k] = map[k]; });
+    var full = e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
+    saveError = e && e.message === 'corrupt' ? 'Os dados guardados no navegador estão danificados e não puderam ser copiados com segurança, então a gravação foi bloqueada para não perder nada.'
+      : full ? 'O armazenamento do navegador está cheio.' : 'O navegador bloqueou a gravação dos dados.';
+    showToast('Não foi possível salvar — nada foi registrado. Veja o aviso no topo.', false, true);
+    renderDataBar();
+  }
+  function addQuarantine(entries) {
+    if (!entries.length) return;
+    var q; try { q = JSON.parse(lsGet(STORAGE_QUAR) || '[]'); } catch (e) { q = []; }
+    if (!Array.isArray(q)) q = [];
+    var at = Date.now(); entries.forEach(function (x) { x.em = at; q.push(x); });
+    try { localStorage.setItem(STORAGE_QUAR, JSON.stringify(q)); } catch (e) {}
+  }
+  function loadQuarantine() { try { var q = JSON.parse(lsGet(STORAGE_QUAR) || '[]'); return Array.isArray(q) ? q : []; } catch (e) { return []; } }
+  // Lê uma lista do localStorage sem nunca derrubar o app: JSON danificado é copiado para uma chave à parte
+  // (e a gravação dessa chave fica bloqueada se a cópia falhar); registros ilegíveis vão para a quarentena.
+  function readList(key, normFn, tipo) {
+    var raw = lsGet(key); if (!raw) return [];
+    var list; try { list = JSON.parse(raw); } catch (e) { list = null; }
+    if (!Array.isArray(list)) {
+      try {
+        var c = JSON.parse(lsGet(STORAGE_CORRUPT) || '{}') || {};
+        if (c[key] !== raw) { c[key + '@' + Date.now()] = raw; c[key] = raw; localStorage.setItem(STORAGE_CORRUPT, JSON.stringify(c)); }
+      } catch (e) { corruptKeys[key] = true; }
+      loadWarning = 'Parte dos dados guardados no navegador estava danificada (' + tipo + 's). Uma cópia foi guardada à parte; faça um backup.';
+      return [];
+    }
+    var out = [], bad = [], changed = false;
+    for (var i = 0; i < list.length; i++) {
+      var r = normFn(list[i]);
+      if (r === null) { bad.push({ tipo: tipo, origem: 'navegador', registro: list[i] }); changed = true; }
+      else { if (r !== list[i]) changed = true; out.push(r); }
+    }
+    if (changed) {
+      addQuarantine(bad);
+      try { localStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
+      if (bad.length) loadWarning = bad.length + ' registro(s) ilegível(is) foram separados e guardados à parte (aparecem no backup).';
+    }
+    return out;
+  }
+
+  /* ----- Validação/normalização de registros -----
+     Cada função devolve o MESMO objeto quando ele já é válido (sem custo), uma cópia corrigida quando dá para
+     interpretar, ou null quando não dá. Campos extras desconhecidos são sempre preservados. */
+  function isObj(x) { return !!x && typeof x === 'object' && !Array.isArray(x); }
+  function fin(n) { return typeof n === 'number' && isFinite(n); }
+  function validDay(d) { return typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d); }
+  function genId() { return Date.now() + '-' + Math.random().toString(36).slice(2, 7); }
+  function toNum(v) { if (fin(v)) return v; var n = parseMoney(v); return isNaN(n) ? NaN : n; }
+  function dayFromTs(ts) { return fin(ts) && !isNaN(new Date(ts).getTime()) ? dayKey(new Date(ts)) : null; }
+  function tsFromDay(day) { var p = day.split('-'); return new Date(+p[0], +p[1] - 1, +p[2], 12).getTime(); }
+  function validSaleItem(i) { return isObj(i) && typeof i.cat === 'string' && i.cat !== '' && fin(i.qty) && i.qty > 0 && fin(i.unitPrice); }
+  function normSaleItem(i) {
+    if (validSaleItem(i)) return i;
+    if (!isObj(i)) return null;
+    var o = Object.assign({}, i), q = toNum(o.qty), u = toNum(o.unitPrice);
+    if (typeof o.cat !== 'string' || !o.cat) o.cat = o.pid ? 'estoque' : 'desconhecido';
+    o.qty = q > 0 ? q : 1; o.unitPrice = isNaN(u) ? 0 : money(u);
+    if (o.desc != null && typeof o.desc !== 'string') o.desc = String(o.desc);
+    return o;
+  }
+  function normSale(x) {
+    if (isObj(x) && typeof x.id === 'string' && x.id && validDay(x.day) && fin(x.ts) && Array.isArray(x.items) && x.items.every(validSaleItem) && fin(x.total) && fin(x.subtotal) && fin(x.discount)) return x;
+    if (!isObj(x)) return null;
+    var s = Object.assign({}, x);
+    if (typeof s.id !== 'string' || !s.id) s.id = s.id != null && s.id !== '' ? String(s.id) : genId();
+    if (!validDay(s.day)) { var d = dayFromTs(s.ts); if (!d) return null; s.day = d; }
+    if (!fin(s.ts)) { s.ts = tsFromDay(s.day); s.manual = true; }
+    var items = Array.isArray(s.items) ? s.items : [];
+    s.items = items.map(normSaleItem).filter(Boolean);
+    var soma = money(s.items.reduce(function (a, i) { return a + i.qty * i.unitPrice; }, 0));
+    var sub = toNum(s.subtotal), tot = toNum(s.total), dis = toNum(s.discount);
+    s.subtotal = !isNaN(sub) ? money(sub) : (!isNaN(tot) ? money(tot + (isNaN(dis) ? 0 : dis)) : soma);
+    s.total = !isNaN(tot) ? money(tot) : money(s.subtotal - (isNaN(dis) ? 0 : dis));
+    s.discount = !isNaN(dis) ? money(dis) : money(Math.max(0, s.subtotal - s.total));
+    return s;
+  }
+  function normExp(x) {
+    if (isObj(x) && typeof x.id === 'string' && x.id && validDay(x.day) && fin(x.ts) && fin(x.valor) && typeof x.cat === 'string') return x;
+    if (!isObj(x)) return null;
+    var e = Object.assign({}, x), v = toNum(e.valor);
+    if (isNaN(v)) return null;
+    e.valor = money(v);
+    if (typeof e.id !== 'string' || !e.id) e.id = e.id != null && e.id !== '' ? String(e.id) : genId();
+    if (!validDay(e.day)) { var d = dayFromTs(e.ts); if (!d) return null; e.day = d; }
+    if (!fin(e.ts)) { e.ts = tsFromDay(e.day); e.manual = true; }
+    if (typeof e.cat !== 'string' || !e.cat) e.cat = 'outros';
+    e.desc = e.desc == null ? '' : String(e.desc);
+    return e;
+  }
+  function normEst(x) {
+    if (isObj(x) && typeof x.id === 'string' && x.id && typeof x.cat === 'string' && fin(x.qty) && fin(x.preco) && fin(x.min)) return x;
+    if (!isObj(x)) return null;
+    var p = Object.assign({}, x), q = toNum(p.qty), pr = toNum(p.preco), mn = toNum(p.min);
+    if (typeof p.id !== 'string' || !p.id) { if (p.id == null || p.id === '') return null; p.id = String(p.id); }
+    p.cat = typeof p.cat === 'string' && p.cat ? p.cat : 'Outros';
+    p.marca = p.marca == null ? '' : String(p.marca); p.modelo = p.modelo == null ? '' : String(p.modelo);
+    p.qty = isNaN(q) ? 0 : Math.round(q); p.preco = isNaN(pr) ? 0 : money(pr); p.min = isNaN(mn) ? 0 : Math.round(mn);
+    return p;
+  }
+  function cleanArr(a, fn) { var out = [], bad = 0; (Array.isArray(a) ? a : []).forEach(function (x) { var r = fn(x); if (r) out.push(r); else bad++; }); return { list: out, bad: bad }; }
+  // Interpreta um backup/arquivo de dados com segurança.
+  function sanitizeData(d) {
+    var v = cleanArr(d.vendas, normSale), g = cleanArr(d.despesas, normExp), e = cleanArr(d.estoque, normEst);
+    return { vendas: v.list, despesas: g.list, estoque: e.list, meta: Number(d.meta) > 0 ? Number(d.meta) : 0, bad: v.bad + g.bad + e.bad };
+  }
+  function isEmptyData(d) {
+    return !(d.vendas || []).length && !(d.despesas || []).length && !(Number(d.meta) > 0) &&
+      (d.estoque || []).every(function (x) { return x && x.g && !(Number(x.qty) > 0); });
+  }
+  function prodKey(p) { return norm([p.cat, p.marca, p.modelo].join('|')).replace(/\s+/g, ' ').trim(); }
+  // Junta "inc" dentro de "loc" sem apagar nada local: registros novos (por id) entram; com o mesmo id e
+  // conteúdo diferente, fica a versão local (contado em "conf"). Produtos g-* ainda vazios (qtd 0, sem mínimo,
+  // criados automaticamente) recebem os dados de "inc". Produto com mesmo nome e outro id não é duplicado.
+  function mergeData(loc, inc) {
+    var st = { nv: 0, nd: 0, ne: 0, ng: 0, conf: 0, dup: 0 };
+    function mergeList(a, b, key) {
+      var ids = {}; a.forEach(function (x, i) { ids[x.id] = i; });
+      b.forEach(function (x) {
+        if (ids[x.id] === undefined) { ids[x.id] = a.length; a.push(x); st[key]++; }
+        else if (JSON.stringify(a[ids[x.id]]) !== JSON.stringify(x)) st.conf++;
+      });
+    }
+    var vendas = loc.vendas.slice(), despesas = loc.despesas.slice(), estoque = loc.estoque.slice();
+    mergeList(vendas, inc.vendas, 'nv'); mergeList(despesas, inc.despesas, 'nd');
+    var ids = {}, names = {};
+    estoque.forEach(function (x, i) { ids[x.id] = i; if (!x.g) names[prodKey(x)] = 1; });
+    inc.estoque.forEach(function (x) {
+      var i = ids[x.id];
+      if (i === undefined) {
+        if (!x.g && names[prodKey(x)]) { st.dup++; return; }
+        ids[x.id] = estoque.length; estoque.push(x); names[prodKey(x)] = 1; st.ne++; return;
+      }
+      var l = estoque[i];
+      if (JSON.stringify(l) === JSON.stringify(x)) return;
+      if (l.g && !(Number(l.qty) > 0) && !(Number(l.min) > 0)) { estoque[i] = Object.assign({}, l, x, { id: l.id }); st.ng++; }
+      else st.conf++;
+    });
+    return { vendas: vendas, despesas: despesas, estoque: estoque, meta: Number(loc.meta) > 0 ? Number(loc.meta) : (Number(inc.meta) || 0), st: st };
+  }
+  function applyStock(es, sale, sign) {
+    ((sale && sale.items) || []).forEach(function (i) { if (!i || !i.pid) return; var x = es.find(function (y) { return y.id === i.pid; }); if (x) x.qty = (Number(x.qty) || 0) + sign * (Number(i.qty) || 0); });
+    return es;
+  }
+  function dataMap(v, d, e, m) {
+    var o = {};
+    if (v) o[STORAGE_VENDAS] = v; if (d) o[STORAGE_DESPESAS] = d; if (e) o[STORAGE_ESTOQUE] = e; if (m != null) o[STORAGE_META] = String(m);
+    return o;
+  }
 
   function dateForOffset(offset) { var d = new Date(); d.setDate(d.getDate() + offset); return d; }
   function dayKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function monthForOffset(offset) { var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + offset); return d; }
   function monthKeyOf(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
   function brl(n) { return (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
-  function num(v) {
-    v = String(v == null ? '' : v).replace(/\s/g, '');
-    if (v.indexOf(',') > -1) v = v.replace(/\./g, '').replace(',', '.');
-    var n = parseFloat(v);
-    return isNaN(n) ? 0 : n;
+  // Arredondamento monetário central: tudo que é dinheiro e vai ser gravado/somado passa por aqui (centavos).
+  function money(n) { n = Number(n); if (!isFinite(n)) return 0; return Math.round((n + (n >= 0 ? 1e-9 : -1e-9)) * 100) / 100; }
+  // Valor monetário digitado -> número, ou NaN se não der para interpretar sem ambiguidade.
+  // Aceita "1500", "1.500", "1.500,50", "1500,50", "R$ 1.500,50", "14.90", espaços. Ponto seguido de
+  // grupos de exatamente 3 dígitos é milhar ("1.500" = 1500); um ponto com 1–2 casas é decimal ("14.90").
+  function parseMoney(v) {
+    if (typeof v === 'number') return isFinite(v) ? v : NaN;
+    var s = String(v == null ? '' : v).replace(/R\$/gi, '').replace(/[\s ]/g, '');
+    if (!s) return NaN;
+    var neg = s.charAt(0) === '-'; if (neg) s = s.slice(1);
+    var n;
+    if (s.indexOf(',') > -1) {
+      var p = s.split(','), ip = p[0];
+      if (p.length !== 2 || !/^\d*$/.test(p[1])) return NaN;
+      if (ip.indexOf('.') > -1) { if (!/^[1-9]\d{0,2}(\.\d{3})+$/.test(ip)) return NaN; ip = ip.replace(/\./g, ''); }
+      if (!/^\d*$/.test(ip) || (ip === '' && p[1] === '')) return NaN;
+      n = parseFloat((ip || '0') + '.' + (p[1] || '0'));
+    } else if (/^[1-9]\d{0,2}(\.\d{3})+$/.test(s)) n = parseFloat(s.replace(/\./g, ''));
+    else if (/^\d+(\.\d+)?$/.test(s) || /^\.\d+$/.test(s)) n = parseFloat(s);
+    else return NaN;
+    return neg ? -n : n;
   }
+  function num(v) { var n = parseMoney(v); return isNaN(n) ? 0 : n; }
+  function moneyInput(n) { return money(n).toFixed(2).replace('.', ','); }
   function escAttr(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
-  function unitOf(c) { var it = itemState[c.id]; if (it.over != null) return it.over; return c.price !== null ? c.price : num(it.price); }
+  function unitOf(c) { var it = itemState[c.id]; if (it.over != null) return money(it.over); return money(c.price !== null ? c.price : num(it.price)); }
   function moneyCsv(n) { return (n || 0).toFixed(2).replace('.', ','); }
   function csvEscape(v) { v = String(v == null ? '' : v); if (/[;"\n]/.test(v)) { v = '"' + v.replace(/"/g, '""') + '"'; } return v; }
   function catLabel(id) { var c = CATEGORIES.find(function (x) { return x.id === id; }); return c ? c.label : id; }
   function expCatLabel(id) { var c = EXPENSE_CATEGORIES.find(function (x) { return x.id === id; }); return c ? c.label : id; }
 
+  function legacyValue(i) { return money((Number(i.qty) || 0) * (Number(i.unitPrice) || 0)); }
   function computeSubtotal() {
     var sum = stockSum();
     CATEGORIES.forEach(function (c) {
       var it = itemState[c.id];
-      if (it.qty > 0) { var unit = unitOf(c); sum += unit * it.qty; }
+      if (it.qty > 0) { var unit = unitOf(c); sum += money(unit * it.qty); }
     });
-    outrosList.forEach(function (o) { sum += num(o.price) * o.qty; });
-    return sum;
+    outrosList.forEach(function (o) { sum += money(num(o.price) * o.qty); });
+    legacyItems.forEach(function (i) { sum += legacyValue(i); });
+    return money(sum);
+  }
+  // Valor final (desconto). Campo vazio = sem desconto. Conteúdo inválido, zero/negativo ou maior que o
+  // subtotal NÃO vira número: devolve "error" e o registro fica bloqueado.
+  function finalInfo() {
+    var subtotal = computeSubtotal(), raw = String(finalValueRaw == null ? '' : finalValueRaw).trim();
+    var r = { subtotal: subtotal, total: subtotal, discount: 0, error: '' };
+    if (!raw) return r;
+    var v = parseMoney(raw);
+    if (isNaN(v)) r.error = 'Valor final inválido. Digite só o número, ex: 120 ou 120,50 (ou deixe vazio se não deu desconto).';
+    else if (v <= 0) r.error = 'O valor final precisa ser maior que zero. Se não deu desconto, deixe o campo vazio.';
+    else if (money(v) > subtotal) r.error = 'O valor final (' + brl(money(v)) + ') não pode ser maior que o subtotal (' + brl(subtotal) + '). Para cobrar mais, ajuste o valor dos itens.';
+    else { r.total = money(v); r.discount = money(subtotal - r.total); }
+    return r;
   }
   function isFormValid() {
     var subtotal = computeSubtotal();
     if (subtotal <= 0) return false;
+    if (finalInfo().error) return false;
     var ok = Object.keys(stockItems).every(function (k) { return num(stockItems[k].price) > 0; }) && !(payState === 'fiado' && !clienteState.trim());
     if (!outrosList.every(function (o) { return num(o.price) > 0 && o.qty > 0; })) ok = false;
     CATEGORIES.forEach(function (c) {
@@ -779,23 +1000,26 @@
   }
   function selectedLines() {
     var L = [];
-    Object.keys(stockItems).forEach(function (k) { var x = stockItems[k]; L.push({ sp: k, q: x.qty, name: x.name, v: num(x.price) * x.qty, pend: !(num(x.price) > 0) }); });
+    Object.keys(stockItems).forEach(function (k) { var x = stockItems[k]; L.push({ sp: k, q: x.qty, name: x.name, v: money(num(x.price) * x.qty), pend: !(num(x.price) > 0) }); });
     CATEGORIES.forEach(function (c) {
-      var it = itemState[c.id]; if (it.qty > 0) { var u = unitOf(c); L.push({ sc: c.id, q: it.qty, name: c.label + (it.desc ? ' (' + it.desc + ')' : ''), v: u * it.qty, pend: !(u > 0) }); }
+      var it = itemState[c.id]; if (it.qty > 0) { var u = unitOf(c); L.push({ sc: c.id, q: it.qty, name: c.label + (it.desc ? ' (' + it.desc + ')' : ''), v: money(u * it.qty), pend: !(u > 0) }); }
     });
-    outrosList.forEach(function (o, i) { var u = num(o.price); L.push({ so: i, q: o.qty, name: 'Outros' + (o.desc ? ' — ' + o.desc : ''), v: u * o.qty, pend: !(u > 0) }); });
+    outrosList.forEach(function (o, i) { var u = num(o.price); L.push({ so: i, q: o.qty, name: 'Outros' + (o.desc ? ' — ' + o.desc : ''), v: money(u * o.qty), pend: !(u > 0) }); });
+    legacyItems.forEach(function (i) { L.push({ legacy: true, q: i.qty, name: 'Item antigo: ' + itemName(i), v: legacyValue(i), pend: false }); });
     return L;
   }
   function selSumHtml() {
     var L = selectedLines();
     return '<div class="sel-sum" id="selSum"><div class="sel-title">Itens da venda</div>' + (L.length ? L.map(function (l) {
+      if (l.legacy) return '<div class="sel-line" title="Item de uma versão antiga do sistema: não pode ser alterado aqui e será mantido como está."><span class="sel-name">' + escAttr(l.name) + ' <small class="mini">(mantido como está)</small></span><span class="sel-step"><span class="sel-q">' + escAttr(l.q) + '</span></span><span class="sel-v">' + brl(l.v) + '</span></div>';
       var idAttr = l.sp ? 'data-sp="' + escAttr(l.sp) + '"' : (l.so !== undefined ? 'data-so="' + l.so + '"' : 'data-sc="' + l.sc + '"');
       return '<div class="sel-line"><span class="sel-name">' + escAttr(l.name) + '</span><span class="sel-step"><button class="sl-btn sl-minus" ' + idAttr + ' aria-label="Diminuir">−</button><span class="sel-q">' + l.q + '</span><button class="sl-btn sl-plus" ' + idAttr + ' aria-label="Aumentar">+</button></span><span class="sel-v' + (l.pend ? ' pend' : '') + '">' + (l.pend ? 'sem valor' : brl(l.v)) + '</span></div>';
     }).join('') : '<div class="sel-empty">Toque num produto ou busque no estoque para começar.</div>') + '</div>';
   }
   function regHint() {
     if (isFormValid()) return '';
-    var c = CATEGORIES.find(function (c) { return c.price === null && itemState[c.id].qty > 0 && !(num(itemState[c.id].price) > 0); });
+    var fe = finalInfo().error; if (fe) return fe;
+    var c =CATEGORIES.find(function (c) { return c.price === null && itemState[c.id].qty > 0 && !(num(itemState[c.id].price) > 0); });
     if (c) return 'Informe o valor de "' + c.label + '" para continuar.';
     if (outrosList.some(function (o) { return !(num(o.price) > 0); })) return 'Informe o valor de cada item de "Outros".';
     if (Object.keys(stockItems).some(function (k) { return !(num(stockItems[k].price) > 0); })) return 'Informe o preço do produto do estoque.';
@@ -803,18 +1027,15 @@
     return 'Adicione um item (toque num produto ou busque no estoque) para registrar.';
   }
   function updateTotalsDisplay() {
-    var subtotal = computeSubtotal();
-    var hasFinal = finalValueRaw !== '';
-    var finalVal = hasFinal ? Math.max(0, num(finalValueRaw) || 0) : subtotal;
-    var discount = Math.max(0, subtotal - finalVal);
-    var total = hasFinal ? finalVal : subtotal;
+    var fi = finalInfo();
     var selEl = document.getElementById('selSum'); if (selEl) selEl.outerHTML = selSumHtml();
-    var subtotalEl = document.getElementById('subtotalDisplay'); if (subtotalEl) subtotalEl.textContent = brl(subtotal);
-    var discountRow = document.getElementById('discountRow'); if (discountRow) discountRow.style.display = discount > 0 ? 'flex' : 'none';
-    var discountEl = document.getElementById('discountDisplay'); if (discountEl) discountEl.textContent = brl(discount);
-    var totalEl = document.getElementById('totalDisplay'); if (totalEl) totalEl.textContent = brl(total);
+    var subtotalEl = document.getElementById('subtotalDisplay'); if (subtotalEl) subtotalEl.textContent = brl(fi.subtotal);
+    var discountRow = document.getElementById('discountRow'); if (discountRow) discountRow.style.display = fi.discount > 0 ? 'flex' : 'none';
+    var discountEl = document.getElementById('discountDisplay'); if (discountEl) discountEl.textContent = brl(fi.discount);
+    var totalEl = document.getElementById('totalDisplay'); if (totalEl) totalEl.textContent = fi.error ? '—' : brl(fi.total);
+    var fvi = document.getElementById('finalValueInput'); if (fvi) fvi.classList.toggle('invalid', !!fi.error);
     var registrarBtn = document.getElementById('registrarBtn'); if (registrarBtn) registrarBtn.disabled = !isFormValid();
-    var rh = document.getElementById('regHint'); if (rh) rh.textContent = regHint();
+    var rh = document.getElementById('regHint'); if (rh) { rh.textContent = regHint(); rh.classList.toggle('err', !!fi.error); }
     document.querySelectorAll('[data-outro-wrap]').forEach(function (w) {
       var o = outrosList[+w.getAttribute('data-outro-wrap')]; if (o) w.classList.toggle('invalid', !(num(o.price) > 0));
     });
@@ -844,7 +1065,9 @@
         }
       });
     });
-    if (changed) saveEstoque(es);
+    // Gravação direta, sem touch(): criar os produtos-base vazios não é uma alteração do usuário, então não
+    // pode mudar o "savedAt" nem disparar gravação no arquivo (isso fazia um navegador novo parecer "mais novo").
+    if (changed) { try { localStorage.setItem(STORAGE_ESTOQUE, JSON.stringify(es)); } catch (e) {} }
   }
   function groupHtml(g) {
     var cats = CATEGORIES.filter(function (c) { return c.group === g.id; });
@@ -920,22 +1143,19 @@
         extra + '</div>' + (c.id === 'carro' ? GROUPS.map(groupHtml).join('') : '');
     }).join('');
 
-    var subtotal = computeSubtotal();
-    var hasFinal = finalValueRaw !== '';
-    var finalVal = hasFinal ? Math.max(0, num(finalValueRaw) || 0) : subtotal;
-    var discount = Math.max(0, subtotal - finalVal);
-    var total = hasFinal ? finalVal : subtotal;
+    var fi = finalInfo();
     var valid = isFormValid();
+    var legacyNote = legacyItems.length ? '<div class="stk-tip" style="margin-top:8px;color:var(--brass-strong)">Esta venda tem ' + legacyItems.length + ' item(ns) de uma versão antiga do sistema. Eles aparecem no resumo da venda, não podem ser alterados aqui e serão mantidos como estão ao salvar.</div>' : '';
 
     wrap.innerHTML =
-      '<div class="card"><div class="card-title">' + (editingSaleId ? 'Editando venda' : 'Nova venda') + dayTxt + '</div>' + favHtml() + stockPickerHtml() + rowsHtml + '</div>';
+      '<div class="card"><div class="card-title">' + (editingSaleId ? 'Editando venda' : 'Nova venda') + dayTxt + '</div>' + legacyNote + favHtml() + stockPickerHtml() + rowsHtml + '</div>';
     document.getElementById('saleTotalsWrap').innerHTML =
       '<div class="totals-card">' + selSumHtml() +
-      '<div class="totals-row"><span>Subtotal</span><span id="subtotalDisplay">' + brl(subtotal) + '</span></div>' +
-      '<div class="totals-row discount-row"><span>Valor final <small class=\"mini\">(só se deu desconto)</small></span><input type="text" inputmode="decimal" placeholder="' + subtotal.toFixed(2).replace('.', ',') + '" id="finalValueInput" value="' + finalValueRaw + '"></div>' +
-      '<div class="totals-row" id="discountRow" style="display:' + (discount > 0 ? 'flex' : 'none') + '"><span>Desconto aplicado</span><span id="discountDisplay">' + brl(discount) + '</span></div>' +
-      '<div class="totals-row total-row"><span>Total</span><span class="val" id="totalDisplay">' + brl(total) + '</span></div>' +
-      payHtml() + '<button class="registrar-btn" id="registrarBtn" ' + (valid ? '' : 'disabled') + '>' + (editingSaleId ? 'Salvar alterações' : 'Registrar venda') + '</button><div class="reg-hint" id="regHint">' + regHint() + '</div>' + (editingSaleId ? '<button class="clear-btn" id="cancelEditBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') +
+      '<div class="totals-row"><span>Subtotal</span><span id="subtotalDisplay">' + brl(fi.subtotal) + '</span></div>' +
+      '<div class="totals-row discount-row"><span>Valor final <small class=\"mini\">(só se deu desconto)</small></span><input type="text" inputmode="decimal" placeholder="' + moneyInput(fi.subtotal) + '" id="finalValueInput"' + (fi.error ? ' class="invalid"' : '') + ' value="' + escAttr(finalValueRaw) + '"></div>' +
+      '<div class="totals-row" id="discountRow" style="display:' + (fi.discount > 0 ? 'flex' : 'none') + '"><span>Desconto aplicado</span><span id="discountDisplay">' + brl(fi.discount) + '</span></div>' +
+      '<div class="totals-row total-row"><span>Total</span><span class="val" id="totalDisplay">' + (fi.error ? '—' : brl(fi.total)) + '</span></div>' +
+      payHtml() + '<button class="registrar-btn" id="registrarBtn" ' + (valid ? '' : 'disabled') + '>' + (editingSaleId ? 'Salvar alterações' : 'Registrar venda') + '</button><div class="reg-hint' + (fi.error ? ' err' : '') + '" id="regHint">' + escAttr(regHint()) + '</div>' + (editingSaleId ? '<button class="clear-btn" id="cancelEditBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') +
       '</div>';
 
     wrap.querySelectorAll('.step-btn.minus[data-cat]').forEach(function (btn) { btn.addEventListener('click', function () { itemState[btn.getAttribute('data-cat')].qty = Math.max(0, itemState[btn.getAttribute('data-cat')].qty - 1); renderSaleForm(); }); });
@@ -979,44 +1199,73 @@
         items.push(rec);
       }
     });
-    outrosList.forEach(function (o) { if (num(o.price) > 0 && o.qty > 0) items.push({ cat: 'outros', qty: o.qty, unitPrice: num(o.price), desc: (o.desc || '').trim() }); });
-    Object.keys(stockItems).forEach(function (k) { var s = stockItems[k]; items.push({ cat: 'estoque', pid: k, qty: s.qty, unitPrice: num(s.price), desc: s.name }); });
-    var subtotal = computeSubtotal();
-    var hasFinal = finalValueRaw !== '';
-    var finalVal = hasFinal ? Math.max(0, num(finalValueRaw) || 0) : subtotal;
-    var discount = Math.max(0, subtotal - finalVal);
-    var total = hasFinal ? finalVal : subtotal;
-    takeSnap();
-    var all = loadVendas();
-    var rec = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), day: key, ts: viewDate.getTime(), manual: currentOffset !== 0, items: items, subtotal: subtotal, discount: discount, total: total, pay: payState, cliente: payState === 'fiado' ? clienteState.trim() : '' };
+    outrosList.forEach(function (o) { if (num(o.price) > 0 && o.qty > 0) items.push({ cat: 'outros', qty: o.qty, unitPrice: money(num(o.price)), desc: (o.desc || '').trim() }); });
+    Object.keys(stockItems).forEach(function (k) { var s = stockItems[k]; items.push({ cat: 'estoque', pid: k, qty: s.qty, unitPrice: money(num(s.price)), desc: s.name }); });
+    legacyItems.forEach(function (i) { items.push(i); }); // itens antigos voltam exatamente como estavam
+    var fi = finalInfo();
+    if (fi.error || !isFormValid()) { updateTotalsDisplay(); return; }
+    var all = loadVendas(), es = loadEstoque();
+    var snap = { v: loadVendas(), e: loadEstoque() };
+    var fields = { items: items, subtotal: fi.subtotal, discount: fi.discount, total: fi.total, pay: payState, cliente: payState === 'fiado' ? clienteState.trim() : '' };
     var idx = editingSaleId ? all.findIndex(function (e) { return e.id === editingSaleId; }) : -1;
-    if (idx >= 0) estoqueDeVenda(all[idx], 1);
-    estoqueDeVenda(rec, -1);
-    if (idx >= 0) { rec.id = all[idx].id; rec.day = all[idx].day; rec.ts = all[idx].ts; rec.manual = all[idx].manual; all[idx] = rec; } else { all.push(rec); }
+    if (editingSaleId && idx < 0) { showToast('Esta venda não existe mais (foi removida). Cancele a edição.', false, true); return; }
+    var rec;
+    if (idx >= 0) {
+      // Edição: merge sobre o registro original, preservando id/dia/hora e qualquer campo extra (recebidoEm etc.).
+      var orig = all[idx];
+      applyStock(es, orig, 1);
+      rec = Object.assign({}, orig, fields);
+      if (payState !== 'fiado' && orig.recebidoEm && orig.cliente) rec.cliente = orig.cliente; // fiado já recebido: mantém o nome
+      all[idx] = rec;
+    } else {
+      rec = Object.assign({ id: genId(), day: key, ts: viewDate.getTime(), manual: currentOffset !== 0 }, fields);
+      all.push(rec);
+    }
+    applyStock(es, rec, -1);
+    // Venda e estoque gravados juntos: se falhar, nada muda e o formulário continua preenchido.
+    if (!commit(dataMap(all, null, es))) return;
+    undoSnap = snap;
     var wasEdit = idx >= 0; editingSaleId = null;
-    saveVendas(all); showToast(wasEdit ? 'Alterações salvas' : 'Venda registrada', true);
+    showToast(wasEdit ? 'Alterações salvas' : 'Venda registrada', true);
     resetItemState();
     finalValueRaw = '';
     renderApp();
   }
   function startEditSale(sale) {
     resetItemState();
-    sale.items.forEach(function (i) {
-      if (i.cat === 'estoque') { stockItems[i.pid] = { qty: i.qty, price: String(i.unitPrice).replace('.', ','), name: i.desc }; return; }
+    (sale.items || []).forEach(function (i) {
+      if (!isObj(i)) return;
+      if (i.cat === 'estoque' && i.pid) {
+        var ex = stockItems[i.pid];
+        if (!ex) { stockItems[i.pid] = { qty: i.qty, price: String(i.unitPrice).replace('.', ','), name: i.desc }; return; }
+        if (money(num(ex.price)) === money(i.unitPrice)) { ex.qty += i.qty; return; }
+        legacyItems.push(i); return; // mesmo produto com outro preço na mesma venda: preserva a linha
+      }
       if (i.cat === 'outros') { outrosList.push({ desc: i.desc || '', price: String(i.unitPrice).replace('.', ','), qty: i.qty }); return; }
       var st = itemState[i.cat], c = CATEGORIES.find(function (x) { return x.id === i.cat; });
-      if (!st || !c) return;
+      // Categoria antiga/desconhecida, ou linha repetida da mesma categoria: não cabe no formulário,
+      // então fica como "item antigo", somente leitura, e é regravada intacta.
+      if (!st || !c || st.qty > 0) { legacyItems.push(i); return; }
       st.qty = i.qty; st.desc = i.desc || '';
       if (c.price === null) st.price = String(i.unitPrice).replace('.', ',');
       else if (i.unitPrice !== c.price) st.over = i.unitPrice;
     });
-    finalValueRaw = sale.discount > 0 ? String(sale.total).replace('.', ',') : '';
+    // Se o total gravado difere do subtotal (desconto, ou acréscimo de versões antigas), o valor final é
+    // carregado explicitamente; um acréscimo antigo aparece como erro em vez de sumir em silêncio.
+    finalValueRaw = (sale.discount > 0 || money(sale.total) !== money(sale.subtotal)) ? moneyInput(sale.total) : '';
     payState = sale.pay || 'dinheiro'; clienteState = sale.cliente || '';
     editingSaleId = sale.id; editingExpId = null;
     renderApp();
     var f = document.getElementById('saleFormWrap'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  function removerVenda(id) { takeSnap(); if (editingSaleId === id) cancelEdit(); loadVendas().filter(function (e) { return e.id === id; }).forEach(function (s) { estoqueDeVenda(s, 1); }); var all = loadVendas().filter(function (e) { return e.id !== id; }); saveVendas(all); showToast('Venda removida', true); renderApp(); }
+  function removerVenda(id) {
+    var all = loadVendas(), es = loadEstoque(), snap = { v: loadVendas(), e: loadEstoque() };
+    all.filter(function (e) { return e.id === id; }).forEach(function (s) { applyStock(es, s, 1); });
+    if (!commit(dataMap(all.filter(function (e) { return e.id !== id; }), null, es))) { renderApp(); return; }
+    undoSnap = snap;
+    if (editingSaleId === id) cancelEdit();
+    showToast('Venda removida', true); renderApp();
+  }
 
   function saleMatchesQuery(sale, q) {
     if (norm(sale.items.map(function (it) { return itemName(it); }).join(' ')).indexOf(q) > -1) return true;
@@ -1109,22 +1358,27 @@
     document.getElementById('registrarGastoBtn').addEventListener('click', function () {
       var desc = document.getElementById('expDesc').value.trim();
       var cat = document.getElementById('expCat').value;
-      var valor = num(document.getElementById('expValor').value) || 0;
+      var valor = parseMoney(document.getElementById('expValor').value);
       var wrapEl = document.getElementById('expValorWrap');
-      if (valor <= 0) { wrapEl.classList.add('invalid'); return; }
+      if (isNaN(valor) || money(valor) <= 0) { wrapEl.classList.add('invalid'); return; }
       wrapEl.classList.remove('invalid');
-      registrarGasto(desc, cat, valor);
+      registrarGasto(desc, cat, money(valor));
     });
   }
   function registrarGasto(desc, cat, valor) {
     var viewDate = dateForOffset(currentOffset);
     var key = dayKey(viewDate);
     var all = loadDespesas();
-    var rec = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), day: key, ts: viewDate.getTime(), manual: currentOffset !== 0, desc: desc, cat: cat, valor: valor };
+    var fields = { desc: desc, cat: cat, valor: money(valor) };
     var idx = editingExpId ? all.findIndex(function (e) { return e.id === editingExpId; }) : -1;
-    if (idx >= 0) { rec.id = all[idx].id; rec.day = all[idx].day; rec.ts = all[idx].ts; rec.manual = all[idx].manual; all[idx] = rec; } else { all.push(rec); }
+    if (editingExpId && idx < 0) { showToast('Este gasto não existe mais (foi removido). Cancele a edição.', false, true); return; }
+    // Edição: merge sobre o original (preserva id/dia/hora e campos extras).
+    if (idx >= 0) all[idx] = Object.assign({}, all[idx], fields);
+    else all.push(Object.assign({ id: genId(), day: key, ts: viewDate.getTime(), manual: currentOffset !== 0 }, fields));
+    if (!saveDespesas(all)) return; // falhou: o formulário continua preenchido, aviso já exibido
+    var wasEdit = idx >= 0;
     editingExpId = null;
-    saveDespesas(all);
+    showToast(wasEdit ? 'Gasto alterado' : 'Gasto registrado');
     renderApp();
   }
   function startEditExp(e) {
@@ -1132,7 +1386,7 @@
     renderApp();
     var f = document.getElementById('expenseFormWrap'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  function removerGasto(id) { if (editingExpId === id) cancelEdit(); var all = loadDespesas().filter(function (e) { return e.id !== id; }); saveDespesas(all); renderApp(); }
+  function removerGasto(id) { var all = loadDespesas().filter(function (e) { return e.id !== id; }); if (saveDespesas(all) && editingExpId === id) cancelEdit(); renderApp(); }
 
   function renderExpenseHistoryAndTotal() {
     var all = loadDespesas();
@@ -1243,15 +1497,10 @@
   function norm(s) { return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
   function pname(p) { return [p.cat, p.marca, p.modelo].filter(Boolean).join(' · '); }
   function itemName(it) { return it.cat === 'estoque' ? it.desc : (it.cat === 'outros' ? 'Outros' + (it.desc ? ' — ' + it.desc : '') : catLabel(it.cat) + (it.desc ? ' (' + it.desc + ')' : '')); }
-  function loadEstoque() { try { var r = localStorage.getItem(STORAGE_ESTOQUE); return r ? JSON.parse(r) : []; } catch (e) { return []; } }
-  function saveEstoque(l) { try { localStorage.setItem(STORAGE_ESTOQUE, JSON.stringify(l)); } catch (e) {} touch(); }
+  function loadEstoque() { return readList(STORAGE_ESTOQUE, normEst, 'produto'); }
+  function saveEstoque(l) { var m = {}; m[STORAGE_ESTOQUE] = l; return commit(m); }
   function estoqueFind(id) { return loadEstoque().find(function (x) { return x.id === id; }); }
-  function stockSum() { var s = 0; Object.keys(stockItems).forEach(function (k) { s += num(stockItems[k].price) * stockItems[k].qty; }); return s; }
-  function estoqueDeVenda(sale, sign) {
-    var es = loadEstoque(), ch = false;
-    (sale.items || []).forEach(function (i) { if (!i.pid) return; var x = es.find(function (y) { return y.id === i.pid; }); if (x) { x.qty = (Number(x.qty) || 0) + sign * i.qty; ch = true; } });
-    if (ch) saveEstoque(es);
-  }
+  function stockSum() { var s = 0; Object.keys(stockItems).forEach(function (k) { s += money(num(stockItems[k].price) * stockItems[k].qty); }); return money(s); }
   function opts(list, sel, first) { return (first || '') + list.map(function (c) { return '<option' + (c === sel ? ' selected' : '') + '>' + c + '</option>'; }).join(''); }
 
   // ----- busca de produtos na venda
@@ -1343,9 +1592,10 @@
       var g = function (id) { return document.getElementById(id).value.trim(); };
       if (!g('fMarca') && !g('fModelo')) { document.getElementById('fErr').style.display = 'block'; return; }
       var es = loadEstoque(), o = isNew ? { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5) } : es.find(function (y) { return y.id === x.id; });
-      o.cat = g('fCat'); o.marca = g('fMarca'); o.modelo = g('fModelo'); o.qty = Math.round(num(g('fQtd'))); o.preco = num(g('fPreco')); o.min = Math.round(num(g('fMin')));
+      if (!o) { estUi.form = null; renderEstoque(); return; } // produto removido enquanto o formulário estava aberto
+      o.cat = g('fCat'); o.marca = g('fMarca'); o.modelo = g('fModelo'); o.qty = Math.round(num(g('fQtd'))); o.preco = money(num(g('fPreco'))); o.min = Math.round(num(g('fMin')));
       if (isNew) es.push(o);
-      saveEstoque(es);
+      if (!saveEstoque(es)) return; // falhou: o formulário continua aberto e preenchido
       estUi.pre = again ? { cat: o.cat, marca: o.marca } : null; estUi.form = again ? 'new' : null;
       renderEstoque();
     }
@@ -1355,7 +1605,8 @@
     var del = document.getElementById('fDel');
     if (del) del.addEventListener('click', function () {
       if (!del.getAttribute('data-ask')) { del.setAttribute('data-ask', '1'); del.textContent = 'Toque de novo para confirmar a exclusão'; return; }
-      saveEstoque(loadEstoque().filter(function (y) { return y.id !== x.id; })); estUi.form = null; renderEstoque();
+      if (!saveEstoque(loadEstoque().filter(function (y) { return y.id !== x.id; }))) return;
+      estUi.form = null; renderEstoque();
     });
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -1382,7 +1633,8 @@
         var q = Math.round(num(document.getElementById('eQtd').value));
         if (q <= 0) return;
         var arr = loadEstoque(), x = arr.find(function (y) { return y.id === estUi.entrada; }); if (!x) return;
-        x.qty = (Number(x.qty) || 0) + q; saveEstoque(arr);
+        x.qty = (Number(x.qty) || 0) + q;
+        if (!saveEstoque(arr)) return;
         estUi.entrada = null; renderEstoque();
       });
     }
@@ -1398,32 +1650,125 @@
         var rq = indexedDB.open('chaveiro_fs', 1);
         rq.onupgradeneeded = function () { rq.result.createObjectStore('h'); };
         rq.onerror = function () { res(null); };
-        rq.onsuccess = function () { var tx = rq.result.transaction('h', mode), r = fn(tx.objectStore('h')); tx.oncomplete = function () { res(r && r.result !== undefined ? r.result : null); }; tx.onerror = function () { res(null); }; };
+        rq.onsuccess = function () {
+          try { var tx = rq.result.transaction('h', mode), r = fn(tx.objectStore('h')); tx.oncomplete = function () { res(r && r.result !== undefined ? r.result : null); }; tx.onerror = function () { res(null); }; }
+          catch (e) { res(null); }
+        };
       } catch (e) { res(null); }
     });
   }
   function touch() { try { localStorage.setItem(STORAGE_SAVEDAT, String(Date.now())); } catch (e) {} scheduleFileWrite(); }
-  function snapshot() { return { app: 'chaveiro', versao: 2, savedAt: Number(localStorage.getItem(STORAGE_SAVEDAT)) || Date.now(), vendas: loadVendas(), despesas: loadDespesas(), estoque: loadEstoque(), meta: loadMeta() }; }
-  function scheduleFileWrite() { if (!fileHandle || filePerm !== 'granted') return; clearTimeout(writeTimer); writeTimer = setTimeout(writeFile, 400); }
-  async function writeFile() {
-    try { var w = await fileHandle.createWritable(); await w.write(JSON.stringify(snapshot())); await w.close(); filePerm = 'granted'; } catch (e) { filePerm = 'error'; }
-    renderDataBar();
+  function snapshot() {
+    var s = { app: 'chaveiro', versao: 2, savedAt: Number(lsGet(STORAGE_SAVEDAT)) || Date.now(), vendas: loadVendas(), despesas: loadDespesas(), estoque: loadEstoque(), meta: loadMeta() };
+    var q = loadQuarantine(); if (q.length) s.quarentena = q;
+    return s;
+  }
+
+  /* ----- Sincronização segura com o arquivo -----
+     Guarda-se a "impressão digital" (hash) dos dados na última vez que navegador e arquivo ficaram iguais
+     (STORAGE_SYNC). Ao conectar/gravar, compara-se arquivo × navegador × essa base:
+       - iguais ......................................... nada a fazer
+       - arquivo vazio/sem dados ......................... grava o navegador no arquivo
+       - navegador vazio (só baterias/pilhas zeradas) .... carrega o arquivo no navegador
+       - só o navegador mudou desde a base ............... grava no arquivo
+       - só o arquivo mudou desde a base ................. carrega o arquivo
+       - os dois mudaram, ou não há base ................. CONFLITO: nada é gravado, o usuário decide.
+     "savedAt" não decide mais nada. Antes de qualquer substituição pedida no conflito, baixa-se uma cópia
+     do lado que vai ser substituído. */
+  var fileConflict = null, fileIssue = null, writeChain = Promise.resolve();
+  function hashStr(s) { var h = 0x811c9dc5; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16) + ':' + s.length; }
+  function payloadHash(v, d, e, m) { return hashStr(JSON.stringify([v || [], d || [], e || [], Number(m) || 0])); }
+  function localData() { var v = loadVendas(), d = loadDespesas(), e = loadEstoque(), m = loadMeta(); return { vendas: v, despesas: d, estoque: e, meta: m, hash: payloadHash(v, d, e, m) }; }
+  function getBase() { try { var b = JSON.parse(lsGet(STORAGE_SYNC) || 'null'); return b && fileHandle && b.name === fileHandle.name ? b.hash : null; } catch (e) { return null; } }
+  function setBase(hash) { try { localStorage.setItem(STORAGE_SYNC, JSON.stringify({ name: fileHandle ? fileHandle.name : '', hash: hash, em: Date.now() })); } catch (e) {} }
+  async function readFileData() {
+    var txt;
+    try { txt = await (await fileHandle.getFile()).text(); } catch (e) { return { ok: false, err: 'read' }; }
+    if (!txt.trim()) return { ok: true, empty: true, raw: txt };
+    var d; try { d = JSON.parse(txt); } catch (e) { return { ok: false, err: 'invalid' }; }
+    if (!isObj(d) || !Array.isArray(d.vendas)) return { ok: false, err: 'invalid' };
+    return { ok: true, empty: false, raw: txt, data: d, hash: payloadHash(d.vendas, d.despesas, d.estoque, d.meta) };
+  }
+  function fileIsEmpty(f) { return f.empty || isEmptyData(f.data); }
+  async function writeLocalToFile(L) {
+    L = L || localData();
+    var s = snapshot();
+    var w = await fileHandle.createWritable(); await w.write(JSON.stringify(s)); await w.close();
+    filePerm = 'granted'; setBase(L.hash);
+  }
+  // Carrega os dados do arquivo no navegador. Só é chamado quando isso não apaga nada local que não
+  // esteja no arquivo (navegador vazio, navegador sem mudanças desde a base, ou escolha do usuário).
+  function adoptFile(f) {
+    var s = sanitizeData(f.data);
+    if (!commit(dataMap(s.vendas, s.despesas, s.estoque, s.meta), { noTouch: true })) return false;
+    if (s.bad) addQuarantine([{ tipo: 'aviso', origem: 'arquivo', registro: s.bad + ' registro(s) ilegível(is) no arquivo foram ignorados ao carregar' }]);
+    try { localStorage.setItem(STORAGE_SAVEDAT, String(Number(f.data.savedAt) || Date.now())); } catch (e) {}
+    setBase(f.hash);
+    return true;
   }
   async function syncFromFile() {
+    fileIssue = null;
     try {
-      var txt = await (await fileHandle.getFile()).text(), d = txt ? JSON.parse(txt) : null;
-      var localAt = Number(localStorage.getItem(STORAGE_SAVEDAT)) || 0;
-      var hasLocal = loadVendas().length + loadDespesas().length + loadEstoque().length > 0;
-      if (d && Array.isArray(d.vendas) && (d.savedAt || 0) > localAt && !(localAt === 0 && hasLocal)) {
-        localStorage.setItem(STORAGE_VENDAS, JSON.stringify(d.vendas)); localStorage.setItem(STORAGE_DESPESAS, JSON.stringify(d.despesas || [])); localStorage.setItem(STORAGE_ESTOQUE, JSON.stringify(d.estoque || [])); localStorage.setItem(STORAGE_SAVEDAT, String(d.savedAt)); if (d.meta != null) localStorage.setItem(STORAGE_META, String(d.meta));
-        renderApp();
-      } else { await writeFile(); }
-    } catch (e) { await writeFile(); }
+      var f = await readFileData();
+      if (!f.ok) { fileIssue = f.err; return; }
+      var L = localData(), base = getBase();
+      if (!f.empty && f.hash === L.hash) { setBase(L.hash); return; }
+      if (fileIsEmpty(f)) { await writeLocalToFile(L); return; }
+      if (isEmptyData(L)) { if (adoptFile(f)) renderApp(); return; }
+      if (base && f.hash === base) { await writeLocalToFile(L); return; }
+      if (base && L.hash === base) { if (adoptFile(f)) renderApp(); return; }
+      fileConflict = { f: f, L: L };
+    } catch (e) { filePerm = 'error'; }
+    finally { renderDataBar(); }
+  }
+  function scheduleFileWrite() { if (!fileHandle || filePerm !== 'granted' || fileConflict || fileIssue) return; clearTimeout(writeTimer); writeTimer = setTimeout(function () { writeChain = writeChain.then(writeFile, writeFile); }, 400); }
+  // Gravação automática: relê o arquivo antes e só grava se ele não foi alterado por fora desde a base.
+  async function writeFile() {
+    if (!fileHandle || filePerm !== 'granted' || fileConflict || fileIssue) return;
+    try {
+      var f = await readFileData();
+      if (!f.ok) { fileIssue = f.err; renderDataBar(); return; }
+      var L = localData(), base = getBase();
+      if (!fileIsEmpty(f) && f.hash !== base && f.hash !== L.hash) { fileConflict = { f: f, L: L }; renderDataBar(); return; }
+      await writeLocalToFile(L);
+    } catch (e) { filePerm = 'error'; }
+    renderDataBar();
+  }
+  function stamp() { var d = new Date(); return dayKey(d) + '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + String(d.getSeconds()).padStart(2, '0'); }
+  function baixarArquivo(nome, texto) {
+    var url = URL.createObjectURL(new Blob([texto], { type: 'application/json' }));
+    var a = document.createElement('a'); a.href = url; a.download = nome;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
+  }
+  function copiaDoArquivo(c) { baixarArquivo('chaveiro-copia-do-ARQUIVO-' + stamp() + '.json', c.f.raw); }
+  function copiaDoNavegador() { baixarArquivo('chaveiro-copia-do-NAVEGADOR-' + stamp() + '.json', JSON.stringify(backupData())); }
+  async function resolverConflito(modo) {
+    var c = fileConflict; if (!c) return;
+    try {
+      if (modo === 'copias') { copiaDoArquivo(c); setTimeout(copiaDoNavegador, 600); return; }
+      if (modo === 'arquivo') {
+        copiaDoNavegador(); // o navegador vai ser substituído: guarda uma cópia antes
+        if (!adoptFile(c.f)) return;
+        fileConflict = null; renderApp(); showToast('Dados do arquivo carregados. Uma cópia do navegador foi baixada.');
+        return;
+      }
+      copiaDoArquivo(c); // o arquivo vai ser substituído: guarda uma cópia antes
+      if (modo === 'juntar') {
+        var m = mergeData(localData(), sanitizeData(c.f.data));
+        if (!commit(dataMap(m.vendas, m.despesas, m.estoque, m.meta), { noTouch: true })) return;
+        try { localStorage.setItem(STORAGE_SAVEDAT, String(Date.now())); } catch (e) {}
+      }
+      fileConflict = null;
+      await writeLocalToFile();
+      renderApp();
+      showToast(modo === 'juntar' ? 'Dados juntados e salvos no arquivo. Uma cópia do arquivo antigo foi baixada.' : 'Dados do navegador salvos no arquivo. Uma cópia do arquivo antigo foi baixada.');
+    } catch (e) { filePerm = 'error'; renderDataBar(); }
   }
   async function conectarArquivo(novo) {
     try {
       var h = novo ? await window.showSaveFilePicker({ suggestedName: 'chaveiro-dados.json', types: FILE_TYPES }) : (await window.showOpenFilePicker({ types: FILE_TYPES }))[0];
-      fileHandle = h; filePerm = 'granted';
+      fileHandle = h; filePerm = 'granted'; fileConflict = null; fileIssue = null;
       await idb('readwrite', function (st) { return st.put(h, 'file'); });
       await syncFromFile();
     } catch (e) {}
@@ -1440,21 +1785,35 @@
     }
     renderDataBar();
   }
+  function resumoDados(d) { return (d.vendas || []).length + ' vendas, ' + (d.despesas || []).length + ' gastos, ' + (d.estoque || []).filter(function (x) { return x && !x.g; }).length + ' produtos'; }
   function renderDataBar() {
     var el = document.getElementById('dataBar'); if (!el) return;
-    var h = '', cls = 'databar', ids = [];
-    if (HAS_FS) {
+    var h = '', cls = 'databar';
+    if (saveError) {
+      h = '<span>⛔ <b>Não foi possível salvar.</b> ' + escAttr(saveError) + ' Nada do que você digitou foi apagado da tela. Baixe um backup agora (ele inclui o que não foi salvo) e libere espaço no navegador antes de continuar.</span><button id="dbBackup">Baixar backup agora</button>';
+      cls += ' err';
+    } else if (fileConflict) {
+      var c = fileConflict, fd = c.f.data;
+      h = '<span>⚠ <b>O arquivo ' + escAttr(fileHandle.name) + ' e este navegador têm dados diferentes.</b> Nada foi apagado e o salvamento no arquivo está pausado até você escolher.</span>' +
+        '<span class="db-det">Arquivo: ' + resumoDados(fd) + (fd.savedAt ? ' (salvo em ' + new Date(fd.savedAt).toLocaleString('pt-BR') + ')' : '') + ' · Navegador: ' + resumoDados(c.L) + '. Antes de substituir qualquer lado, uma cópia dele é baixada.</span>' +
+        '<button id="dbMerge">Juntar os dois (recomendado)</button><button id="dbUseFile" class="alt">Usar só o do arquivo</button><button id="dbUseLocal" class="alt">Usar só o deste navegador</button><button id="dbBoth" class="alt">Baixar cópia dos dois</button>';
+      cls += ' err';
+    } else if (HAS_FS && fileHandle && fileIssue) {
+      h = '<span>⚠ ' + (fileIssue === 'invalid' ? 'O arquivo <b>' + escAttr(fileHandle.name) + '</b> não parece ser um arquivo de dados do Chaveiro (ou está danificado).' : 'Não foi possível ler o arquivo <b>' + escAttr(fileHandle.name) + '</b>.') + ' Nada foi gravado nele.</span><button id="dbOpen">Usar outro arquivo</button><button id="dbCreate" class="alt">Criar arquivo novo</button>' + (fileIssue === 'read' ? '<button id="dbRecon" class="alt">Tentar de novo</button>' : '');
+    } else if (HAS_FS) {
       if (!fileHandle) { h = '<span>⚠ Seus dados estão só no navegador.</span><button id="dbCreate">Criar arquivo de dados</button><button id="dbOpen">Usar arquivo existente</button>'; }
       else if (filePerm === 'granted') { h = '<span>✓ Dados salvos no arquivo <b>' + escAttr(fileHandle.name) + '</b></span>'; cls += ' ok'; }
       else { h = '<span>⚠ Reconecte o arquivo de dados para voltar a salvar nele.</span><button id="dbRecon">Reconectar</button>'; }
     } else {
       var last = groupOpen._backup, days = last ? Math.floor((Date.now() - new Date(last + 'T12:00:00').getTime()) / 86400000) : null;
       if (days === null || days >= 7) h = '<span>⚠ ' + (days === null ? 'Você ainda não fez backup.' : 'Último backup há ' + days + ' dias.') + ' (No Chrome ou Edge o sistema salva sozinho num arquivo.)</span><button id="dbBackup">Salvar backup agora</button>';
-      else { el.style.display = 'none'; el.innerHTML = ''; return; }
     }
+    if (loadWarning) { h += '<span class="db-det">⚠ ' + escAttr(loadWarning) + '</span>'; cls = cls.replace(' ok', ''); }
+    if (!h) { el.style.display = 'none'; el.innerHTML = ''; return; }
     el.className = cls; el.style.display = 'flex'; el.innerHTML = h;
     var on = function (id, fn) { var b = document.getElementById(id); if (b) b.addEventListener('click', fn); };
     on('dbCreate', function () { conectarArquivo(true); }); on('dbOpen', function () { conectarArquivo(false); }); on('dbRecon', reconectarArquivo); on('dbBackup', fazerBackup);
+    on('dbMerge', function () { resolverConflito('juntar'); }); on('dbUseFile', function () { resolverConflito('arquivo'); }); on('dbUseLocal', function () { resolverConflito('local'); }); on('dbBoth', function () { resolverConflito('copias'); });
   }
 
   function payHtml() {
@@ -1472,21 +1831,21 @@
   }
   var KEY_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M13.5 9.5l2 2"/></svg>';
   var toastT = null, undoSnap = null, STORAGE_META = 'chaveiro_meta_v1';
-  function takeSnap() { undoSnap = { v: loadVendas(), e: loadEstoque() }; }
   function doUndo() {
     if (!undoSnap) return;
-    try { localStorage.setItem(STORAGE_VENDAS, JSON.stringify(undoSnap.v)); localStorage.setItem(STORAGE_ESTOQUE, JSON.stringify(undoSnap.e)); } catch (e) {}
-    touch(); undoSnap = null; renderApp(); showToast('Desfeito');
+    if (!commit(dataMap(undoSnap.v, null, undoSnap.e))) return;
+    undoSnap = null; renderApp(); showToast('Desfeito');
   }
-  function showToast(msg, undo) {
+  function showToast(msg, undo, err) {
     var t = document.getElementById('toast'); if (!t) return;
-    t.innerHTML = ''; var sp = document.createElement('span'); sp.textContent = '✓ ' + msg; t.appendChild(sp);
-    if (undo && undoSnap) { var b = document.createElement('button'); b.className = 't-undo'; b.textContent = 'Desfazer'; b.addEventListener('click', doUndo); t.appendChild(b); }
-    t.classList.toggle('has-undo', !!(undo && undoSnap)); t.classList.add('show');
-    clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove('show'); }, undo ? 7000 : 1800);
+    t.innerHTML = ''; var sp = document.createElement('span'); sp.textContent = (err ? '⚠ ' : '✓ ') + msg; t.appendChild(sp);
+    var withUndo = !!(undo && undoSnap && !err);
+    if (withUndo) { var b = document.createElement('button'); b.className = 't-undo'; b.textContent = 'Desfazer'; b.addEventListener('click', doUndo); t.appendChild(b); }
+    t.classList.toggle('has-undo', withUndo); t.classList.toggle('err', !!err); t.classList.add('show');
+    clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove('show'); }, err ? 6000 : (withUndo ? 7000 : 1800));
   }
-  function loadMeta() { try { return Number(localStorage.getItem(STORAGE_META)) || 0; } catch (e) { return 0; } }
-  function saveMeta(v) { try { localStorage.setItem(STORAGE_META, String(v)); } catch (e) {} touch(); }
+  function loadMeta() { return Number(lsGet(STORAGE_META)) || 0; }
+  function saveMeta(v) { return commit(dataMap(null, null, null, money(v))); }
   function goalHtml(mKey, all) {
     var meta = loadMeta(), tot = all.filter(function (v) { return v.day.slice(0, 7) === mKey; }).reduce(function (s, v) { return s + v.total; }, 0);
     if (!meta) return '<button class="goal-set" data-goal>🎯 Definir meta do mês</button>';
@@ -1573,43 +1932,54 @@
   function bindReceber() {
     document.querySelectorAll('[data-rec]').forEach(function (b) { b.addEventListener('click', function () {
       var all = loadVendas(), s = all.find(function (x) { return x.id === b.getAttribute('data-rec'); });
-      if (!s) return; s.pay = b.getAttribute('data-how'); s.recebidoEm = dayKey(new Date()); saveVendas(all); renderApp();
+      if (!s) return; s.pay = b.getAttribute('data-how'); s.recebidoEm = dayKey(new Date()); if (saveVendas(all)) renderApp();
     }); });
   }
 
   function backupCardHtml() {
-    var last = groupOpen._backup;
+    var last = groupOpen._backup, nq = loadQuarantine().length;
     return '<div class="totals-card"><div class="card-title" style="padding-top:0">Backup dos dados</div>' +
-      '<div class="sub" style="margin-bottom:10px">' + (last ? 'Último backup: ' + last.split('-').reverse().join('/') + '.' : 'Você ainda não fez backup.') + ' Guarde o arquivo no Google Drive ou em um pendrive.</div>' +
+      '<div class="sub" style="margin-bottom:10px">' + (last ? 'Último backup: ' + last.split('-').reverse().join('/') + '.' : 'Você ainda não fez backup.') + ' Guarde o arquivo no Google Drive ou em um pendrive.' +
+      (nq ? ' <b>' + nq + ' registro(s) ilegível(is) estão guardados à parte</b> e vão junto no backup.' : '') + ' Restaurar junta o backup com os dados atuais, sem apagar nada.</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="clear-btn" id="backupBtn">Salvar backup</button><button class="clear-btn" id="restoreBtn">Restaurar backup</button><input type="file" id="restoreFile" accept=".json,application/json" style="display:none"></div>' +
       '<div class="export-msg" id="backupMsg" style="padding:8px 0 0;text-align:left"></div></div>';
   }
   function setBackupMsg(t) { var m = document.getElementById('backupMsg'); if (m) m.textContent = t; }
+  // Dados para backup: o que está salvo + o que falhou ao salvar (unsavedState), para nada se perder.
+  function backupData() {
+    var u = unsavedState || {}, d = new Date();
+    var data = { app: 'chaveiro', versao: 2, criadoEm: d.toISOString(), savedAt: Number(lsGet(STORAGE_SAVEDAT)) || Date.now(),
+      vendas: u[STORAGE_VENDAS] || loadVendas(), despesas: u[STORAGE_DESPESAS] || loadDespesas(), estoque: u[STORAGE_ESTOQUE] || loadEstoque(),
+      meta: u[STORAGE_META] != null ? Number(u[STORAGE_META]) || 0 : loadMeta() };
+    var q = loadQuarantine(); if (q.length) data.quarentena = q;
+    return data;
+  }
   function fazerBackup() {
     var d = new Date();
-    var data = { app: 'chaveiro', versao: 1, criadoEm: d.toISOString(), vendas: loadVendas(), despesas: loadDespesas(), estoque: loadEstoque() };
-    var blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'chaveiro-backup-' + dayKey(d) + '.json';
-    document.body.appendChild(a); a.click(); a.remove();
+    baixarArquivo('chaveiro-backup-' + dayKey(d) + '.json', JSON.stringify(backupData()));
     groupOpen._backup = dayKey(d); saveUi();
     renderApp(); setBackupMsg('Backup salvo na pasta de downloads.');
   }
+  // Restaura um backup JUNTANDO com os dados atuais (nada local é apagado). Registros ilegíveis são
+  // ignorados (o arquivo de backup continua intacto); baterias/pilhas ainda zeradas recebem as quantidades do backup.
   function restaurarBackup(file) {
     var r = new FileReader();
     r.onload = function () {
+      var data;
+      try { data = JSON.parse(r.result); } catch (e) { data = null; }
+      if (!isObj(data) || !(Array.isArray(data.vendas) || Array.isArray(data.despesas) || Array.isArray(data.estoque))) { setBackupMsg('Esse arquivo não parece ser um backup do Chaveiro. Nada foi alterado.'); return; }
       try {
-        var data = JSON.parse(r.result);
-        if (!data || !Array.isArray(data.vendas) || !Array.isArray(data.despesas)) throw new Error('formato');
-        var v = loadVendas(), d = loadDespesas(), ids = {}, nv = 0, nd = 0;
-        v.concat(d).forEach(function (x) { ids[x.id] = 1; });
-        data.vendas.forEach(function (x) { if (x && x.id && !ids[x.id]) { v.push(x); ids[x.id] = 1; nv++; } });
-        data.despesas.forEach(function (x) { if (x && x.id && !ids[x.id]) { d.push(x); ids[x.id] = 1; nd++; } });
-        var es = loadEstoque(), ne = 0; es.forEach(function (x) { ids[x.id] = 1; });
-        (data.estoque || []).forEach(function (x) { if (x && x.id && !ids[x.id]) { es.push(x); ids[x.id] = 1; ne++; } });
-        saveVendas(v); saveDespesas(d); saveEstoque(es);
-        renderApp(); setBackupMsg('Backup restaurado: ' + nv + ' vendas, ' + nd + ' gastos e ' + ne + ' produtos adicionados.');
-      } catch (e) { setBackupMsg('Esse arquivo não parece ser um backup do Chaveiro.'); }
+        var inc = sanitizeData(data), m = mergeData(localData(), inc), st = m.st;
+        if (!commit(dataMap(m.vendas, m.despesas, m.estoque, m.meta))) { setBackupMsg('Não foi possível restaurar: o navegador não conseguiu salvar. Nada foi alterado.'); return; }
+        renderApp();
+        var msg = 'Backup restaurado: ' + st.nv + ' vendas, ' + st.nd + ' gastos e ' + st.ne + ' produtos adicionados' + (st.ng ? '; ' + st.ng + ' baterias/pilhas atualizadas' : '') + '.';
+        if (st.conf) msg += ' ' + st.conf + ' registro(s) já existiam aqui com conteúdo diferente e foram mantidos como estão neste navegador.';
+        if (st.dup) msg += ' ' + st.dup + ' produto(s) já existiam com o mesmo nome e não foram duplicados.';
+        if (inc.bad) msg += ' ' + inc.bad + ' registro(s) ilegível(is) do backup foram ignorados.';
+        setBackupMsg(msg);
+      } catch (e) { setBackupMsg('Não foi possível ler esse backup. Nada foi alterado.'); }
     };
+    r.onerror = function () { setBackupMsg('Não foi possível abrir esse arquivo. Nada foi alterado.'); };
     r.readAsText(file);
   }
   function bindBackup() {
@@ -1628,24 +1998,24 @@
     var vendas = loadVendas().filter(function (v) { return v.day.slice(0, 7) === mKey; });
     var despesas = loadDespesas().filter(function (e) { return e.day.slice(0, 7) === mKey; });
 
-    var totalBruto = vendas.reduce(function (s, v) { return s + v.subtotal; }, 0);
-    var totalDesconto = vendas.reduce(function (s, v) { return s + v.discount; }, 0);
-    var totalLiquido = vendas.reduce(function (s, v) { return s + v.total; }, 0);
+    var totalBruto = money(vendas.reduce(function (s, v) { return s + v.subtotal; }, 0));
+    var totalDesconto = money(vendas.reduce(function (s, v) { return s + v.discount; }, 0));
+    var totalLiquido = money(vendas.reduce(function (s, v) { return s + v.total; }, 0));
 
     var porCategoria = {};
     CATEGORIES.forEach(function (c) { porCategoria[c.id] = { qty: 0, valor: 0, label: c.label }; });
     vendas.forEach(function (v) { v.items.forEach(function (it) {
       var k = it.cat === 'estoque' ? 'p:' + it.pid : it.cat;
       if (!porCategoria[k]) porCategoria[k] = { qty: 0, valor: 0, label: itemName(it) };
-      porCategoria[k].qty += it.qty; porCategoria[k].valor += it.qty * it.unitPrice;
+      porCategoria[k].qty += it.qty; porCategoria[k].valor = money(porCategoria[k].valor + it.qty * it.unitPrice);
     }); });
 
-    var totalDespesas = despesas.reduce(function (s, e) { return s + (num(e.valor) || 0); }, 0);
+    var totalDespesas = money(despesas.reduce(function (s, e) { return s + (num(e.valor) || 0); }, 0));
     var despesaPorCategoria = {};
     EXPENSE_CATEGORIES.forEach(function (c) { despesaPorCategoria[c.id] = 0; });
     despesas.forEach(function (e) { despesaPorCategoria[e.cat] = (despesaPorCategoria[e.cat] || 0) + (num(e.valor) || 0); });
 
-    var saldo = totalLiquido - totalDespesas;
+    var saldo = money(totalLiquido - totalDespesas);
 
     var vendasKeys = Object.keys(porCategoria).filter(function (k) { return porCategoria[k].qty > 0; });
     var vendasRows = capList('vendasmes-' + mKey, vendasKeys, 5, function (k) {
@@ -1722,11 +2092,16 @@
   }
   function setupClearVendas() {
     setupClear('footerActions', 'clearBtn', 'Limpar vendas do dia', 'Isso vai apagar TODAS as vendas registradas neste dia. Não dá pra desfazer.', 'confirmClearVendas', 'confirmClearVendasBtn',
-      function (key) { takeSnap(); loadVendas().filter(function (e) { return e.day === key; }).forEach(function (s) { estoqueDeVenda(s, 1); }); saveVendas(loadVendas().filter(function (e) { return e.day !== key; })); showToast('Vendas do dia apagadas', true); });
+      function (key) {
+        var all = loadVendas(), es = loadEstoque(), snap = { v: loadVendas(), e: loadEstoque() };
+        all.filter(function (e) { return e.day === key; }).forEach(function (s) { applyStock(es, s, 1); });
+        if (!commit(dataMap(all.filter(function (e) { return e.day !== key; }), null, es))) return;
+        undoSnap = snap; showToast('Vendas do dia apagadas', true);
+      });
   }
   function setupClearExp() {
     setupClear('expFooterActions', 'clearExpBtn', 'Limpar gastos do dia', 'Isso vai apagar TODOS os gastos registrados neste dia. Não dá pra desfazer.', 'confirmClearDespesas', 'confirmClearDespesasBtn',
-      function (key) { saveDespesas(loadDespesas().filter(function (e) { return e.day !== key; })); });
+      function (key) { if (saveDespesas(loadDespesas().filter(function (e) { return e.day !== key; }))) showToast('Gastos do dia apagados'); });
   }
 
   // Escolher um dia específico
@@ -1788,7 +2163,10 @@
   document.addEventListener('click', function (ev) {
     if (!ev.target.closest('[data-goal]')) return;
     var cur = loadMeta(), v = prompt('Meta de faturamento do mês (R$):', cur ? String(cur).replace('.', ',') : '');
-    if (v !== null) { saveMeta(num(v)); renderApp(); }
+    if (v === null) return;
+    var n = parseMoney(v.trim() === '' ? '0' : v);
+    if (isNaN(n) || n < 0) { showToast('Meta inválida. Digite só o número, ex: 20000 ou 20.000.', false, true); return; }
+    if (saveMeta(n)) renderApp();
   });
   function syncStickyOffsets() {
     var h = document.querySelector('header'), root = document.documentElement.style;
