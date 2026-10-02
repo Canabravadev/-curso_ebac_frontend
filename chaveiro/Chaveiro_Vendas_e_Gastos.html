@@ -787,7 +787,7 @@
     <section class="hero"><div class="hero-main"><small id="heroLbl">Faturamento do dia</small><div class="big" id="dayTotal">R$ 0,00</div></div><div class="pays" id="paySum"></div><div class="goal" id="goalBox"></div><svg class="spark" id="spark" viewBox="0 0 400 84" preserveAspectRatio="none"></svg><span class="spark-cap">últimos 7 dias</span></section>
     <div class="cols sale-cols" id="vendasCols"><div class="col"><div id="saleFormWrap"></div></div><div class="col col-receipt"><div id="saleTotalsWrap"></div></div></div>
     <div class="hist-area" id="histArea">
-      <div class="hist-head"><div class="section-title" id="histTitle">Vendas do dia</div><div class="field-wrap hist-search"><div class="money-input"><input class="text-input" type="search" id="histSearch" placeholder="Buscar no histórico (item, dia, pagamento)" aria-label="Buscar no histórico"></div></div></div>
+      <div class="hist-head"><div class="section-title" id="histTitle">Vendas do dia</div><div class="field-wrap hist-search"><div class="money-input"><input class="text-input" type="search" id="histSearch" placeholder="Buscar no histórico (item, dia, cliente, valor)" aria-label="Buscar no histórico"></div></div></div>
       <div class="history" id="history"></div>
       <div class="footer-actions" id="footerActions">
         <button class="clear-btn" id="clearBtn">Limpar vendas do dia</button>
@@ -1240,6 +1240,8 @@
   }
   function dayKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
   function monthKeyOf(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+  // Valor como se digita no balcão, sem "R$" nem milhar: 1234.5 -> "1234,50" (usado na busca).
+  function moneyTxt(n) { return money(n).toFixed(2).replace('.', ','); }
   function brl(n) { return (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   // Arredondamento monetário central: tudo que é dinheiro e vai ser gravado/somado passa por aqui (centavos).
   function money(n) { n = Number(n); if (!isFinite(n)) return 0; return Math.round((n + (n >= 0 ? 1e-9 : -1e-9)) * 100) / 100; }
@@ -1678,12 +1680,12 @@
   }
 
   // Texto de busca de cada venda calculado uma vez (WeakMap: venda alterada = objeto novo = recalcula).
-  // Os campos são separados por um caractere que não pode ser digitado, então o resultado é o mesmo de
-  // testar itens, data e pagamento separadamente.
+  // Os campos são separados por um caractere que não pode ser digitado: um termo nunca casa "atravessando"
+  // dois campos. Campos: itens, data, pagamento, nome do cliente (fiado) e valor total ("80,00").
   var _saleTxt = new WeakMap();
   function saleMatchesQuery(sale, q) {
     var t = _saleTxt.get(sale);
-    if (t === undefined) { t = norm(sale.items.map(function (it) { return itemName(it); }).join(' ')) + '\u0001' + norm(sale.day.split('-').reverse().join('/')) + '\u0001' + norm(PAY[sale.pay] || ''); _saleTxt.set(sale, t); }
+    if (t === undefined) { t = norm(sale.items.map(function (it) { return itemName(it); }).join(' ')) + '\u0001' + norm(sale.day.split('-').reverse().join('/')) + '\u0001' + norm(PAY[sale.pay] || '') + '\u0001' + norm(sale.cliente || '') + '\u0001' + moneyTxt(sale.total); _saleTxt.set(sale, t); }
     return t.indexOf(q) > -1;
   }
   // Horário de um registro (vendas e gastos lançados em outro dia não têm horário).
