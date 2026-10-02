@@ -614,6 +614,11 @@
   .databar.err { border-width: 2px; }
   .databar .db-det { width: 100%; font-size: .78rem; color: var(--ink-soft); }
   .databar button.alt { background: transparent; color: var(--brass-strong); }
+  /* ===== Fase 2 — contadores de listas longas ===== */
+  .more-row { display: flex; gap: 8px; } .more-row .showmore { flex: 1; }
+  .est-count { font-size: .78rem; color: var(--ink-soft); padding: 10px 2px 2px; }
+  .stk-more { font-size: .74rem; color: var(--ink-soft); padding: 8px 4px 2px; }
+  .stk-more button { border: none; background: none; color: var(--brass-strong); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0; }
 </style>
 </head>
 <body>
@@ -744,10 +749,99 @@
   function saveUi() { try { localStorage.setItem('chaveiro_ui_v1', JSON.stringify(groupOpen)); } catch (e) {} }
   function cancelEdit() { if (editingSaleId) { resetItemState(); finalValueRaw = ''; } editingSaleId = null; editingExpId = null; }
 
-  function loadVendas() { return readList(STORAGE_VENDAS, normSale, 'venda'); }
+  /* ----- Cache em memória (Fase 2) -----
+     As listas são lidas (JSON.parse + validação) UMA vez e ficam em CACHE. loadVendas/loadDespesas/loadEstoque
+     devolvem o array do cache: ele é SOMENTE LEITURA. Quem altera dados trabalha numa cópia (array.slice() e
+     objetos novos com Object.assign — "copy-on-write") e grava com commit(); só depois que o localStorage
+     aceitou a gravação o cache passa a apontar para os novos arrays. Se a gravação falhar, o cache continua
+     igual ao que está salvo (mesma garantia da Fase 1). Alterações feitas em outra aba chegam pelo evento
+     "storage" e invalidam o cache. Índices derivados (Map de produtos, vendas por dia/mês, mais vendidos...)
+     são recalculados só quando o array de origem muda (comparação por referência). */
+  var CACHE = {}, RAW = {}; // RAW: texto do localStorage correspondente a cada lista do cache
+  function listDef(key) { return key === STORAGE_VENDAS ? [normSale, 'venda'] : key === STORAGE_DESPESAS ? [normExp, 'gasto'] : [normEst, 'produto']; }
+  function cachedList(key) {
+    if (!Object.prototype.hasOwnProperty.call(CACHE, key)) { var d = listDef(key); setCache(key, readList(key, d[0], d[1])); }
+    return CACHE[key];
+  }
+  // Modo de verificação (só para testes): com window.__chaveiroFreeze = true o cache é congelado, e qualquer
+  // código que tente alterá-lo diretamente falha — garante que tudo passa por cópia + commit().
+  function deepFreeze(o) { if (o && typeof o === 'object' && !Object.isFrozen(o)) { Object.freeze(o); Object.keys(o).forEach(function (k) { deepFreeze(o[k]); }); } return o; }
+  function setCache(key, list) { CACHE[key] = window.__chaveiroFreeze ? deepFreeze(list) : list; }
+  function isListKey(k) { return k === STORAGE_VENDAS || k === STORAGE_DESPESAS || k === STORAGE_ESTOQUE; }
+  function invalidateCache(key) { if (key == null) { CACHE = {}; RAW = {}; } else { delete CACHE[key]; delete RAW[key]; } }
+  function loadVendas() { return cachedList(STORAGE_VENDAS); }
   function saveVendas(list) { var m = {}; m[STORAGE_VENDAS] = list; return commit(m); }
-  function loadDespesas() { return readList(STORAGE_DESPESAS, normExp, 'gasto'); }
+  function loadDespesas() { return cachedList(STORAGE_DESPESAS); }
   function saveDespesas(list) { var m = {}; m[STORAGE_DESPESAS] = list; return commit(m); }
+
+  // Índice do estoque: Map id -> produto (busca O(1)), lista dos abaixo do mínimo e ordem de exibição.
+  var _ei = { src: null };
+  var collator = new Intl.Collator('pt-BR', { numeric: true, sensitivity: 'base' });
+  function estIndex() {
+    var es = loadEstoque(); if (_ei.src === es) return _ei;
+    var map = new Map(), low = [];
+    es.forEach(function (x) { map.set(x.id, x); if (x.min > 0 && x.qty < x.min) low.push(x); });
+    _ei = { src: es, map: map, low: low, sorted: null };
+    return _ei;
+  }
+  function sortedEst() {
+    var ix = estIndex();
+    if (!ix.sorted) ix.sorted = ix.src.slice().sort(function (a, b) { return (STOCK_CATS.indexOf(a.cat) - STOCK_CATS.indexOf(b.cat)) || collator.compare(String(a.marca), String(b.marca)) || collator.compare(String(a.modelo), String(b.modelo)); });
+    return ix.sorted;
+  }
+  // Texto normalizado de busca por produto. WeakMap: produtos alterados são objetos novos (copy-on-write),
+  // então só eles são renormalizados; os demais reaproveitam o cálculo.
+  var _sd = new WeakMap();
+  function searchData(x) {
+    var d = _sd.get(x); if (d) return d;
+    var modelo = norm(x.modelo).trim();
+    d = { n: norm(pname(x)), marca: norm(x.marca).trim(), modelo: modelo, segs: modelo.split(/[\s\/]+/).filter(Boolean) };
+    _sd.set(x, d); return d;
+  }
+  function tokScore(d, t) {
+    if (d.modelo === t) return 120;                       // modelo exatamente igual
+    if (d.segs.indexOf(t) > -1) return 100;               // um dos códigos do modelo (ex: "C266" em "11 / C266")
+    if (d.marca === t) return 60;
+    for (var i = 0; i < d.segs.length; i++) if (d.segs[i].indexOf(t) === 0) return 40;
+    if (d.marca.indexOf(t) === 0) return 30;
+    if ((' ' + d.n).indexOf(' ' + t) > -1) return 10;     // começo de palavra
+    return 1;                                             // só contém
+  }
+  // Busca por relevância: todos os termos precisam aparecer; empate mantém a ordem normal da lista.
+  function searchProducts(q, cat) {
+    var toks = norm(q).split(/\s+/).filter(Boolean); if (!toks.length) return null;
+    var res = [];
+    sortedEst().forEach(function (x, i) {
+      if (cat && x.cat !== cat) return;
+      var d = searchData(x), sc = 0;
+      for (var j = 0; j < toks.length; j++) { if (d.n.indexOf(toks[j]) < 0) return; sc += tokScore(d, toks[j]); }
+      res.push({ x: x, s: sc, i: i });
+    });
+    res.sort(function (a, b) { return b.s - a.s || a.i - b.i; });
+    return res.map(function (r) { return r.x; });
+  }
+
+  // Índices de vendas e gastos por dia e por mês (e totais), recalculados só quando a lista muda.
+  function buildIndex(list, valFn) {
+    var byDay = new Map(), byMonth = new Map(), dayTot = new Map(), monTot = new Map();
+    list.forEach(function (v) {
+      var d = v.day, m = d.slice(0, 7), val = valFn(v);
+      (byDay.get(d) || byDay.set(d, []).get(d)).push(v);
+      (byMonth.get(m) || byMonth.set(m, []).get(m)).push(v);
+      dayTot.set(d, (dayTot.get(d) || 0) + val); monTot.set(m, (monTot.get(m) || 0) + val);
+    });
+    return { src: list, byDay: byDay, byMonth: byMonth, dayTot: dayTot, monTot: monTot };
+  }
+  var _si = { src: null }, _xi = { src: null };
+  function salesIndex() { var vs = loadVendas(); if (_si.src !== vs) { _si = buildIndex(vs, function (v) { return v.total; }); _si.fiado = vs.filter(function (v) { return v.pay === 'fiado'; }).sort(function (a, b) { return a.ts - b.ts; }); } return _si; }
+  function expIndex() { var xs = loadDespesas(); if (_xi.src !== xs) _xi = buildIndex(xs, function (e) { return num(e.valor) || 0; }); return _xi; }
+  var NONE = [];
+  function salesOfDay(k) { return salesIndex().byDay.get(k) || NONE; }
+  function salesOfMonth(m) { return salesIndex().byMonth.get(m) || NONE; }
+  function dayTotalOf(k) { return money(salesIndex().dayTot.get(k) || 0); }
+  function monthTotalOf(m) { return money(salesIndex().monTot.get(m) || 0); }
+  function expOfDay(k) { return expIndex().byDay.get(k) || NONE; }
+  function expOfMonth(m) { return expIndex().byMonth.get(m) || NONE; }
 
   /* ----- Camada de gravação segura -----
      commit({chave: valor, ...}) grava tudo ou nada: se qualquer gravação falhar (ex.: armazenamento cheio),
@@ -757,12 +851,22 @@
   var saveError = null, unsavedState = null, corruptKeys = {}, loadWarning = '';
   function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function commit(map, opt) {
-    var done = [], prev = {};
+    var done = [], prev = {}, keys = Object.keys(map), str = {};
+    // Proteção do cache (Fase 2): se o que está no localStorage não é mais o que o cache leu/gravou (outra
+    // janela, edição externa), NÃO grava por cima — descarta o cache, redesenha e pede para repetir a ação.
+    var stale = keys.filter(function (k) { if (!isListKey(k) || !Object.prototype.hasOwnProperty.call(RAW, k)) return false; prev[k] = lsGet(k); return prev[k] !== RAW[k]; });
+    if (stale.length) {
+      stale.forEach(invalidateCache);
+      showToast('Os dados mudaram em outra janela do Chaveiro. Nada foi salvo: a tela foi atualizada, confira e repita a ação.', false, true);
+      setTimeout(renderApp, 0);
+      return false;
+    }
     try {
-      Object.keys(map).forEach(function (k) {
+      keys.forEach(function (k) {
         if (corruptKeys[k]) throw new Error('corrupt');
-        prev[k] = localStorage.getItem(k);
-        localStorage.setItem(k, typeof map[k] === 'string' ? map[k] : JSON.stringify(map[k]));
+        if (!(k in prev)) prev[k] = localStorage.getItem(k);
+        str[k] = typeof map[k] === 'string' ? map[k] : JSON.stringify(map[k]);
+        localStorage.setItem(k, str[k]);
         done.push(k);
       });
     } catch (e) {
@@ -770,6 +874,7 @@
       saveFailed(map, e);
       return false;
     }
+    keys.forEach(function (k) { if (isListKey(k)) { setCache(k, map[k]); RAW[k] = str[k]; } }); // cache = o que foi gravado
     if (saveError) { saveError = null; unsavedState = null; renderDataBar(); }
     if (!(opt && opt.noTouch)) touch();
     return true;
@@ -794,7 +899,7 @@
   // Lê uma lista do localStorage sem nunca derrubar o app: JSON danificado é copiado para uma chave à parte
   // (e a gravação dessa chave fica bloqueada se a cópia falhar); registros ilegíveis vão para a quarentena.
   function readList(key, normFn, tipo) {
-    var raw = lsGet(key); if (!raw) return [];
+    var raw = lsGet(key); RAW[key] = raw; if (!raw) return [];
     var list; try { list = JSON.parse(raw); } catch (e) { list = null; }
     if (!Array.isArray(list)) {
       try {
@@ -812,7 +917,7 @@
     }
     if (changed) {
       addQuarantine(bad);
-      try { localStorage.setItem(key, JSON.stringify(out)); } catch (e) {}
+      try { var fixed = JSON.stringify(out); localStorage.setItem(key, fixed); RAW[key] = fixed; } catch (e) {}
       if (bad.length) loadWarning = bad.length + ' registro(s) ilegível(is) foram separados e guardados à parte (aparecem no backup).';
     }
     return out;
@@ -917,8 +1022,16 @@
     });
     return { vendas: vendas, despesas: despesas, estoque: estoque, meta: Number(loc.meta) > 0 ? Number(loc.meta) : (Number(inc.meta) || 0), st: st };
   }
+  // Ajusta o estoque de uma venda em "es" (que deve ser uma CÓPIA do array, ex: loadEstoque().slice()).
+  // Produtos alterados viram objetos novos: o cache e os snapshots de desfazer nunca são modificados.
   function applyStock(es, sale, sign) {
-    ((sale && sale.items) || []).forEach(function (i) { if (!i || !i.pid) return; var x = es.find(function (y) { return y.id === i.pid; }); if (x) x.qty = (Number(x.qty) || 0) + sign * (Number(i.qty) || 0); });
+    var pos = null;
+    ((sale && sale.items) || []).forEach(function (i) {
+      if (!i || !i.pid) return;
+      if (!pos) { pos = new Map(); es.forEach(function (y, k) { pos.set(y.id, k); }); }
+      var k = pos.get(i.pid); if (k === undefined) return;
+      es[k] = Object.assign({}, es[k], { qty: (Number(es[k].qty) || 0) + sign * (Number(i.qty) || 0) });
+    });
     return es;
   }
   function dataMap(v, d, e, m) {
@@ -1033,7 +1146,7 @@
     var discountRow = document.getElementById('discountRow'); if (discountRow) discountRow.style.display = fi.discount > 0 ? 'flex' : 'none';
     var discountEl = document.getElementById('discountDisplay'); if (discountEl) discountEl.textContent = brl(fi.discount);
     var totalEl = document.getElementById('totalDisplay'); if (totalEl) totalEl.textContent = fi.error ? '—' : brl(fi.total);
-    var fvi = document.getElementById('finalValueInput'); if (fvi) fvi.classList.toggle('invalid', !!fi.error);
+    var fvi = document.getElementById('finalValueInput'); if (fvi) { fvi.classList.toggle('invalid', !!fi.error); fvi.placeholder = moneyInput(fi.subtotal); }
     var registrarBtn = document.getElementById('registrarBtn'); if (registrarBtn) registrarBtn.disabled = !isFormValid();
     var rh = document.getElementById('regHint'); if (rh) { rh.textContent = regHint(); rh.classList.toggle('err', !!fi.error); }
     document.querySelectorAll('[data-outro-wrap]').forEach(function (w) {
@@ -1055,19 +1168,18 @@
 
   function gStockId(gid, m) { return 'g-' + gid + '-' + m; }
   function ensureGroupStock() {
-    var es = loadEstoque(), changed = false;
+    var idx = estIndex(), missing = [];
     GROUPS.forEach(function (g) {
       g.models.forEach(function (m) {
         var id = gStockId(g.id, m);
-        if (!es.some(function (x) { return x.id === id; })) {
-          es.push({ id: id, cat: g.label, marca: m, modelo: '', qty: 0, preco: PRECO_AVULSO, min: 0, g: true });
-          changed = true;
-        }
+        if (!idx.map.has(id)) missing.push({ id: id, cat: g.label, marca: m, modelo: '', qty: 0, preco: PRECO_AVULSO, min: 0, g: true });
       });
     });
+    if (!missing.length) return;
     // Gravação direta, sem touch(): criar os produtos-base vazios não é uma alteração do usuário, então não
     // pode mudar o "savedAt" nem disparar gravação no arquivo (isso fazia um navegador novo parecer "mais novo").
-    if (changed) { try { localStorage.setItem(STORAGE_ESTOQUE, JSON.stringify(es)); } catch (e) {} }
+    var es = loadEstoque().concat(missing);
+    try { var txt = JSON.stringify(es); localStorage.setItem(STORAGE_ESTOQUE, txt); setCache(STORAGE_ESTOQUE, es); RAW[STORAGE_ESTOQUE] = txt; } catch (e) {}
   }
   function groupHtml(g) {
     var cats = CATEGORIES.filter(function (c) { return c.group === g.id; });
@@ -1090,7 +1202,7 @@
           '<div class="mline"><span class="mtag">Troca</span>' + stepper(t) + '</div></div>';
       }).join('') + '</div>';
     }
-    return '<div class="item-row">' + head + body + '</div>';
+    return '<div class="item-row" data-block="g-' + g.id + '">' + head + body + '</div>';
   }
 
   function outrosBlockHtml() {
@@ -1104,9 +1216,95 @@
         '<div class="stepper"><button class="step-btn minus" data-outro-minus="' + i + '" aria-label="Diminuir">−</button><span class="step-count">' + o.qty + '</span><button class="step-btn plus" data-outro-plus="' + i + '" aria-label="Aumentar">+</button></div>' +
         '<button class="step-btn outro-del" data-outro-del="' + i + '" aria-label="Remover este item" title="Remover">🗑</button></div>';
     }).join('');
-    return '<div class="item-row tile-row outros-row' + (n > 0 ? ' on' : '') + '"><span class="ico">' + KEY_SVG + '</span>' +
+    return '<div class="item-row tile-row outros-row' + (n > 0 ? ' on' : '') + '" data-block="outros"><span class="ico">' + KEY_SVG + '</span>' +
       '<div class="item-info"><span class="item-label">' + c.label + '</span><span class="item-price">' + (n > 0 ? n + (n === 1 ? ' item' : ' itens') + ' personalizados' : 'itens personalizados · valor variável') + '</span></div>' +
       '<div class="extra-fields outros-list">' + lines + '<button class="clear-btn outro-add" id="outroAddBtn">+ Adicionar outro</button></div></div>';
+  }
+  // Linha de uma categoria simples (chave, carro, serviço...). data-block permite trocar só esta linha.
+  function catRowHtml(c) {
+    var it = itemState[c.id];
+    var priceLabel = c.price !== null ? brl(c.price) + ' un.' : 'valor variável';
+    var extra = '';
+    if (c.price === null && it.qty > 0) {
+      var invalidClass = (!(num(it.price) > 0)) ? ' invalid' : '';
+      extra = '<div class="extra-fields">' +
+        '<div class="field-wrap' + invalidClass + '" id="fieldwrap-' + c.id + '">' +
+        '<label>' + (c.svc ? 'Valor do serviço' : 'Valor por chave (' + c.label + ')') + '</label>' +
+        '<div class="money-input"><span>R$</span><input type="text" inputmode="decimal" placeholder="0,00" data-price-cat="' + c.id + '" value="' + escAttr(it.price) + '"></div>' +
+        '<span class="hint" id="hint-' + c.id + '" style="display:' + (invalidClass ? 'block' : 'none') + '">Informe o valor</span>' +
+        '</div></div>';
+    }
+    return '<div class="item-row tile-row' + (it.qty > 0 ? ' on' : '') + '" data-block="c-' + c.id + '"><span class="ico">' + KEY_SVG + '</span>' +
+      '<div class="item-info"><span class="item-label">' + c.label + '</span><span class="item-price">' + priceLabel + '</span></div>' +
+      '<div class="stepper"><button class="step-btn minus" data-cat="' + c.id + '">−</button><span class="step-count">' + it.qty + '</span><button class="step-btn plus" data-cat="' + c.id + '">+</button></div>' +
+      extra + '</div>';
+  }
+  function stockSelRowHtml(k) {
+    var s = stockItems[k]; if (!s) return '';
+    var pr = estoqueFind(k), warn = pr && s.qty > pr.qty;
+    var stockInfo = pr ? ('estoque: ' + pr.qty + ' → sobra ' + (pr.qty - s.qty)) : 'produto não está mais no estoque';
+    return '<div class="item-row stk-sel" data-block="sp-' + escAttr(k) + '"><span class="ico">' + KEY_SVG + '</span><div class="item-info"><span class="item-label">' + escAttr(s.name) + '</span><span class="item-price">' + brl(num(s.price)) + ' cada · ' + stockInfo + (warn ? ' <span style="color:var(--danger)">· só tem ' + pr.qty + '</span>' : '') + '</span></div>' +
+      '<div class="stepper"><button class="step-btn stk-minus" data-pid="' + escAttr(k) + '">−</button><span class="step-count">' + s.qty + '</span><button class="step-btn stk-plus" data-pid="' + escAttr(k) + '">+</button></div></div>';
+  }
+
+  /* ----- Atualização parcial do formulário de venda -----
+     Cada bloco (linha de categoria, grupo de baterias/pilhas, "Outros", produto do estoque escolhido, cabeçalho
+     de serviços) é gerado a partir do estado por uma única função. Ao clicar em +/−, só o bloco afetado é
+     trocado e os totais são atualizados. Se o bloco não for encontrado, cai na renderização completa. */
+  function replaceBlock(id, html) {
+    var wrap = document.getElementById('saleFormWrap'), el = wrap && wrap.querySelector('[data-block="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]');
+    if (!el) return false;
+    if (html) el.outerHTML = html; else el.remove();
+    return true;
+  }
+  function refreshCat(catId) {
+    var c = CATEGORIES.find(function (x) { return x.id === catId; }); if (!c) return renderSaleForm();
+    var ok = c.group ? replaceBlock('g-' + c.group, groupHtml(GROUPS.find(function (g) { return g.id === c.group; }))) : replaceBlock('c-' + c.id, catRowHtml(c));
+    if (ok && c.svc) ok = replaceBlock('svchead', svcHeadHtml());
+    if (!ok) return renderSaleForm();
+    updateTotalsDisplay();
+  }
+  function refreshStock(pid) { if (!replaceBlock('sp-' + pid, stockSelRowHtml(pid))) return renderSaleForm(); updateTotalsDisplay(); }
+  function refreshOutros() {
+    if (!replaceBlock('outros', outrosBlockHtml())) return renderSaleForm();
+    if (outrosFocus) { outrosFocus = false; var ds = document.querySelectorAll('#saleFormWrap [data-outro-desc]'); if (ds.length) ds[ds.length - 1].focus(); }
+    updateTotalsDisplay();
+  }
+  function changeCat(id, d) { var st = itemState[id]; if (!st) return; st.qty = Math.max(0, st.qty + d); refreshCat(id); }
+  function changeStock(pid, d) { var s = stockItems[pid]; if (!s) return; s.qty += d; if (s.qty <= 0) delete stockItems[pid]; refreshStock(pid); }
+  // Um único par de listeners (clique/digitação) para o formulário inteiro, ligado uma vez.
+  function bindSaleFormEvents() {
+    var wrap = document.getElementById('saleFormWrap');
+    if (!wrap || wrap.getAttribute('data-bound')) return;
+    wrap.setAttribute('data-bound', '1');
+    wrap.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button'); if (!b || !wrap.contains(b)) return;
+      var v;
+      if ((v = b.getAttribute('data-cat')) !== null) return changeCat(v, b.classList.contains('plus') ? 1 : -1);
+      if (b.classList.contains('stk-minus') || b.classList.contains('stk-plus')) return changeStock(b.getAttribute('data-pid'), b.classList.contains('stk-plus') ? 1 : -1);
+      if ((v = b.getAttribute('data-outro-minus')) !== null) { var o = outrosList[+v]; if (o) o.qty = Math.max(1, o.qty - 1); return refreshOutros(); }
+      if ((v = b.getAttribute('data-outro-plus')) !== null) { if (outrosList[+v]) outrosList[+v].qty += 1; return refreshOutros(); }
+      if ((v = b.getAttribute('data-outro-del')) !== null) { outrosList.splice(+v, 1); return refreshOutros(); }
+      if (b.id === 'outroAddBtn') { outrosList.push({ desc: '', price: '', qty: 1 }); outrosFocus = true; return refreshOutros(); }
+      if ((v = b.getAttribute('data-group')) !== null) {
+        groupOpen[v] = groupOpen[v] === false; saveUi();
+        var g = GROUPS.find(function (x) { return x.id === v; });
+        if (!(g && replaceBlock('g-' + v, groupHtml(g)))) renderSaleForm(); // serviços: renderização completa
+        return;
+      }
+      if ((v = b.getAttribute('data-fav')) !== null) {
+        var id = v.slice(2);
+        if (v.charAt(0) === 'p') { var x = estoqueFind(id); if (!x) return; if (stockItems[id]) stockItems[id].qty += 1; else stockItems[id] = { qty: 1, price: String(x.preco || '').replace('.', ','), name: pname(x) }; }
+        else if (itemState[id]) itemState[id].qty += 1;
+        return renderSaleForm();
+      }
+    });
+    wrap.addEventListener('input', function (ev) {
+      var inp = ev.target, v;
+      if ((v = inp.getAttribute('data-outro-desc')) !== null) { if (outrosList[+v]) outrosList[+v].desc = inp.value; var e = document.getElementById('selSum'); if (e) e.outerHTML = selSumHtml(); return; }
+      if ((v = inp.getAttribute('data-outro-price')) !== null) { if (outrosList[+v]) outrosList[+v].price = inp.value; return updateTotalsDisplay(); }
+      if ((v = inp.getAttribute('data-price-cat')) !== null) { if (itemState[v]) itemState[v].price = inp.value; return updateTotalsDisplay(); }
+    });
   }
 
   function renderSaleForm() {
@@ -1118,29 +1316,7 @@
       if (c.id === 'outros') return outrosBlockHtml();
       var svcHead = '';
       if (c.svc) { if (c.id === SERVICES[0].id) svcHead = svcHeadHtml(); if (groupOpen.svc === false) return svcHead; }
-      var it = itemState[c.id];
-      var priceLabel = c.price !== null ? brl(c.price) + ' un.' : 'valor variável';
-      var extra = '';
-      if (c.price === null && it.qty > 0) {
-        var invalidClass = (!(num(it.price) > 0)) ? ' invalid' : '';
-        extra += '<div class="extra-fields">' +
-          '<div class="field-wrap' + invalidClass + '" id="fieldwrap-' + c.id + '">' +
-          '<label>' + (c.svc ? 'Valor do serviço' : 'Valor por chave (' + c.label + ')') + '</label>' +
-          '<div class="money-input"><span>R$</span><input type="text" inputmode="decimal" placeholder="0,00" data-price-cat="' + c.id + '" value="' + (it.price === '' ? '' : it.price) + '"></div>' +
-          '<span class="hint" id="hint-' + c.id + '" style="display:' + (invalidClass ? 'block' : 'none') + '">Informe o valor</span>' +
-          '</div>';
-        if (c.id === 'outros') {
-          extra += '<div class="field-wrap">' +
-            '<label>Descrição (opcional)</label>' +
-            '<div class="money-input"><input class="text-input" type="text" placeholder="ex: cópia de controle" data-desc-cat="' + c.id + '" value="' + escAttr(it.desc) + '"></div>' +
-            '</div>';
-        }
-        extra += '</div>';
-      }
-      return svcHead + '<div class="item-row tile-row' + (it.qty > 0 ? ' on' : '') + '"><span class="ico">' + KEY_SVG + '</span>' +
-        '<div class="item-info"><span class="item-label">' + c.label + '</span><span class="item-price">' + priceLabel + '</span></div>' +
-        '<div class="stepper"><button class="step-btn minus" data-cat="' + c.id + '">−</button><span class="step-count">' + it.qty + '</span><button class="step-btn plus" data-cat="' + c.id + '">+</button></div>' +
-        extra + '</div>' + (c.id === 'carro' ? GROUPS.map(groupHtml).join('') : '');
+      return svcHead + catRowHtml(c) + (c.id === 'carro' ? GROUPS.map(groupHtml).join('') : '');
     }).join('');
 
     var fi = finalInfo();
@@ -1158,29 +1334,12 @@
       payHtml() + '<button class="registrar-btn" id="registrarBtn" ' + (valid ? '' : 'disabled') + '>' + (editingSaleId ? 'Salvar alterações' : 'Registrar venda') + '</button><div class="reg-hint' + (fi.error ? ' err' : '') + '" id="regHint">' + escAttr(regHint()) + '</div>' + (editingSaleId ? '<button class="clear-btn" id="cancelEditBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') +
       '</div>';
 
-    wrap.querySelectorAll('.step-btn.minus[data-cat]').forEach(function (btn) { btn.addEventListener('click', function () { itemState[btn.getAttribute('data-cat')].qty = Math.max(0, itemState[btn.getAttribute('data-cat')].qty - 1); renderSaleForm(); }); });
-    wrap.querySelectorAll('.step-btn.plus[data-cat]').forEach(function (btn) { btn.addEventListener('click', function () { itemState[btn.getAttribute('data-cat')].qty += 1; renderSaleForm(); }); });
-    var oAdd = document.getElementById('outroAddBtn');
-    if (oAdd) oAdd.addEventListener('click', function () { outrosList.push({ desc: '', price: '', qty: 1 }); outrosFocus = true; renderSaleForm(); });
-    wrap.querySelectorAll('[data-outro-desc]').forEach(function (inp) { inp.addEventListener('input', function () { outrosList[+inp.getAttribute('data-outro-desc')].desc = inp.value; var e = document.getElementById('selSum'); if (e) e.outerHTML = selSumHtml(); }); });
-    wrap.querySelectorAll('[data-outro-price]').forEach(function (inp) { inp.addEventListener('input', function () { outrosList[+inp.getAttribute('data-outro-price')].price = inp.value; updateTotalsDisplay(); }); });
-    wrap.querySelectorAll('[data-outro-minus]').forEach(function (b) { b.addEventListener('click', function () { var o = outrosList[+b.getAttribute('data-outro-minus')]; o.qty = Math.max(1, o.qty - 1); renderSaleForm(); }); });
-    wrap.querySelectorAll('[data-outro-plus]').forEach(function (b) { b.addEventListener('click', function () { outrosList[+b.getAttribute('data-outro-plus')].qty += 1; renderSaleForm(); }); });
-    wrap.querySelectorAll('[data-outro-del]').forEach(function (b) { b.addEventListener('click', function () { outrosList.splice(+b.getAttribute('data-outro-del'), 1); renderSaleForm(); }); });
+    bindSaleFormEvents();
     if (outrosFocus) { outrosFocus = false; var ds = wrap.querySelectorAll('[data-outro-desc]'); if (ds.length) ds[ds.length - 1].focus(); }
-    wrap.querySelectorAll('[data-price-cat]').forEach(function (inp) { inp.addEventListener('input', function () { itemState[inp.getAttribute('data-price-cat')].price = inp.value; updateTotalsDisplay(); }); });
-    wrap.querySelectorAll('[data-desc-cat]').forEach(function (inp) { inp.addEventListener('input', function () { itemState[inp.getAttribute('data-desc-cat')].desc = inp.value; }); });
     var finalValueInput = document.getElementById('finalValueInput');
     if (finalValueInput) { finalValueInput.addEventListener('input', function () { finalValueRaw = finalValueInput.value; updateTotalsDisplay(); }); }
     var registrarBtn = document.getElementById('registrarBtn');
     if (registrarBtn) { registrarBtn.addEventListener('click', function () { if (!isFormValid()) return; registrarVenda(); }); }
-    wrap.querySelectorAll('.ghead').forEach(function (b) { b.addEventListener('click', function () { var id = b.getAttribute('data-group'); groupOpen[id] = groupOpen[id] === false; saveUi(); renderSaleForm(); }); });
-    wrap.querySelectorAll('[data-fav]').forEach(function (b) { b.addEventListener('click', function () {
-      var k = b.getAttribute('data-fav'), id = k.slice(2);
-      if (k.charAt(0) === 'p') { var x = estoqueFind(id); if (!x) return; if (stockItems[id]) stockItems[id].qty += 1; else stockItems[id] = { qty: 1, price: String(x.preco || '').replace('.', ','), name: pname(x) }; }
-      else if (itemState[id]) itemState[id].qty += 1;
-      renderSaleForm();
-    }); });
     bindStockPicker(wrap); bindPay();
     var cancelBtn = document.getElementById('cancelEditBtn');
     if (cancelBtn) cancelBtn.addEventListener('click', function () { cancelEdit(); renderApp(); });
@@ -1204,8 +1363,9 @@
     legacyItems.forEach(function (i) { items.push(i); }); // itens antigos voltam exatamente como estavam
     var fi = finalInfo();
     if (fi.error || !isFormValid()) { updateTotalsDisplay(); return; }
-    var all = loadVendas(), es = loadEstoque();
+    // Cópias rasas para alterar; os arrays do cache ficam intactos e servem de snapshot para "desfazer".
     var snap = { v: loadVendas(), e: loadEstoque() };
+    var all = snap.v.slice(), es = snap.e.slice();
     var fields = { items: items, subtotal: fi.subtotal, discount: fi.discount, total: fi.total, pay: payState, cliente: payState === 'fiado' ? clienteState.trim() : '' };
     var idx = editingSaleId ? all.findIndex(function (e) { return e.id === editingSaleId; }) : -1;
     if (editingSaleId && idx < 0) { showToast('Esta venda não existe mais (foi removida). Cancele a edição.', false, true); return; }
@@ -1259,7 +1419,7 @@
     var f = document.getElementById('saleFormWrap'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function removerVenda(id) {
-    var all = loadVendas(), es = loadEstoque(), snap = { v: loadVendas(), e: loadEstoque() };
+    var snap = { v: loadVendas(), e: loadEstoque() }, all = snap.v, es = snap.e.slice();
     all.filter(function (e) { return e.id === id; }).forEach(function (s) { applyStock(es, s, 1); });
     if (!commit(dataMap(all.filter(function (e) { return e.id !== id; }), null, es))) { renderApp(); return; }
     undoSnap = snap;
@@ -1267,11 +1427,14 @@
     showToast('Venda removida', true); renderApp();
   }
 
+  // Texto de busca de cada venda calculado uma vez (WeakMap: venda alterada = objeto novo = recalcula).
+  // Os campos são separados por um caractere que não pode ser digitado, então o resultado é o mesmo de
+  // testar itens, data e pagamento separadamente.
+  var _saleTxt = new WeakMap();
   function saleMatchesQuery(sale, q) {
-    if (norm(sale.items.map(function (it) { return itemName(it); }).join(' ')).indexOf(q) > -1) return true;
-    if (norm(sale.day.split('-').reverse().join('/')).indexOf(q) > -1) return true;
-    if (norm(PAY[sale.pay] || '').indexOf(q) > -1) return true;
-    return false;
+    var t = _saleTxt.get(sale);
+    if (t === undefined) { t = norm(sale.items.map(function (it) { return itemName(it); }).join(' ')) + '\u0001' + norm(sale.day.split('-').reverse().join('/')) + '\u0001' + norm(PAY[sale.pay] || ''); _saleTxt.set(sale, t); }
+    return t.indexOf(q) > -1;
   }
   function buildSaleRow(sale, showDay) {
     var time = new Date(sale.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); if (sale.manual) time = 'sem horário';
@@ -1294,25 +1457,27 @@
     });
     return row;
   }
+  var lastHistQ = '';
   function renderHistoryAndTotal() {
     var all = loadVendas();
     var viewDate = dateForOffset(currentOffset);
     var key = dayKey(viewDate);
     var isToday = currentOffset === 0;
-    var daySales = all.filter(function (e) { return e.day === key; });
+    var daySales = salesOfDay(key);
     document.getElementById('dateLabel').textContent = viewDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
     document.getElementById('todayTag').textContent = isToday ? 'HOJE' : '';
     document.getElementById('nextDay').disabled = currentOffset >= 0;
-    var dayTotal = daySales.reduce(function (s, sale) { return s + sale.total; }, 0);
-    document.getElementById('dayTotal').textContent = brl(dayTotal);
+    document.getElementById('dayTotal').textContent = brl(dayTotalOf(key));
     var ps = document.getElementById('paySum'); if (ps) ps.innerHTML = payChips(daySales);
     var sp = document.getElementById('spark'); if (sp) sp.innerHTML = sparkInner();
     var hl = document.getElementById('heroLbl'); if (hl) hl.textContent = isToday ? 'Faturamento de hoje' : 'Faturamento de ' + viewDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
-    var gb = document.getElementById('goalBox'); if (gb) gb.innerHTML = goalHtml(key.slice(0, 7), all);
+    var gb = document.getElementById('goalBox'); if (gb) gb.innerHTML = goalHtml(key.slice(0, 7));
 
     var searchEl = document.getElementById('histSearch');
     var q = norm(searchEl ? searchEl.value : '');
     var searching = q.length > 0;
+    if (searching && q !== lastHistQ) expandState['hist-search'] = 0; // nova busca começa do início
+    lastHistQ = q;
     var sales = searching ? all.filter(function (e) { return saleMatchesQuery(e, q); }) : daySales;
 
     var titleEl = document.getElementById('histTitle');
@@ -1325,17 +1490,15 @@
       empty.textContent = searching ? 'Nenhuma venda encontrada.' : (isToday ? 'Nenhuma venda registrada hoje.' : 'Nenhuma venda registrada nesse dia.');
       histEl.appendChild(empty);
     } else {
+      // Dia: 10 vendas, depois de 20 em 20. Busca: 20, depois de 50 em 50. Nunca a lista inteira de uma vez.
       var sorted = sales.slice().sort(function (a, b) { return b.ts - a.ts; });
-      var limit = searching ? 5 : 2;
+      var limit = searching ? 20 : 10, step = searching ? 50 : 20;
       var expKey = searching ? 'hist-search' : 'hist-' + key;
-      var open = !!expandState[expKey];
-      var shownSales = open ? sorted : sorted.slice(0, limit);
-      shownSales.forEach(function (sale) { histEl.appendChild(buildSaleRow(sale, searching)); });
-      if (sorted.length > limit) {
-        var more = document.createElement('button'); more.className = 'showmore'; more.setAttribute('data-exp', expKey);
-        more.textContent = open ? 'Mostrar menos' : 'Mostrar mais (' + (sorted.length - limit) + ')';
-        histEl.appendChild(more);
-      }
+      var n = Math.min(shownCount(expKey, limit, step), sorted.length);
+      var frag = document.createDocumentFragment();
+      sorted.slice(0, n).forEach(function (sale) { frag.appendChild(buildSaleRow(sale, searching)); });
+      histEl.appendChild(frag);
+      histEl.insertAdjacentHTML('beforeend', moreHtml(expKey, sorted.length, n, step));
       bindShowMore(histEl);
     }
     document.getElementById('footerActions').style.display = (!searching && daySales.length > 0) ? 'flex' : 'none';
@@ -1368,7 +1531,7 @@
   function registrarGasto(desc, cat, valor) {
     var viewDate = dateForOffset(currentOffset);
     var key = dayKey(viewDate);
-    var all = loadDespesas();
+    var all = loadDespesas().slice();
     var fields = { desc: desc, cat: cat, valor: money(valor) };
     var idx = editingExpId ? all.findIndex(function (e) { return e.id === editingExpId; }) : -1;
     if (editingExpId && idx < 0) { showToast('Este gasto não existe mais (foi removido). Cancele a edição.', false, true); return; }
@@ -1389,16 +1552,14 @@
   function removerGasto(id) { var all = loadDespesas().filter(function (e) { return e.id !== id; }); if (saveDespesas(all) && editingExpId === id) cancelEdit(); renderApp(); }
 
   function renderExpenseHistoryAndTotal() {
-    var all = loadDespesas();
     var viewDate = dateForOffset(currentOffset);
     var key = dayKey(viewDate);
     var isToday = currentOffset === 0;
-    var despesas = all.filter(function (e) { return e.day === key; });
+    var despesas = expOfDay(key);
     document.getElementById('dateLabel').textContent = viewDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
     document.getElementById('todayTag').textContent = isToday ? 'HOJE' : '';
     document.getElementById('nextDay').disabled = currentOffset >= 0;
-    var dayTotal = despesas.reduce(function (s, e) { return s + (num(e.valor) || 0); }, 0);
-    document.getElementById('expDayTotal').textContent = brl(dayTotal);
+    document.getElementById('expDayTotal').textContent = brl(money(expIndex().dayTot.get(key) || 0));
     var histEl = document.getElementById('expHistory');
     histEl.innerHTML = '';
     if (despesas.length === 0) {
@@ -1406,7 +1567,9 @@
       empty.textContent = isToday ? 'Nenhum gasto registrado hoje.' : 'Nenhum gasto registrado nesse dia.';
       histEl.appendChild(empty);
     } else {
-      despesas.slice().sort(function (a, b) { return b.ts - a.ts; }).forEach(function (e) {
+      var expKey = 'exp-' + key, sortedExp = despesas.slice().sort(function (a, b) { return b.ts - a.ts; });
+      var nExp = Math.min(shownCount(expKey, 20, 20), sortedExp.length);
+      sortedExp.slice(0, nExp).forEach(function (e) {
         var time = new Date(e.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); if (e.manual) time = 'sem horário';
         var row = document.createElement('div'); row.className = 'sale-item';
         row.innerHTML = '<div class="s-left"><span class="s-time">' + time + '</span><span class="s-desc">' + (e.desc ? e.desc + ' — ' : '') + expCatLabel(e.cat) + '</span></div>' +
@@ -1421,6 +1584,8 @@
         });
         histEl.appendChild(row);
       });
+      histEl.insertAdjacentHTML('beforeend', moreHtml(expKey, sortedExp.length, nExp, 20));
+      bindShowMore(histEl);
     }
     document.getElementById('expFooterActions').style.display = despesas.length > 0 ? 'flex' : 'none';
   }
@@ -1476,93 +1641,102 @@
 
   var STORAGE_ESTOQUE = 'chaveiro_estoque_v1', STORAGE_SAVEDAT = 'chaveiro_savedat_v1';
   var STOCK_CATS = ['Chave simples', 'Chave tetra', 'Chave moto', 'Chave carro', 'Chaveirinho', 'Fechadura', 'Cadeado', 'Fechadura digital', 'Controle de portão', 'Pilha', 'Bateria', 'Outros'];
-  var STOCK_FIXED_PRICE = { 'Chave simples': 14, 'Chave tetra': 35, 'Chave moto': 50 };
-  function padronizarPrecosEstoque() {
-    var es = loadEstoque(), ch = false;
-    es.forEach(function (x) { if (STOCK_FIXED_PRICE[x.cat] !== undefined && x.preco !== STOCK_FIXED_PRICE[x.cat]) { x.preco = STOCK_FIXED_PRICE[x.cat]; ch = true; } });
-    if (ch) saveEstoque(es);
-  }
   var estUi = { form: null, entrada: null, q: '', cat: '', pre: null };
   var expandState = {};
-  function capList(key, items, limit, renderFn) {
-    var open = !!expandState[key];
-    var shown = open ? items : items.slice(0, limit);
-    var html = shown.map(renderFn).join('');
-    if (items.length > limit) html += '<button class="showmore" data-exp="' + key + '">' + (open ? 'Mostrar menos' : 'Mostrar mais (' + (items.length - limit) + ')') + '</button>';
-    return html;
+  // Listas longas: mostram "limit" itens e crescem de "step" em "step" ("Mostrar mais"), nunca a lista inteira de uma vez.
+  function fmtInt(n) { return Number(n).toLocaleString('pt-BR'); }
+  function shownCount(key, limit, step) { return limit + (expandState[key] || 0) * (step || limit); }
+  function moreHtml(key, total, shown, step) {
+    var less = (expandState[key] || 0) > 0;
+    if (total <= shown && !less) return '';
+    var h = '<div class="more-row">';
+    if (total > shown) h += '<button class="showmore" data-exp="' + key + '">Mostrar mais (' + fmtInt(Math.min(step, total - shown)) + ' de ' + fmtInt(total - shown) + ' restantes)</button>';
+    if (less) h += '<button class="showmore" data-exp-less="' + key + '">Mostrar menos</button>';
+    return h + '</div>';
+  }
+  function capList(key, items, limit, renderFn, step) {
+    step = step || 20;
+    var n = shownCount(key, limit, step);
+    return items.slice(0, n).map(renderFn).join('') + moreHtml(key, items.length, Math.min(n, items.length), step);
   }
   function bindShowMore(root) {
-    (root || document).querySelectorAll('[data-exp]').forEach(function (b) { b.addEventListener('click', function () { var k = b.getAttribute('data-exp'); expandState[k] = !expandState[k]; renderApp(); }); });
+    (root || document).querySelectorAll('[data-exp]').forEach(function (b) { b.addEventListener('click', function () { var k = b.getAttribute('data-exp'); expandState[k] = (expandState[k] || 0) + 1; renderApp(); }); });
+    (root || document).querySelectorAll('[data-exp-less]').forEach(function (b) { b.addEventListener('click', function () { expandState[b.getAttribute('data-exp-less')] = 0; renderApp(); }); });
   }
   function norm(s) { return String(s == null ? '' : s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
   function pname(p) { return [p.cat, p.marca, p.modelo].filter(Boolean).join(' · '); }
   function itemName(it) { return it.cat === 'estoque' ? it.desc : (it.cat === 'outros' ? 'Outros' + (it.desc ? ' — ' + it.desc : '') : catLabel(it.cat) + (it.desc ? ' (' + it.desc + ')' : '')); }
-  function loadEstoque() { return readList(STORAGE_ESTOQUE, normEst, 'produto'); }
+  function loadEstoque() { return cachedList(STORAGE_ESTOQUE); }
   function saveEstoque(l) { var m = {}; m[STORAGE_ESTOQUE] = l; return commit(m); }
-  function estoqueFind(id) { return loadEstoque().find(function (x) { return x.id === id; }); }
+  function estoqueFind(id) { return estIndex().map.get(id); }
   function stockSum() { var s = 0; Object.keys(stockItems).forEach(function (k) { s += money(num(stockItems[k].price) * stockItems[k].qty); }); return money(s); }
   function opts(list, sel, first) { return (first || '') + list.map(function (c) { return '<option' + (c === sel ? ' selected' : '') + '>' + c + '</option>'; }).join(''); }
 
   // ----- busca de produtos na venda
+  var STOCK_BOXES = [{ key: 'all', label: 'Do estoque', sub: 'qualquer produto', cat: null, ph: 'nome, marca ou modelo' }, { key: 'Chave simples', label: 'Chave simples', sub: 'R$ 14', cat: 'Chave simples', ph: 'marca ou modelo (ex: HAG 682)' }, { key: 'Chave tetra', label: 'Chave tetra', sub: 'R$ 35', cat: 'Chave tetra', ph: 'marca ou modelo' }];
+  var stockLimit = {};
   function stockPickerHtml() {
-    var sel = Object.keys(stockItems).map(function (k) {
-      var s = stockItems[k], pr = estoqueFind(k), warn = pr && s.qty > pr.qty;
-      var stockInfo = pr ? ('estoque: ' + pr.qty + ' → sobra ' + (pr.qty - s.qty)) : 'produto não está mais no estoque';
-      return '<div class="item-row stk-sel"><span class="ico">' + KEY_SVG + '</span><div class="item-info"><span class="item-label">' + escAttr(s.name) + '</span><span class="item-price">' + brl(num(s.price)) + ' cada · ' + stockInfo + (warn ? ' <span style="color:var(--danger)">· só tem ' + pr.qty + '</span>' : '') + '</span></div>' +
-        '<div class="stepper"><button class="step-btn stk-minus" data-pid="' + k + '">−</button><span class="step-count">' + s.qty + '</span><button class="step-btn stk-plus" data-pid="' + k + '">+</button></div></div>';
-    }).join('');
-    var SEARCH_BOXES = [{ key: 'all', label: 'Do estoque', sub: 'qualquer produto', cat: null, ph: 'nome, marca ou modelo' }, { key: 'Chave simples', label: 'Chave simples', sub: 'R$ 14', cat: 'Chave simples', ph: 'marca ou modelo (ex: HAG 682)' }, { key: 'Chave tetra', label: 'Chave tetra', sub: 'R$ 35', cat: 'Chave tetra', ph: 'marca ou modelo' }];
-    var boxes = SEARCH_BOXES.map(function (b, idx) {
+    var sel = Object.keys(stockItems).map(stockSelRowHtml).join('');
+    var boxes = STOCK_BOXES.map(function (b, idx) {
       return '<div class="stk-box"><div class="stk-head"><span class="ico">' + KEY_SVG + '</span><span><b>' + b.label + '</b><small>' + b.sub + '</small></span></div>' +
         '<div class="stk-input"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="text" data-stock-box="' + idx + '" placeholder="' + b.ph + '" value="' + escAttr(stockQueries[b.key] || '') + '"></div>' +
         '<div class="stk-list" id="stockResults-' + idx + '"></div></div>';
     }).join('');
     return '<div class="stk-panel"><div class="stk-tip"><b>Adicionar do estoque</b> · digite e toque no produto. O estoque desconta sozinho ao registrar.</div><div class="stk-grid">' + boxes + '</div></div>' + sel;
   }
+  // Resultados por relevância (modelo exato primeiro). Mostra 8, informa o total e permite ver mais.
   function stockResultsHtml(box) {
-    var toks = norm(stockQueries[box.key] || '').split(' ').filter(Boolean); if (!toks.length) return '';
-    var list = loadEstoque().filter(function (x) { if (box.cat && x.cat !== box.cat) return false; var n = norm(pname(x)); return toks.every(function (t) { return n.indexOf(t) > -1; }); }).slice(0, 8);
+    var list = searchProducts(stockQueries[box.key] || '', box.cat); if (!list) return '';
     if (!list.length) return '<div class="empty" style="padding:8px">Nenhum produto encontrado.</div>';
-    return list.map(function (x) {
+    var lim = stockLimit[box.key] || 8;
+    var h = list.slice(0, lim).map(function (x) {
       var q = Number(x.qty) || 0, cls = q <= 0 ? ' out' : (x.min > 0 && q < x.min ? ' low' : ''), nm = box.cat ? [x.marca, x.modelo].filter(Boolean).join(' · ') : pname(x);
-      return '<button class="stk-res" data-pid="' + x.id + '"><span class="r-name">' + escAttr(nm) + '</span><span class="r-meta"><span class="r-price">' + brl(x.preco) + '</span><span class="r-qty' + cls + '">' + (q <= 0 ? 'sem estoque' : q + ' un.') + '</span><span class="r-add">+</span></span></button>';
+      return '<button class="stk-res" data-pid="' + escAttr(x.id) + '"><span class="r-name">' + escAttr(nm) + '</span><span class="r-meta"><span class="r-price">' + brl(x.preco) + '</span><span class="r-qty' + cls + '">' + (q <= 0 ? 'sem estoque' : q + ' un.') + '</span><span class="r-add">+</span></span></button>';
     }).join('');
+    if (list.length > lim) h += '<div class="stk-more">Mostrando ' + fmtInt(lim) + ' de ' + fmtInt(list.length) + ' resultados · <button type="button" data-more="1">ver mais</button> ou digite mais para refinar</div>';
+    return h;
   }
   function bindStockPicker(wrap) {
-    var SEARCH_BOXES = [{ key: 'all', label: 'Do estoque', cat: null }, { key: 'Chave simples', label: 'Chave simples', cat: 'Chave simples' }, { key: 'Chave tetra', label: 'Chave tetra', cat: 'Chave tetra' }];
-    SEARCH_BOXES.forEach(function (box, idx) {
+    STOCK_BOXES.forEach(function (box, idx) {
       var inp = wrap.querySelector('[data-stock-box="' + idx + '"]'), resBox = document.getElementById('stockResults-' + idx);
       if (!inp || !resBox) return;
-      function bindRes() { resBox.querySelectorAll('.stk-res').forEach(function (b) { b.addEventListener('click', function () {
+      function draw() { resBox.innerHTML = stockResultsHtml(box); }
+      draw();
+      resBox.onclick = function (ev) {
+        if (ev.target.closest('[data-more]')) { stockLimit[box.key] = (stockLimit[box.key] || 8) + 20; draw(); return; }
+        var b = ev.target.closest('.stk-res'); if (!b) return;
         var x = estoqueFind(b.getAttribute('data-pid')); if (!x) return;
         if (stockItems[x.id]) stockItems[x.id].qty += 1; else stockItems[x.id] = { qty: 1, price: String(x.preco || '').replace('.', ','), name: pname(x) };
-        stockQueries[box.key] = ''; renderSaleForm();
-      }); }); }
-      resBox.innerHTML = stockResultsHtml(box); bindRes();
-      inp.addEventListener('input', function () { stockQueries[box.key] = inp.value; resBox.innerHTML = stockResultsHtml(box); bindRes(); });
+        stockQueries[box.key] = ''; stockLimit[box.key] = 0; renderSaleForm();
+        var again = document.querySelector('#saleFormWrap [data-stock-box="' + idx + '"]'); if (again) again.focus({ preventScroll: true }); // continua digitando o próximo
+      };
+      inp.addEventListener('input', function () { stockQueries[box.key] = inp.value; stockLimit[box.key] = 0; draw(); });
       inp.addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter') { var f = resBox.querySelector('.stk-res'); if (f) { ev.preventDefault(); f.click(); } }
         else if (ev.key === 'Escape') { stockQueries[box.key] = ''; inp.value = ''; resBox.innerHTML = ''; }
       });
     });
-    wrap.querySelectorAll('.stk-minus').forEach(function (b) { b.addEventListener('click', function () { var k = b.getAttribute('data-pid'); stockItems[k].qty -= 1; if (stockItems[k].qty <= 0) delete stockItems[k]; renderSaleForm(); }); });
-    wrap.querySelectorAll('.stk-plus').forEach(function (b) { b.addEventListener('click', function () { stockItems[b.getAttribute('data-pid')].qty += 1; renderSaleForm(); }); });
   }
 
   // ----- aba Estoque
   function renderEstoque() {
-    var all = loadEstoque();
-    var un = all.reduce(function (s, x) { return s + (Number(x.qty) || 0); }, 0);
-    var low = all.filter(function (x) { return x.min > 0 && x.qty < x.min; });
+    var ix = estIndex(), all = ix.src;
+    if (ix.un === undefined) ix.un = all.reduce(function (s, x) { return s + (Number(x.qty) || 0); }, 0);
+    var un = ix.un, low = ix.low;
     var eb = document.getElementById('estBadge'); if (eb) { eb.textContent = low.length; eb.style.display = low.length ? 'inline-block' : 'none'; }
+    // Card "Comprar": mostra 10 e cresce sob demanda; a lista do WhatsApp/cópia continua com todos.
+    var lowShown = shownCount('comprar', 10, 50);
     document.getElementById('estoqueContent').innerHTML =
-      '<div class="totalbar"><span class="t-label">Itens em estoque</span><span class="t-count">' + un + '</span></div>' +
-      (low.length ? '<div class="totals-card" style="border-color:var(--danger)"><div class="card-title" style="padding-top:0">Comprar (' + low.length + ')</div>' + low.map(function (x) { return '<div class="totals-row"><span>' + escAttr(pname(x)) + '</span><span>' + x.qty + ' / mín. ' + x.min + ' · <b>repor ' + Math.max(1, x.min - x.qty) + '</b></span></div>'; }).join('') + '<div class="buy-actions"><button class="est-btn" id="buyWa">Enviar no WhatsApp</button><button class="est-btn alt" id="buyCopy">Copiar lista</button></div></div>' : '') +
+      '<div class="totalbar"><span class="t-label">Itens em estoque</span><span class="t-count">' + fmtInt(un) + '</span></div>' +
+      (low.length ? '<div class="totals-card" style="border-color:var(--danger)"><div class="card-title" style="padding-top:0">Comprar (' + fmtInt(low.length) + ')</div>' + low.slice(0, lowShown).map(function (x) { return '<div class="totals-row"><span>' + escAttr(pname(x)) + '</span><span>' + x.qty + ' / mín. ' + x.min + ' · <b>repor ' + Math.max(1, x.min - x.qty) + '</b></span></div>'; }).join('') +
+        (low.length > lowShown ? '<div class="item-price" style="padding-top:6px">Mostrando ' + fmtInt(lowShown) + ' de ' + fmtInt(low.length) + ' produtos abaixo do mínimo.</div>' : '') + moreHtml('comprar', low.length, Math.min(lowShown, low.length), 50) + '<div class="buy-actions"><button class="est-btn" id="buyWa">Enviar no WhatsApp</button><button class="est-btn alt" id="buyCopy">Copiar lista</button></div></div>' : '') +
       '<div class="card"><div class="card-title">Produtos</div>' +
       '<div class="extra-fields"><div class="field-wrap"><div class="money-input"><input class="text-input" id="estSearch" placeholder="Buscar nome, marca, modelo" value="' + escAttr(estUi.q) + '"></div></div><div class="field-wrap"><select class="select-input" id="estCat">' + opts(STOCK_CATS, estUi.cat, '<option value="">Todas as categorias</option>') + '</select></div></div>' +
       '<button class="registrar-btn" id="estNew">+ Novo produto</button><div id="estForm"></div><div id="estList"></div></div>';
-    document.getElementById('estSearch').addEventListener('input', function (e) { estUi.q = e.target.value; renderEstList(); });
-    document.getElementById('estCat').addEventListener('change', function (e) { estUi.cat = e.target.value; renderEstList(); });
+    // Busca com debounce: com milhares de produtos, filtra só quando a pessoa para de digitar.
+    document.getElementById('estSearch').addEventListener('input', function (e) { estUi.q = e.target.value; estUi.limit = 0; clearTimeout(estTimer); estTimer = setTimeout(renderEstList, EST_DEBOUNCE); });
+    document.getElementById('estCat').addEventListener('change', function (e) { estUi.cat = e.target.value; estUi.limit = 0; clearTimeout(estTimer); renderEstList(); });
+    bindShowMore(document.getElementById('estoqueContent'));
     document.getElementById('estNew').addEventListener('click', function () { estUi.form = 'new'; estUi.pre = null; renderEstForm(); });
     renderEstForm(); renderEstList();
     var txt = 'Lista de compras — Chaveiro\n' + low.map(function (x) { return '• ' + pname(x) + ' — repor ' + Math.max(1, x.min - x.qty) + ' (tenho ' + x.qty + ', mínimo ' + x.min + ')'; }).join('\n');
@@ -1591,10 +1765,12 @@
     function save(again) {
       var g = function (id) { return document.getElementById(id).value.trim(); };
       if (!g('fMarca') && !g('fModelo')) { document.getElementById('fErr').style.display = 'block'; return; }
-      var es = loadEstoque(), o = isNew ? { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5) } : es.find(function (y) { return y.id === x.id; });
-      if (!o) { estUi.form = null; renderEstoque(); return; } // produto removido enquanto o formulário estava aberto
-      o.cat = g('fCat'); o.marca = g('fMarca'); o.modelo = g('fModelo'); o.qty = Math.round(num(g('fQtd'))); o.preco = money(num(g('fPreco'))); o.min = Math.round(num(g('fMin')));
-      if (isNew) es.push(o);
+      var es = loadEstoque().slice(), pos = isNew ? -1 : es.findIndex(function (y) { return y.id === x.id; });
+      if (!isNew && pos < 0) { estUi.form = null; renderEstoque(); return; } // produto removido enquanto o formulário estava aberto
+      // Objeto novo (copy-on-write): preserva campos extras do produto e não altera o cache antes de gravar.
+      var o = Object.assign({}, isNew ? { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5) } : es[pos],
+        { cat: g('fCat'), marca: g('fMarca'), modelo: g('fModelo'), qty: Math.round(num(g('fQtd'))), preco: money(num(g('fPreco'))), min: Math.round(num(g('fMin'))) });
+      if (isNew) es.push(o); else es[pos] = o;
       if (!saveEstoque(es)) return; // falhou: o formulário continua aberto e preenchido
       estUi.pre = again ? { cat: o.cat, marca: o.marca } : null; estUi.form = again ? 'new' : null;
       renderEstoque();
@@ -1610,30 +1786,41 @@
     });
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
+  var EST_PAGE = 100, EST_DEBOUNCE = 150, estTimer = null;
+  // Lista do estoque: ordem normal (categoria/marca/modelo) ou por relevância quando há busca; renderiza
+  // EST_PAGE por vez, sempre informando o total ("Mostrando 100 de 4.126 produtos").
   function renderEstList() {
     var box = document.getElementById('estList'); if (!box) return;
-    var toks = norm(estUi.q).split(' ').filter(Boolean);
-    var all = loadEstoque(), list = all.filter(function (x) { var n = norm(pname(x)); return (!estUi.cat || x.cat === estUi.cat) && toks.every(function (t) { return n.indexOf(t) > -1; }); });
-    list.sort(function (a, b) { return (STOCK_CATS.indexOf(a.cat) - STOCK_CATS.indexOf(b.cat)) || String(a.marca).localeCompare(b.marca) || String(a.modelo).localeCompare(b.modelo, 'pt-BR', { numeric: true }); });
+    var all = loadEstoque();
+    var found = searchProducts(estUi.q, estUi.cat || null), searching = !!found;
+    var list = found || (estUi.cat ? sortedEst().filter(function (x) { return x.cat === estUi.cat; }) : sortedEst());
     if (!list.length) { box.innerHTML = '<div class="empty">' + (all.length ? 'Nenhum produto encontrado.' : 'Nenhum produto cadastrado ainda. Toque em "+ Novo produto".') + '</div>'; return; }
-    box.innerHTML = list.map(function (x) {
-      var isLow = x.min > 0 && x.qty < x.min;
+    var lim = estUi.limit || EST_PAGE, shown = list.slice(0, lim);
+    var palavra = searching || estUi.cat ? ' produtos encontrados' : ' produtos';
+    var head = '<div class="est-count">' + (shown.length < list.length ? 'Mostrando ' + fmtInt(shown.length) + ' de ' + fmtInt(list.length) + palavra : fmtInt(list.length) + palavra) + '</div>';
+    box.innerHTML = head + shown.map(function (x) {
+      var isLow = x.min > 0 && x.qty < x.min, id = escAttr(x.id);
       var row = '<div class="sale-item"><div class="s-left"><span class="s-desc"><b>' + escAttr(pname(x)) + '</b></span><span class="s-time">venda ' + brl(x.preco) + (x.min > 0 ? ' · mín. ' + x.min : '') + '</span></div>' +
-        '<div class="s-right"><span class="qty' + (isLow ? ' low' : '') + '">' + x.qty + '</span><button class="est-btn alt" data-in="' + x.id + '">Entrada</button><button class="s-edit" data-ed="' + x.id + '" aria-label="Editar">✎</button></div></div>';
+        '<div class="s-right"><span class="qty' + (isLow ? ' low' : '') + '">' + x.qty + '</span><button class="est-btn alt" data-in="' + id + '">Entrada</button><button class="s-edit" data-ed="' + id + '" aria-label="Editar">✎</button></div></div>';
       if (estUi.entrada === x.id) row += '<div class="sale-item" style="flex-wrap:wrap;background:var(--brass-wash);border-radius:10px;padding:10px"><div class="extra-fields" style="padding:0"><div class="field-wrap"><label>Quantidade que chegou</label><div class="money-input"><input class="text-input" inputmode="numeric" id="eQtd"></div></div></div>' +
         '<div style="display:flex;gap:8px;margin-top:8px"><button class="est-btn" id="eSave">Salvar entrada</button><button class="est-btn alt" id="eCancel">Cancelar</button></div></div>';
       return row;
-    }).join('');
-    box.querySelectorAll('[data-ed]').forEach(function (b) { b.addEventListener('click', function () { estUi.form = b.getAttribute('data-ed'); renderEstForm(); }); });
-    box.querySelectorAll('[data-in]').forEach(function (b) { b.addEventListener('click', function () { var id = b.getAttribute('data-in'); estUi.entrada = estUi.entrada === id ? null : id; renderEstList(); }); });
+    }).join('') + (list.length > shown.length ? '<button class="showmore" id="estMore">Mostrar mais (' + fmtInt(Math.min(EST_PAGE, list.length - shown.length)) + ' de ' + fmtInt(list.length - shown.length) + ' restantes)</button>' : '');
+    // Um listener para a lista inteira (em vez de 2 por produto).
+    box.onclick = function (ev) {
+      var b = ev.target.closest('button'); if (!b) return;
+      if (b.id === 'estMore') { estUi.limit = lim + EST_PAGE; renderEstList(); return; }
+      if (b.hasAttribute('data-ed')) { estUi.form = b.getAttribute('data-ed'); renderEstForm(); return; }
+      if (b.hasAttribute('data-in')) { var id = b.getAttribute('data-in'); estUi.entrada = estUi.entrada === id ? null : id; renderEstList(); var q = document.getElementById('eQtd'); if (q) q.focus(); return; }
+    };
     var es = document.getElementById('eSave');
     if (es) {
       document.getElementById('eCancel').addEventListener('click', function () { estUi.entrada = null; renderEstList(); });
       es.addEventListener('click', function () {
         var q = Math.round(num(document.getElementById('eQtd').value));
         if (q <= 0) return;
-        var arr = loadEstoque(), x = arr.find(function (y) { return y.id === estUi.entrada; }); if (!x) return;
-        x.qty = (Number(x.qty) || 0) + q;
+        var arr = loadEstoque().slice(), k = arr.findIndex(function (y) { return y.id === estUi.entrada; }); if (k < 0) return;
+        arr[k] = Object.assign({}, arr[k], { qty: (Number(arr[k].qty) || 0) + q });
         if (!saveEstoque(arr)) return;
         estUi.entrada = null; renderEstoque();
       });
@@ -1827,7 +2014,7 @@
   }
   function svcHeadHtml() {
     var open = groupOpen.svc !== false, n = SERVICES.reduce(function (s, c) { return s + itemState[c.id].qty; }, 0);
-    return '<div class="item-row"><button class="ghead" data-group="svc"><span class="item-info"><span class="item-label">Serviços (mão de obra)</span><span class="item-price">abertura, cópia codificada, programação…</span></span><span class="gr">' + (n > 0 ? '<span class="badge">' + n + '</span>' : '') + '<span class="chev' + (open ? ' open' : '') + '">▶</span></span></button></div>';
+    return '<div class="item-row" data-block="svchead"><button class="ghead" data-group="svc"><span class="item-info"><span class="item-label">Serviços (mão de obra)</span><span class="item-price">abertura, cópia codificada, programação…</span></span><span class="gr">' + (n > 0 ? '<span class="badge">' + n + '</span>' : '') + '<span class="chev' + (open ? ' open' : '') + '">▶</span></span></button></div>';
   }
   var KEY_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M13.5 9.5l2 2"/></svg>';
   var toastT = null, undoSnap = null, STORAGE_META = 'chaveiro_meta_v1';
@@ -1846,45 +2033,60 @@
   }
   function loadMeta() { return Number(lsGet(STORAGE_META)) || 0; }
   function saveMeta(v) { return commit(dataMap(null, null, null, money(v))); }
-  function goalHtml(mKey, all) {
-    var meta = loadMeta(), tot = all.filter(function (v) { return v.day.slice(0, 7) === mKey; }).reduce(function (s, v) { return s + v.total; }, 0);
+  function goalHtml(mKey) {
+    var meta = loadMeta(), tot = monthTotalOf(mKey);
     if (!meta) return '<button class="goal-set" data-goal>🎯 Definir meta do mês</button>';
     var pct = Math.min(100, Math.round(tot / meta * 100)), done = tot >= meta;
     return '<div class="g-top"><span>Meta do mês</span><b>' + Math.round(tot / meta * 100) + '%</b></div><div class="g-bar"><i class="' + (done ? 'done' : '') + '" style="width:' + pct + '%"></i></div><div class="g-foot">' + brl(tot) + ' de ' + brl(meta) + (done ? ' · meta batida! 🎉' : ' · faltam ' + brl(meta - tot)) + ' <button data-goal aria-label="Editar meta">✎</button></div>';
   }
+  // Mais vendidos: as contagens são somadas uma vez por versão da lista de vendas; os nomes vêm do Map do
+  // estoque (O(1)). O top 6 fica guardado até vendas ou estoque mudarem.
+  var _fav = { v: null, e: null, cnt: null, top: null };
   function favItems() {
-    var cnt = {};
-    loadVendas().forEach(function (v) { v.items.forEach(function (it) {
-      if (it.cat === 'outros') return;
-      var k, name;
-      if (it.cat === 'estoque') { var pr = estoqueFind(it.pid); if (!pr) return; k = 'p:' + it.pid; name = pname(pr); }
-      else { if (!itemState[it.cat]) return; k = 'c:' + it.cat; name = catLabel(it.cat); }
-      if (!cnt[k]) cnt[k] = { k: k, n: 0, name: name }; cnt[k].n += it.qty;
-    }); });
-    return Object.keys(cnt).map(function (k) { return cnt[k]; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 6);
+    var vs = loadVendas(), es = loadEstoque();
+    if (_fav.v !== vs) {
+      var cnt = {};
+      vs.forEach(function (v) { v.items.forEach(function (it) {
+        if (it.cat === 'outros') return;
+        var k = it.cat === 'estoque' ? 'p:' + it.pid : 'c:' + it.cat;
+        cnt[k] = (cnt[k] || 0) + it.qty;
+      }); });
+      _fav = { v: vs, e: null, cnt: cnt, top: null };
+    }
+    if (_fav.e !== es || !_fav.top) {
+      var out = [];
+      Object.keys(_fav.cnt).forEach(function (k) {
+        var id = k.slice(2), name;
+        if (k.charAt(0) === 'p') { var pr = estoqueFind(id); if (!pr) return; name = pname(pr); }
+        else { if (!itemState[id]) return; name = catLabel(id); }
+        out.push({ k: k, n: _fav.cnt[k], name: name });
+      });
+      _fav.top = out.sort(function (a, b) { return b.n - a.n; }).slice(0, 6); _fav.e = es;
+    }
+    return _fav.top;
   }
   function favHtml() {
     var f = favItems(); if (!f.length) return '';
     return '<div class="fav"><div class="fav-t">★ Mais vendidos · toque para adicionar</div><div class="fav-row">' + f.map(function (x) { return '<button class="fav-chip" data-fav="' + escAttr(x.k) + '">' + escAttr(x.name) + '<small>' + x.n + '</small></button>'; }).join('') + '</div></div>';
   }
   function sumA(a) { return a.reduce(function (s, x) { return s + x; }, 0); }
-  function monthSums(all, mKey) {
+  function monthSums(mKey) {
     var a = [], n = new Date(+mKey.slice(0, 4), +mKey.slice(5, 7), 0).getDate(); for (var i = 0; i < n; i++) a.push(0);
-    all.forEach(function (v) { if (v.day.slice(0, 7) === mKey) a[+v.day.slice(8, 10) - 1] += v.total; }); return a;
+    salesOfMonth(mKey).forEach(function (v) { a[+v.day.slice(8, 10) - 1] += v.total; }); return a;
   }
   function hbars(vals, labels) {
     var mx = Math.max.apply(null, vals.concat([1])), top = vals.indexOf(Math.max.apply(null, vals));
     return '<div class="hbars">' + vals.map(function (v, i) { return '<div class="hb' + (i === top && v > 0 ? ' top' : '') + '" title="' + labels[i] + ': ' + brl(v) + '"><i style="height:' + Math.max(3, v / mx * 100) + '%"></i><span>' + labels[i] + '</span></div>'; }).join('') + '</div>';
   }
   function chartsHtml(mKey) {
-    var all = loadVendas(), pKey = monthKeyOf(new Date(+mKey.slice(0, 4), +mKey.slice(5, 7) - 2, 1));
-    var cur = monthSums(all, mKey), prev = monthSums(all, pKey), tc = sumA(cur), tp = sumA(prev), n = cur.length, W = 320, H = 110, bw = W / n;
+    var pKey = monthKeyOf(new Date(+mKey.slice(0, 4), +mKey.slice(5, 7) - 2, 1));
+    var cur = monthSums(mKey), prev = monthSums(pKey), tc = sumA(cur), tp = sumA(prev), n = cur.length, W = 320, H = 110, bw = W / n;
     var mx = Math.max.apply(null, cur.concat(prev, [1]));
     var bars = cur.map(function (v, i) { var h = v / mx * (H - 8); return '<rect x="' + (i * bw + bw * .15).toFixed(1) + '" y="' + (H - h).toFixed(1) + '" width="' + (bw * .7).toFixed(1) + '" height="' + h.toFixed(1) + '" rx="2" fill="url(#cg)"><title>Dia ' + (i + 1) + ': ' + brl(v) + '</title></rect>'; }).join('');
     var line = tp ? '<polyline points="' + prev.slice(0, n).map(function (v, i) { return (i * bw + bw / 2).toFixed(1) + ',' + (H - v / mx * (H - 8)).toFixed(1); }).join(' ') + '" fill="none" stroke="var(--ink-soft)" stroke-width="1.5" stroke-dasharray="3 3" stroke-linejoin="round"/>' : '';
     var cmp = tp > 0 ? (tc >= tp ? '▲ ' : '▼ ') + Math.abs(Math.round((tc - tp) / tp * 100)) + '% em relação ao mês passado (' + brl(tp) + ')' : 'Sem vendas no mês passado para comparar.';
     var wd = [0, 0, 0, 0, 0, 0, 0], hr = {}, WN = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-    all.filter(function (v) { return v.day.slice(0, 7) === mKey; }).forEach(function (v) {
+    salesOfMonth(mKey).forEach(function (v) {
       wd[new Date(+v.day.slice(0, 4), +v.day.slice(5, 7) - 1, +v.day.slice(8, 10)).getDay()] += v.total;
       if (!v.manual) { var h = new Date(v.ts).getHours(); hr[h] = (hr[h] || 0) + v.total; }
     });
@@ -1900,8 +2102,8 @@
     return Object.keys(PAY).filter(function (k) { return t[k]; }).map(function (k) { return '<div>' + PAY[k] + '<b>' + brl(t[k]) + '</b></div>'; }).join('');
   }
   function sparkInner() {
-    var all = loadVendas(), vals = [];
-    for (var i = 6; i >= 0; i--) { var k = dayKey(dateForOffset(currentOffset - i)); vals.push(all.filter(function (e) { return e.day === k; }).reduce(function (a, e) { return a + e.total; }, 0)); }
+    var vals = [];
+    for (var i = 6; i >= 0; i--) vals.push(dayTotalOf(dayKey(dateForOffset(currentOffset - i))));
     var mx = Math.max.apply(null, vals.concat([1])), line = 'M' + vals.map(function (v, i) { return (i * 400 / 6).toFixed(1) + ' ' + (72 - (v / mx) * 56).toFixed(1); }).join(' L');
     return '<defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD98A" stop-opacity=".55"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></linearGradient></defs><path d="' + line + ' V84 H0Z" fill="url(#sg)"/><path d="' + line + '" fill="none" stroke="#FFD98A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
   }
@@ -1915,7 +2117,7 @@
     var payRows = Object.keys(porPag).map(function (k) { return '<div class="totals-row"><span>' + (PAY[k] || 'Não informado') + '</span><span>' + brl(porPag[k]) + '</span></div>'; }).join('');
     var svc = SERVICES.reduce(function (s, c) { return s + (porCat[c.id] ? porCat[c.id].valor : 0); }, 0);
     var rank = Object.keys(porCat).filter(function (k) { return porCat[k].qty > 0; }).sort(function (a, b) { return porCat[b].qty - porCat[a].qty; }).slice(0, 8);
-    var pend = loadVendas().filter(function (v) { return v.pay === 'fiado'; }).sort(function (a, b) { return a.ts - b.ts; });
+    var pend = salesIndex().fiado;
     var pendTotal = pend.reduce(function (s, v) { return s + v.total; }, 0);
     var h = '<div class="card"><div class="card-title">Por forma de pagamento</div>' + (payRows || '<div class="empty">Nenhuma venda neste mês.</div>') +
       (svc ? '<div class="totals-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;"><span>Mão de obra (serviços)</span><span>' + brl(svc) + '</span></div>' : '') + '</div>';
@@ -1931,8 +2133,10 @@
   }
   function bindReceber() {
     document.querySelectorAll('[data-rec]').forEach(function (b) { b.addEventListener('click', function () {
-      var all = loadVendas(), s = all.find(function (x) { return x.id === b.getAttribute('data-rec'); });
-      if (!s) return; s.pay = b.getAttribute('data-how'); s.recebidoEm = dayKey(new Date()); if (saveVendas(all)) renderApp();
+      var all = loadVendas().slice(), k = all.findIndex(function (x) { return x.id === b.getAttribute('data-rec'); });
+      if (k < 0) return;
+      all[k] = Object.assign({}, all[k], { pay: b.getAttribute('data-how'), recebidoEm: dayKey(new Date()) });
+      if (saveVendas(all)) renderApp();
     }); });
   }
 
@@ -1995,8 +2199,8 @@
     document.getElementById('monthLabel').textContent = monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
     document.getElementById('nextMonth').disabled = currentMonthOffset >= 0;
 
-    var vendas = loadVendas().filter(function (v) { return v.day.slice(0, 7) === mKey; });
-    var despesas = loadDespesas().filter(function (e) { return e.day.slice(0, 7) === mKey; });
+    var vendas = salesOfMonth(mKey);
+    var despesas = expOfMonth(mKey);
 
     var totalBruto = money(vendas.reduce(function (s, v) { return s + v.subtotal; }, 0));
     var totalDesconto = money(vendas.reduce(function (s, v) { return s + v.discount; }, 0));
@@ -2053,7 +2257,7 @@
   function renderApp() {
     ensureGroupStock();
     var estBadge = document.getElementById('estBadge');
-    if (estBadge) { var lowN = loadEstoque().filter(function (x) { return x.min > 0 && x.qty < x.min; }).length; estBadge.textContent = lowN; estBadge.style.display = lowN > 0 ? 'inline-block' : 'none'; }
+    if (estBadge) { var lowN = estIndex().low.length; estBadge.textContent = lowN; estBadge.style.display = lowN > 0 ? 'inline-block' : 'none'; }
     document.querySelectorAll('.tab-btn').forEach(function (btn) { btn.classList.toggle('active', btn.getAttribute('data-tab') === currentTab); });
     document.getElementById('dayNav').style.display = (currentTab === 'resumo' || currentTab === 'estoque') ? 'none' : 'flex';
     document.getElementById('monthNav').style.display = (currentTab === 'resumo') ? 'flex' : 'none';
@@ -2070,7 +2274,13 @@
 
   document.querySelectorAll('.tab-btn').forEach(function (btn) { btn.addEventListener('click', function () { cancelEdit(); currentTab = btn.getAttribute('data-tab'); renderApp(); }); });
   var histSearchEl = document.getElementById('histSearch');
-  if (histSearchEl) histSearchEl.addEventListener('input', renderHistoryAndTotal);
+  var histTimer = null; // debounce: a busca percorre todo o histórico
+  if (histSearchEl) histSearchEl.addEventListener('input', function () { clearTimeout(histTimer); histTimer = setTimeout(renderHistoryAndTotal, 150); });
+  // Outra aba alterou os dados: descarta o cache daquela lista e redesenha.
+  window.addEventListener('storage', function (ev) {
+    if (ev.key === null || isListKey(ev.key)) { invalidateCache(ev.key); renderApp(); }
+    else if (ev.key === STORAGE_META) renderApp();
+  });
   document.getElementById('prevDay').addEventListener('click', function () { cancelEdit(); currentOffset -= 1; renderApp(); });
   document.getElementById('nextDay').addEventListener('click', function () { if (currentOffset < 0) { cancelEdit(); currentOffset += 1; renderApp(); } });
   document.getElementById('prevMonth').addEventListener('click', function () { currentMonthOffset -= 1; renderApp(); });
@@ -2093,7 +2303,7 @@
   function setupClearVendas() {
     setupClear('footerActions', 'clearBtn', 'Limpar vendas do dia', 'Isso vai apagar TODAS as vendas registradas neste dia. Não dá pra desfazer.', 'confirmClearVendas', 'confirmClearVendasBtn',
       function (key) {
-        var all = loadVendas(), es = loadEstoque(), snap = { v: loadVendas(), e: loadEstoque() };
+        var snap = { v: loadVendas(), e: loadEstoque() }, all = snap.v, es = snap.e.slice();
         all.filter(function (e) { return e.day === key; }).forEach(function (s) { applyStock(es, s, 1); });
         if (!commit(dataMap(all.filter(function (e) { return e.day !== key; }), null, es))) return;
         undoSnap = snap; showToast('Vendas do dia apagadas', true);
@@ -2154,10 +2364,10 @@
     document.getElementById('saleTotalsWrap').addEventListener('click', function (ev) {
       var b = ev.target.closest('.sl-btn'); if (!b) return;
       var d = b.classList.contains('sl-plus') ? 1 : -1, sp = b.getAttribute('data-sp'), sc = b.getAttribute('data-sc'), so = b.getAttribute('data-so');
-      if (so !== null && outrosList[+so]) { outrosList[+so].qty += d; if (outrosList[+so].qty <= 0) outrosList.splice(+so, 1); }
-      else if (sp && stockItems[sp]) { stockItems[sp].qty += d; if (stockItems[sp].qty <= 0) delete stockItems[sp]; }
-      else if (sc && itemState[sc]) { itemState[sc].qty = Math.max(0, itemState[sc].qty + d); }
-      renderSaleForm();
+      // Mesmo caminho dos botões do formulário: atualiza só o bloco afetado + totais.
+      if (so !== null && outrosList[+so]) { outrosList[+so].qty += d; if (outrosList[+so].qty <= 0) outrosList.splice(+so, 1); refreshOutros(); }
+      else if (sp && stockItems[sp]) changeStock(sp, d);
+      else if (sc && itemState[sc]) changeCat(sc, d);
     });
   })();
   document.addEventListener('click', function (ev) {
