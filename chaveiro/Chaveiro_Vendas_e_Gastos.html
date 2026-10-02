@@ -907,7 +907,9 @@
   // então a disponibilidade real para a edição é estoque + editBase. editingOrigPay (B21): pagamento original.
   // Cada item carregado de uma venda guarda "src" (o item original) para preservar campos extras ao salvar.
   var itemState = {}, stockItems = {}, stockQueries = {}, payState = 'cartao', clienteState = '', outrosList = [], outrosFocus = false, legacyItems = [];
-  var editBase = {}, editingOrigPay = null, editingSaleDay = null;
+  var editBase = {}, editingOrigPay = null, editingSaleDay = null, editSnap = null;
+  // Partes da venda que o formulário de edição regrava: se mudarem por fora durante a edição, salvar é recusado.
+  function saleEditKey(s) { return JSON.stringify([s.day, s.items, s.subtotal, s.discount, s.total, s.pay, s.cliente]); }
   var DEFAULT_PAY = 'cartao';
   function resetItemState() {
     stockItems = {}; stockQueries = {}; payState = DEFAULT_PAY; clienteState = ''; outrosList = []; legacyItems = [];
@@ -918,6 +920,7 @@
   var finalValueRaw = '';
   var editingSaleId = null, editingExpId = null;
   var expDraft = null; // {id, desc, cat, valor}: o que está digitado no formulário de gasto (novo: id null)
+  var expBase = null;  // {desc, cat, valor} do gasto como estava quando o formulário de edição foi mostrado
   var groupOpen = (function () { try { return JSON.parse(localStorage.getItem('chaveiro_ui_v1')) || {}; } catch (e) { return {}; } })();
   if (groupOpen.svc === undefined) groupOpen.svc = false;
   function saveUi() { try { localStorage.setItem('chaveiro_ui_v1', JSON.stringify(groupOpen)); } catch (e) {} }
@@ -1063,7 +1066,7 @@
     var done = [], prev = {}, keys = Object.keys(map), str = {};
     // Proteção do cache (Fase 2): se o que está no localStorage não é mais o que o cache leu/gravou (outra
     // janela, edição externa), NÃO grava por cima — descarta o cache, redesenha e pede para repetir a ação.
-    var stale = keys.filter(function (k) { if (!isListKey(k) || !Object.prototype.hasOwnProperty.call(RAW, k)) return false; prev[k] = lsGet(k); return prev[k] !== RAW[k]; });
+    var stale = keys.filter(function (k) { if (!isListKey(k) || corruptKeys[k] || !Object.prototype.hasOwnProperty.call(RAW, k)) return false; prev[k] = lsGet(k); return prev[k] !== RAW[k]; });
     if (stale.length) {
       stale.forEach(invalidateCache);
       showToast('Os dados mudaram em outra janela do Chaveiro. Nada foi salvo: a tela foi atualizada, confira e repita a ação.', false, true);
@@ -1072,7 +1075,7 @@
     }
     try {
       keys.forEach(function (k) {
-        if (corruptKeys[k]) throw new Error('corrupt');
+        if (corruptKeys[k]) throw new Error('corrupt:' + corruptKeys[k]);
         if (!(k in prev)) prev[k] = localStorage.getItem(k);
         str[k] = typeof map[k] === 'string' ? map[k] : JSON.stringify(map[k]);
         localStorage.setItem(k, str[k]);
@@ -1092,29 +1095,41 @@
     unsavedState = unsavedState || {};
     Object.keys(map).forEach(function (k) { unsavedState[k] = map[k]; });
     var full = e && (e.name === 'QuotaExceededError' || e.name === 'NS_ERROR_DOM_QUOTA_REACHED' || e.code === 22 || e.code === 1014);
-    saveError = e && e.message === 'corrupt' ? 'Os dados guardados no navegador estão danificados e não puderam ser copiados com segurança, então a gravação foi bloqueada para não perder nada.'
+    var why = e && /^corrupt:/.test(e.message) ? e.message.slice(8) : '';
+    saveError = why === 'read' ? 'O navegador não deixou ler os dados guardados; gravar agora poderia apagá-los, então a gravação foi bloqueada. Feche e abra o navegador de novo.'
+      : why === 'quar' ? 'Há registros ilegíveis que não couberam no armazenamento; gravar agora os apagaria, então a gravação foi bloqueada.'
+      : why ? 'Os dados guardados no navegador estão danificados e não puderam ser copiados com segurança, então a gravação foi bloqueada para não perder nada.'
       : full ? 'O armazenamento do navegador está cheio.' : 'O navegador bloqueou a gravação dos dados.';
     showToast('Não foi possível salvar — nada foi registrado. Veja o aviso no topo.', false, true);
     renderDataBar();
   }
+  var memQuar = []; // ilegíveis que não couberam no armazenamento: só em memória, mas vão no backup
   function addQuarantine(entries) {
-    if (!entries.length) return;
+    if (!entries.length) return true;
     var q; try { q = JSON.parse(lsGet(STORAGE_QUAR) || '[]'); } catch (e) { q = []; }
     if (!Array.isArray(q)) q = [];
     var at = Date.now(); entries.forEach(function (x) { x.em = at; q.push(x); });
-    try { localStorage.setItem(STORAGE_QUAR, JSON.stringify(q)); } catch (e) {}
+    try { localStorage.setItem(STORAGE_QUAR, JSON.stringify(q)); return true; } catch (e) { memQuar = memQuar.concat(entries); return false; }
   }
-  function loadQuarantine() { try { var q = JSON.parse(lsGet(STORAGE_QUAR) || '[]'); return Array.isArray(q) ? q : []; } catch (e) { return []; } }
+  function loadQuarantine() { var q; try { q = JSON.parse(lsGet(STORAGE_QUAR) || '[]'); } catch (e) { q = []; } return (Array.isArray(q) ? q : []).concat(memQuar); }
   // Lê uma lista do localStorage sem nunca derrubar o app: JSON danificado é copiado para uma chave à parte
   // (e a gravação dessa chave fica bloqueada se a cópia falhar); registros ilegíveis vão para a quarentena.
   function readList(key, normFn, tipo) {
-    var raw = lsGet(key); RAW[key] = raw; if (!raw) return [];
+    var raw;
+    // Leitura que falha (erro do navegador) NÃO é "sem dados": tratar como vazio faria a próxima gravação
+    // apagar o que está guardado. A gravação dessa lista fica bloqueada até o app ser reaberto.
+    try { raw = localStorage.getItem(key); } catch (e) {
+      corruptKeys[key] = 'read'; RAW[key] = undefined;
+      loadWarning = 'Não foi possível ler os ' + tipo + 's guardados no navegador. Para não apagar nada, a gravação foi bloqueada: feche e abra o navegador de novo.';
+      return [];
+    }
+    RAW[key] = raw; if (!raw) return [];
     var list; try { list = JSON.parse(raw); } catch (e) { list = null; }
     if (!Array.isArray(list)) {
       try {
         var c = JSON.parse(lsGet(STORAGE_CORRUPT) || '{}') || {};
         if (c[key] !== raw) { c[key + '@' + Date.now()] = raw; c[key] = raw; localStorage.setItem(STORAGE_CORRUPT, JSON.stringify(c)); }
-      } catch (e) { corruptKeys[key] = true; }
+      } catch (e) { corruptKeys[key] = 'copy'; }
       loadWarning = 'Parte dos dados guardados no navegador estava danificada (' + tipo + 's). Uma cópia foi guardada à parte; faça um backup.';
       return [];
     }
@@ -1125,7 +1140,13 @@
       else { if (r !== list[i]) changed = true; out.push(r); }
     }
     if (changed) {
-      addQuarantine(bad);
+      if (!addQuarantine(bad)) {
+        // Sem espaço para guardar os ilegíveis à parte: o original fica como está e a gravação desta lista é
+        // bloqueada (gravar a lista limpa apagaria esses registros). Eles vão no backup (quarentena em memória).
+        corruptKeys[key] = 'quar';
+        loadWarning = bad.length + ' registro(s) ilegível(is) não puderam ser guardados à parte (armazenamento cheio). Para não perdê-los, a gravação foi bloqueada: baixe um backup e libere espaço.';
+        return out;
+      }
       try { var fixed = JSON.stringify(out); localStorage.setItem(key, fixed); RAW[key] = fixed; } catch (e) {}
       if (bad.length) loadWarning = bad.length + ' registro(s) ilegível(is) foram separados e guardados à parte (aparecem no backup).';
     }
@@ -1410,6 +1431,8 @@
 
   function gStockId(gid, m) { return 'g-' + gid + '-' + m; }
   function ensureGroupStock() {
+    if (corruptKeys[STORAGE_ESTOQUE]) return; // estoque ilegível/bloqueado: não grava nada por cima
+    if (Object.prototype.hasOwnProperty.call(RAW, STORAGE_ESTOQUE) && lsGet(STORAGE_ESTOQUE) !== RAW[STORAGE_ESTOQUE]) invalidateCache(STORAGE_ESTOQUE); // relê antes
     var idx = estIndex(), missing = [];
     GROUPS.forEach(function (g) {
       g.models.forEach(function (m) {
@@ -1420,6 +1443,7 @@
     if (!missing.length) return;
     // Gravação direta, sem touch(): criar os produtos-base vazios não é uma alteração do usuário, então não
     // pode mudar o "savedAt" nem disparar gravação no arquivo (isso fazia um navegador novo parecer "mais novo").
+    if (corruptKeys[STORAGE_ESTOQUE]) return; // a releitura acima pode ter encontrado o estoque ilegível
     var es = loadEstoque().concat(missing);
     try { var txt = JSON.stringify(es); localStorage.setItem(STORAGE_ESTOQUE, txt); setCache(STORAGE_ESTOQUE, es); RAW[STORAGE_ESTOQUE] = txt; } catch (e) {}
   }
@@ -1636,6 +1660,7 @@
     if (payValid(payState)) { fields.pay = payState; fields.cliente = payState === 'fiado' ? clienteState.trim() : ''; }
     var idx = editingSaleId ? all.findIndex(function (e) { return e.id === editingSaleId; }) : -1;
     if (editingSaleId && idx < 0) { showToast('Esta venda não existe mais (foi removida). Cancele a edição.', false, true); return; }
+    if (idx >= 0 && editSnap && saleEditKey(all[idx]) !== editSnap) { showToast('Esta venda foi alterada em outra janela depois que você abriu a edição. Nada foi salvo: cancele a edição e abra a venda de novo para ver a versão atual.', false, true); return; }
     var rec, orig = null;
     if (idx >= 0) {
       // Edição: merge sobre o registro original, preservando id/dia/hora e qualquer campo extra (recebidoEm etc.).
@@ -1693,7 +1718,7 @@
     finalValueRaw = (sale.discount > 0 || money(sale.total) !== money(sale.subtotal)) ? moneyInput(sale.total) : '';
     // B21: o pagamento original é mantido como está (inclusive "sem forma registrada"); nada é trocado em silêncio.
     payState = sale.pay == null ? '' : String(sale.pay); editingOrigPay = payState; clienteState = sale.cliente || '';
-    editingSaleId = sale.id;
+    editingSaleId = sale.id; editSnap = saleEditKey(sale);
     renderApp();
     var f = document.getElementById('saleFormWrap'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -1712,7 +1737,7 @@
   var _saleTxt = new WeakMap();
   function saleMatchesQuery(sale, q) {
     var t = _saleTxt.get(sale);
-    if (t === undefined) { t = norm(sale.items.map(function (it) { return itemName(it); }).join(' ')) + '\u0001' + norm(sale.day.split('-').reverse().join('/')) + '\u0001' + norm(PAY[sale.pay] || '') + '\u0001' + norm(sale.cliente || '') + '\u0001r$ ' + moneyTxt(sale.total); _saleTxt.set(sale, t); }
+    if (t === undefined) { t = norm(sale.items.map(function (it) { return itemName(it); }).join(' ')) + '\u0001' + norm(sale.day.split('-').reverse().join('/')) + '\u0001' + norm(sale.pay ? payLabel(sale.pay) : '') + '\u0001' + norm(sale.cliente || '') + '\u0001r$ ' + moneyTxt(sale.total); _saleTxt.set(sale, t); }
     return t.indexOf(q) > -1;
   }
   // Horário de um registro (vendas e gastos lançados em outro dia não têm horário).
@@ -1839,6 +1864,7 @@
     var catOptions = EXPENSE_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (selCat === c.id ? ' selected' : '') + '>' + c.label + '</option>'; }).join('');
     // B22: gasto com categoria antiga/desconhecida mantém a categoria ao editar (não troca em silêncio).
     if (ed && !EXPENSE_CATEGORIES.some(function (c) { return c.id === ed.cat; })) catOptions = '<option value="' + escAttr(ed.cat) + '"' + (selCat === ed.cat ? ' selected' : '') + '>' + escAttr(expCatLabel(ed.cat)) + '</option>' + catOptions;
+    if (ed && !dr) expBase = { desc: ed.desc, cat: ed.cat, valor: ed.valor }; // o que a pessoa está vendo
     var vDesc = dr ? dr.desc : (ed ? ed.desc : ''), vValor = dr ? dr.valor : (ed ? String(ed.valor).replace('.', ',') : '');
     wrap.innerHTML = '<div class="card"><div class="card-title">' + (ed ? 'Editando gasto de ' + escAttr(fmtDayLong(ed.day)) + (ed.day !== viewDay ? ' <small class="mini">(continua nesse dia)</small>' : '') : 'Novo gasto' + dayTxt) + '</div>' +
       '<div class="extra-fields" style="padding:10px 0 0;"><div class="field-wrap"><label for="expDesc">Descrição</label><div class="money-input"><input class="text-input" type="text" id="expDesc" placeholder="ex: compra de chaves virgens" value="' + escAttr(vDesc) + '"></div></div></div>' +
@@ -1869,12 +1895,22 @@
     var fields = { desc: desc, cat: cat, valor: money(valor) };
     var idx = editingExpId ? all.findIndex(function (e) { return e.id === editingExpId; }) : -1;
     if (editingExpId && idx < 0) { showToast('Este gasto não existe mais (foi removido). Cancele a edição.', false, true); return; }
-    // Edição: merge sobre o original (preserva id/dia/hora e campos extras).
-    if (idx >= 0) all[idx] = Object.assign({}, all[idx], fields);
+    // Edição: merge sobre o registro ATUAL (preserva id/dia/hora e campos extras). Só os campos que a pessoa mudou
+    // são aplicados; se outra janela mudou o MESMO campo para outro valor, nada é gravado e a pessoa é avisada.
+    if (idx >= 0) {
+      var cur = all[idx], base = expBase || cur, novo = Object.assign({}, cur), conf = [];
+      ['desc', 'cat', 'valor'].forEach(function (f) {
+        if (fields[f] === base[f]) return; // não mexeu neste campo
+        if (cur[f] !== base[f] && cur[f] !== fields[f]) conf.push(f === 'desc' ? 'descrição' : f === 'cat' ? 'categoria' : 'valor');
+        novo[f] = fields[f];
+      });
+      if (conf.length) { expBase = { desc: cur.desc, cat: cur.cat, valor: cur.valor }; showToast('Este gasto foi alterado em outra janela (' + conf.join(', ') + '). Nada foi salvo. Confira e toque em Salvar de novo para ficar com o que você digitou.', false, true); return; }
+      all[idx] = novo;
+    }
     else all.push(Object.assign({ id: genId(), day: key, ts: st.ts, manual: st.manual }, fields));
     if (!saveDespesas(all)) return; // falhou: o formulário continua preenchido, aviso já exibido
     var wasEdit = idx >= 0;
-    editingExpId = null; expDraft = null;
+    editingExpId = null; expDraft = null; expBase = null;
     showToast(wasEdit ? 'Gasto alterado' : 'Gasto registrado');
     renderApp();
   }
@@ -2100,12 +2136,18 @@
       function fb() { var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e) {} ta.remove(); }
     });
   }
+  // estUi.draft: o que está digitado no formulário de produto (sobrevive a redesenhos, ex.: outra aba gravou) e
+  // "base" = o produto como estava quando a pessoa começou a digitar. Ao salvar, só os campos que a pessoa mudou
+  // são aplicados sobre o produto ATUAL; se outra janela mudou o mesmo campo, nada é gravado e ela é avisada.
+  var FORM_IDS = ['fCat', 'fMarca', 'fModelo', 'fQtd', 'fPreco', 'fMin'];
   function renderEstForm() {
     var box = document.getElementById('estForm'); if (!box) return;
-    if (!estUi.form) { box.innerHTML = ''; return; }
+    if (!estUi.form) { estUi.draft = null; box.innerHTML = ''; return; }
     var isNew = estUi.form === 'new';
     var x = isNew ? { cat: (estUi.pre && estUi.pre.cat) || STOCK_CATS[0], marca: (estUi.pre && estUi.pre.marca) || '', modelo: '', qty: 0, preco: '', min: '' } : estoqueFind(estUi.form);
-    if (!x) { estUi.form = null; box.innerHTML = ''; return; }
+    if (!x) { estUi.form = null; estUi.draft = null; box.innerHTML = ''; return; }
+    if (!estUi.draft || estUi.draft.form !== estUi.form) estUi.draft = { form: estUi.form, vals: null, base: null };
+    var dft = estUi.draft; if (!dft.vals) dft.base = isNew ? null : x; // sem nada digitado: a base é o que está na tela
     var dec = function (v) { return v === '' || v == null ? '' : String(v).replace('.', ','); };
     var isG = !isNew && !!x.g, used = !isNew && salesIndex().pids.has(x.id);
     var f = function (id, label, v, mode, ro) { return '<div class="field-wrap"><label for="' + id + '">' + label + '</label><div class="money-input"><input class="text-input" type="text"' + (mode ? ' inputmode="' + mode + '"' : '') + ' id="' + id + '" value="' + escAttr(v) + '"' + (ro ? ' readonly' : '') + '></div></div>'; };
@@ -2119,6 +2161,8 @@
       '<div class="hint" id="fErr" style="display:none;margin-top:8px"></div>' +
       '<button class="registrar-btn" id="fSave">Salvar produto</button>' + (isNew ? '<button class="clear-btn" id="fAgain" style="width:100%;margin-top:8px">Salvar e cadastrar outro da mesma marca</button>' : '') +
       '<button class="clear-btn" id="fCancel" style="width:100%;margin-top:8px">Cancelar</button>' + delBtn + '</div>';
+    if (dft.vals) FORM_IDS.forEach(function (id) { var el = document.getElementById(id); if (el && dft.vals[id] != null) el.value = dft.vals[id]; });
+    FORM_IDS.forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener(id === 'fCat' ? 'change' : 'input', function () { dft.vals = {}; FORM_IDS.forEach(function (k) { var e2 = document.getElementById(k); if (e2) dft.vals[k] = e2.value; }); }); });
     function fail(msg) { var e = document.getElementById('fErr'); e.textContent = msg; e.style.display = 'block'; }
     function save(again, dupOk) {
       var g = function (id) { return document.getElementById(id).value.trim(); };
@@ -2138,11 +2182,23 @@
         if (dup) return askConfirm('Já existe "' + pname(dup) + '" (' + (dup.inativo ? 'desativado, ' : '') + 'estoque ' + dup.qty + '). Salvar outro produto com o mesmo nome?', 'Salvar mesmo assim', 'Voltar', function () { save(again, true); });
       }
       // Objeto novo (copy-on-write): preserva campos extras do produto e não altera o cache antes de gravar.
-      var o = Object.assign({}, isNew ? { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5) } : es[pos],
-        isG ? { qty: Math.round(nq), min: Math.round(nm) } // bateria/pilha: categoria, modelo e preço são fixos
-          : { cat: g('fCat'), marca: g('fMarca'), modelo: g('fModelo'), qty: Math.round(nq), preco: money(np), min: Math.round(nm) });
+      var mine = isG ? { qty: Math.round(nq), min: Math.round(nm) } // bateria/pilha: categoria, modelo e preço são fixos
+          : { cat: g('fCat'), marca: g('fMarca'), modelo: g('fModelo'), qty: Math.round(nq), preco: money(np), min: Math.round(nm) };
+      var o;
+      if (isNew) o = Object.assign({ id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5) }, mine);
+      else {
+        var cur = es[pos], base = dft.base || cur, conf = [];
+        o = Object.assign({}, cur);
+        Object.keys(mine).forEach(function (f) {
+          if (mine[f] === base[f]) return; // campo não mexido: fica o valor atual (ex.: entrada feita em outra aba)
+          if (cur[f] !== base[f] && cur[f] !== mine[f]) conf.push({ qty: 'quantidade', preco: 'preço', min: 'aviso', cat: 'categoria', marca: 'marca', modelo: 'modelo' }[f] + ' agora é ' + cur[f]);
+          o[f] = mine[f];
+        });
+        if (conf.length) { dft.base = cur; return fail('Este produto foi alterado em outra janela (' + conf.join('; ') + '). Nada foi salvo. Confira os campos e toque em Salvar de novo para ficar com o que você digitou.'); }
+      }
       if (isNew) es.push(o); else es[pos] = o;
       if (!saveEstoque(es)) return; // falhou: o formulário continua aberto e preenchido
+      estUi.draft = null;
       estUi.pre = again ? { cat: o.cat, marca: o.marca } : null; estUi.form = again ? 'new' : null;
       renderEstoque();
     }
@@ -2607,6 +2663,9 @@
   // B11: receber um fiado NÃO muda a venda para outra forma de pagamento; registra um recebimento com data,
   // forma e valor. O valor pode ser parcial (padrão = saldo inteiro); cada recebimento é um item da lista.
   var _fiadoGrupos = [];
+  // Toque/clique duplo: o 2º toque cairia no botão que sobe para o mesmo lugar (outra venda, outro cliente).
+  // O navegador numera cliques seguidos no mesmo ponto (event.detail = 2, 3…): só o primeiro conta.
+  function repeatTap(ev) { return ev && ev.detail > 1; }
   function receberFiado(id, how, valor) {
     var all = loadVendas().slice(), k = all.findIndex(function (x) { return x.id === id; }); if (k < 0) return;
     var s = all[k], falta = saldoFiado(s); if (!(falta > 0)) return;
@@ -2645,7 +2704,8 @@
     renderApp(); showToast('Recebimento desfeito: o fiado voltou para "a receber"', true);
   }
   function bindReceber(root) {
-    (root || document).querySelectorAll('[data-rec]').forEach(function (b) { b.addEventListener('click', function () {
+    (root || document).querySelectorAll('[data-rec]').forEach(function (b) { b.addEventListener('click', function (ev) {
+      if (repeatTap(ev)) return;
       var id = b.getAttribute('data-rec'), inp = document.getElementById('rv-' + id), hint = document.getElementById('rh-' + id);
       if (!inp) { receberFiado(id, b.getAttribute('data-how')); return; }
       var s = loadVendas().find(function (x) { return x.id === id; }), falta = s ? saldoFiado(s) : 0, v = parseMoney(inp.value.trim());
@@ -2653,7 +2713,8 @@
       if (err) { if (hint) { hint.textContent = err; hint.style.display = 'block'; } inp.focus(); return; }
       receberFiado(id, b.getAttribute('data-how'), money(v));
     }); });
-    (root || document).querySelectorAll('[data-recall]').forEach(function (b) { b.addEventListener('click', function () {
+    (root || document).querySelectorAll('[data-recall]').forEach(function (b) { b.addEventListener('click', function (ev) {
+      if (repeatTap(ev)) return;
       var ids = _fiadoGrupos[+b.getAttribute('data-recall')] || [], how = b.getAttribute('data-how');
       var tot = money(loadVendas().filter(function (x) { return ids.indexOf(x.id) > -1; }).reduce(function (t, x) { return t + saldoFiado(x); }, 0));
       askConfirm('Registrar recebimento de ' + brl(tot) + ' (' + PAY[how] + ') hoje, quitando ' + ids.length + ' vendas fiado deste cliente?', 'Registrar', 'Cancelar', function () { receberTudoCliente(ids, how); });
