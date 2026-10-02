@@ -749,6 +749,12 @@
   .est-count { font-size: .78rem; color: var(--ink-soft); padding: 10px 2px 2px; }
   .stk-more { font-size: .74rem; color: var(--ink-soft); padding: 8px 4px 2px; }
   .stk-more button { border: none; background: none; color: var(--brass-strong); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0; }
+  /* Fiado agrupado por cliente (Fase 6) */
+  .fiado-cli + .fiado-cli { border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 6px; }
+  .fiado-cli-head { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0 2px; font-size: .9rem; }
+  .fiado-row { width: 100%; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: .78rem; color: var(--ink-soft); }
+  .fiado-pays { display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
+  .fiado-row .rec-val { width: 90px; padding: 6px 8px; font-size: .9rem; }
 </style>
 </head>
 <body>
@@ -2461,12 +2467,32 @@
       (svc ? '<div class="totals-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;"><span>Mão de obra (serviços)</span><span>' + brl(svc) + '</span></div>' : '') + '</div>';
     h += '<div class="card"><div class="card-title">Mais vendidos do mês</div>' + (rank.length ? capList('rank-' + mKeyR, rank, 5, function (k, i) { return '<div class="totals-row"><span>' + (i + 1) + '. ' + escAttr(porCat[k].label) + '</span><span>' + porCat[k].qty + ' un.</span></div>'; }) : '<div class="empty">Nenhuma venda neste mês.</div>') + '</div>';
     if (pend.length) {
-      h += '<div class="card" style="border-color:var(--danger)"><div class="card-title">A receber (fiado): ' + brl(pendTotal) + '</div><div class="item-price" style="padding-bottom:6px">A venda já está somada no dia em que foi feita. Ao receber, o dinheiro aparece no dia do recebimento — o dia da venda não muda.</div>' + pend.map(function (v) {
-        var resumo = v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', '), rec = recebido(v);
-        return '<div class="sale-item" style="flex-wrap:wrap"><div class="s-left"><span class="s-desc"><b>' + escAttr(v.cliente || 'sem nome') + '</b> · ' + fmtDayShort(v.day) + '</span><span class="s-items">' + escAttr(resumo) + '</span></div><div class="s-right"><span class="s-total">' + brl(saldoFiado(v)) + '</span></div>' +
-          (rec > 0 ? '<div class="item-price" style="width:100%">Total ' + brl(v.total) + ' · já recebido ' + brl(rec) + '</div>' : '') +
-          '<div style="width:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft)">Recebeu hoje em: ' + ['dinheiro', 'pix', 'cartao'].map(function (k) { return '<button class="est-btn alt" data-rec="' + escAttr(v.id) + '" data-how="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</div></div>';
-      }).join('') + '</div>';
+      // Agrupado por cliente (nome sem diferença de maiúsculas/acentos/espaços); clientes com a dívida mais
+      // antiga primeiro. O nome exibido é o que foi digitado na venda mais antiga — nada é renomeado.
+      var grupos = new Map();
+      pend.slice().sort(function (a, b) { return a.day < b.day ? -1 : a.day > b.day ? 1 : a.ts - b.ts; }).forEach(function (v) {
+        var gk = norm(v.cliente || '').trim().replace(/\s+/g, ' '), g = grupos.get(gk);
+        if (!g) grupos.set(gk, g = { nome: v.cliente || 'sem nome', vendas: [], saldo: 0 });
+        g.vendas.push(v); g.saldo = money(g.saldo + saldoFiado(v));
+      });
+      var payBtns = function (attr, id) { return '<span class="fiado-pays">em: ' + ['dinheiro', 'pix', 'cartao'].map(function (k) { return '<button class="est-btn alt" ' + attr + '="' + escAttr(id) + '" data-how="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</span>'; };
+      h += '<div class="card" style="border-color:var(--danger)"><div class="card-title">A receber (fiado): ' + brl(pendTotal) + '</div><div class="item-price" style="padding-bottom:6px">A venda já está somada no dia em que foi feita. Ao receber, o dinheiro aparece no dia do recebimento — o dia da venda não muda. Recebeu só uma parte? Troque o valor antes de tocar na forma de pagamento.</div>';
+      var gi = 0;
+      grupos.forEach(function (g) {
+        var multi = g.vendas.length > 1;
+        h += '<div class="fiado-cli">' + (multi ? '<div class="fiado-cli-head"><span><b>' + escAttr(g.nome) + '</b> · ' + g.vendas.length + ' vendas</span><b>' + brl(g.saldo) + '</b></div>' +
+          '<div class="fiado-row">Pagou tudo hoje ' + payBtns('data-recall', gi) + '</div>' : '') +
+          g.vendas.map(function (v) {
+            var resumo = v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', '), rec = recebido(v), falta = saldoFiado(v);
+            return '<div class="sale-item" style="flex-wrap:wrap"><div class="s-left"><span class="s-desc"><b>' + escAttr(v.cliente || 'sem nome') + '</b> · ' + fmtDayShort(v.day) + '</span><span class="s-items">' + escAttr(resumo) + '</span></div><div class="s-right"><span class="s-total">' + brl(falta) + '</span></div>' +
+              (rec > 0 ? '<div class="item-price" style="width:100%">Total ' + brl(v.total) + ' · já recebido ' + brl(rec) + '</div>' : '') +
+              '<div class="fiado-row"><label for="rv-' + escAttr(v.id) + '">Recebeu hoje R$</label><input class="text-input rec-val" inputmode="decimal" id="rv-' + escAttr(v.id) + '" data-recval="' + escAttr(v.id) + '" value="' + moneyTxt(falta) + '" aria-label="Valor recebido de ' + escAttr(v.cliente || 'sem nome') + '">' + payBtns('data-rec', v.id) + '</div>' +
+              '<div class="hint" data-rechint="' + escAttr(v.id) + '" style="display:none;width:100%"></div></div>';
+          }).join('') + '</div>';
+        g.idx = gi++;
+      });
+      h += '</div>';
+      _fiadoGrupos = []; grupos.forEach(function (g) { _fiadoGrupos[g.idx] = g.vendas.map(function (v) { return v.id; }); });
     }
     if (recs.length) {
       h += '<div class="card"><div class="card-title">Fiado recebido neste mês</div>' + capList('recs-' + viewMonth, recs.slice().sort(function (a, b) { return b.r.ts - a.r.ts; }), 5, function (e) {
@@ -2476,16 +2502,34 @@
     return h;
   }
   // B11: receber um fiado NÃO muda a venda para outra forma de pagamento; registra um recebimento com data,
-  // forma e valor (o saldo inteiro; a estrutura em lista já comporta recebimentos parciais no futuro).
-  function receberFiado(id, how) {
+  // forma e valor. O valor pode ser parcial (padrão = saldo inteiro); cada recebimento é um item da lista.
+  var _fiadoGrupos = [];
+  function receberFiado(id, how, valor) {
     var all = loadVendas().slice(), k = all.findIndex(function (x) { return x.id === id; }); if (k < 0) return;
     var s = all[k], falta = saldoFiado(s); if (!(falta > 0)) return;
-    var r = { id: genId(), day: todayKey(), ts: Date.now(), pay: how, valor: falta };
+    var v = valor === undefined ? falta : money(valor);
+    if (!(v > 0) || v > falta) return;
+    var r = { id: genId(), day: todayKey(), ts: Date.now(), pay: how, valor: v };
     var novo = Object.assign({}, s, { recebimentos: (Array.isArray(s.recebimentos) ? s.recebimentos : []).concat([r]) });
     all[k] = novo;
     if (!saveVendas(all)) return;
     setUndo([{ before: s, after: novo }]);
-    renderApp(); showToast('Recebido hoje: ' + brl(falta) + ' (' + PAY[how] + ') de ' + (s.cliente || 'cliente'), true);
+    var resta = money(falta - v);
+    renderApp(); showToast('Recebido hoje: ' + brl(v) + ' (' + PAY[how] + ') de ' + (s.cliente || 'cliente') + (resta > 0 ? ' · ainda falta ' + brl(resta) : ''), true);
+  }
+  // Cliente pagou tudo de uma vez: um recebimento do saldo inteiro em cada venda dele, gravados juntos
+  // (tudo ou nada) e desfeitos juntos.
+  function receberTudoCliente(ids, how) {
+    var all = loadVendas().slice(), pairs = [], tot = 0, nome = '';
+    ids.forEach(function (id) {
+      var k = all.findIndex(function (x) { return x.id === id; }); if (k < 0) return;
+      var s = all[k], falta = saldoFiado(s); if (!(falta > 0)) return;
+      var novo = Object.assign({}, s, { recebimentos: (Array.isArray(s.recebimentos) ? s.recebimentos : []).concat([{ id: genId(), day: todayKey(), ts: Date.now(), pay: how, valor: falta }]) });
+      all[k] = novo; pairs.push({ before: s, after: novo }); tot = money(tot + falta); nome = nome || s.cliente;
+    });
+    if (!pairs.length || !saveVendas(all)) return;
+    setUndo(pairs);
+    renderApp(); showToast('Recebido hoje: ' + brl(tot) + ' (' + PAY[how] + ') de ' + (nome || 'cliente') + ' · ' + pairs.length + ' vendas quitadas', true);
   }
   function desfazerRecebimento(saleId, recId) {
     var all = loadVendas().slice(), k = all.findIndex(function (x) { return x.id === saleId; }); if (k < 0) return;
@@ -2498,7 +2542,21 @@
     renderApp(); showToast('Recebimento desfeito: o fiado voltou para "a receber"', true);
   }
   function bindReceber(root) {
-    (root || document).querySelectorAll('[data-rec]').forEach(function (b) { b.addEventListener('click', function () { receberFiado(b.getAttribute('data-rec'), b.getAttribute('data-how')); }); });
+    (root || document).querySelectorAll('[data-rec]').forEach(function (b) { b.addEventListener('click', function () {
+      var id = b.getAttribute('data-rec'), inp = null, hint = null;
+      (root || document).querySelectorAll('[data-recval]').forEach(function (e) { if (e.getAttribute('data-recval') === id) inp = e; });
+      (root || document).querySelectorAll('[data-rechint]').forEach(function (e) { if (e.getAttribute('data-rechint') === id) hint = e; });
+      if (!inp) { receberFiado(id, b.getAttribute('data-how')); return; }
+      var s = loadVendas().find(function (x) { return x.id === id; }), falta = s ? saldoFiado(s) : 0, v = parseMoney(inp.value.trim());
+      var err = isNaN(v) || money(v) <= 0 ? 'Digite quanto recebeu (ex: 20 ou 20,50).' : money(v) > falta ? 'O valor é maior que o saldo (' + brl(falta) + '). Nada foi registrado.' : '';
+      if (err) { if (hint) { hint.textContent = err; hint.style.display = 'block'; } inp.focus(); return; }
+      receberFiado(id, b.getAttribute('data-how'), money(v));
+    }); });
+    (root || document).querySelectorAll('[data-recall]').forEach(function (b) { b.addEventListener('click', function () {
+      var ids = _fiadoGrupos[+b.getAttribute('data-recall')] || [], how = b.getAttribute('data-how');
+      var tot = money(loadVendas().filter(function (x) { return ids.indexOf(x.id) > -1; }).reduce(function (t, x) { return t + saldoFiado(x); }, 0));
+      askConfirm('Registrar recebimento de ' + brl(tot) + ' (' + PAY[how] + ') hoje, quitando ' + ids.length + ' vendas fiado deste cliente?', 'Registrar', 'Cancelar', function () { receberTudoCliente(ids, how); });
+    }); });
     (root || document).querySelectorAll('[data-unrec]').forEach(function (b) { b.addEventListener('click', function () {
       var sid = b.getAttribute('data-unrec'), rid = b.getAttribute('data-rid');
       askConfirm('Desfazer este recebimento? O fiado volta para "a receber" e o valor sai do dia em que foi recebido.', 'Desfazer recebimento', 'Manter', function () { desfazerRecebimento(sid, rid); });
