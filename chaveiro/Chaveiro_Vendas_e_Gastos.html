@@ -754,6 +754,16 @@
   .fiado-cli + .fiado-cli { border-top: 1px dashed var(--line); margin-top: 6px; padding-top: 6px; }
   .fiado-cli-head { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0 2px; font-size: .9rem; }
   .fiado-row { width: 100%; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: .78rem; color: var(--ink-soft); }
+  .caixa { margin-top: 10px; padding: 12px 16px; }
+  .caixa summary { cursor: pointer; font-weight: 600; color: var(--brass-strong); }
+  .caixa-in { padding-top: 10px; }
+  .caixa-chk { display: flex; gap: 8px; align-items: center; font-size: .85rem; color: var(--ink-soft); padding: 10px 0 6px; cursor: pointer; }
+  .caixa .cx-total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 8px; }
+  .cx-dif { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-weight: 600; }
+  .cx-dif.ok { background: color-mix(in srgb, var(--pix) 14%, transparent); color: var(--pix); }
+  .cx-dif.mais { background: var(--brass-wash); color: var(--brass-strong); }
+  .cx-dif.menos { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
+  .cx-outros { padding-top: 8px; }
   .fiado-pays { display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
   .fiado-row .rec-val { width: 90px; padding: 6px 8px; font-size: .9rem; }
 </style>
@@ -797,6 +807,14 @@
     <div class="hist-area" id="histArea">
       <div class="hist-head"><div class="section-title" id="histTitle">Vendas do dia</div><div class="field-wrap hist-search"><div class="money-input"><input class="text-input" type="search" id="histSearch" placeholder="Buscar no histórico (item, dia, cliente, valor)" aria-label="Buscar no histórico"></div></div></div>
       <div class="history" id="history"></div>
+      <details class="card caixa" id="caixaBox"><summary>Conferir o caixa do dia</summary>
+        <div class="extra-fields caixa-in">
+          <div class="field-wrap"><label for="cxFundo">Troco no início do dia</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="cxFundo" placeholder="0,00"></div></div>
+          <div class="field-wrap"><label for="cxContado">Dinheiro contado na gaveta</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="cxContado" placeholder="0,00"></div></div>
+        </div>
+        <label class="caixa-chk"><input type="checkbox" id="cxGastos"> <span id="cxGastosLbl">Os gastos do dia foram pagos com o dinheiro da gaveta</span></label>
+        <div id="cxRes"></div>
+      </details>
       <div class="footer-actions" id="footerActions">
         <button class="clear-btn" id="clearBtn">Limpar vendas do dia</button>
       </div>
@@ -1723,6 +1741,41 @@
     row.querySelector('.s-del').addEventListener('click', function () { confirmInline(row, 'Remover?', function () { removerVenda(sale.id); }); });
     return row;
   }
+  // Conferência de caixa: só uma conta na tela, nada é gravado. Usa o que o app já sabe (vendas e fiado
+  // recebido por forma de pagamento); os gastos NÃO têm forma de pagamento, então só entram se a pessoa marcar.
+  // O que foi digitado fica guardado por dia enquanto o app está aberto.
+  var caixaUi = {};
+  function renderCaixa() {
+    var box = document.getElementById('caixaBox'); if (!box) return;
+    var key = viewDay, st = caixaUi[key] || (caixaUi[key] = { fundo: '', contado: '', gastos: false });
+    var fi = document.getElementById('cxFundo'), ci = document.getElementById('cxContado'), gi = document.getElementById('cxGastos');
+    if (box.getAttribute('data-day') !== key) { fi.value = st.fundo; ci.value = st.contado; gi.checked = st.gastos; box.setAttribute('data-day', key); }
+    var por = { dinheiro: 0, pix: 0, cartao: 0 }, outros = 0, fiado = 0;
+    salesOfDay(key).forEach(function (v) { if (por[v.pay] !== undefined) por[v.pay] += v.total; else if (v.pay === 'fiado') fiado += v.total; else outros += v.total; });
+    var rec = { dinheiro: 0, pix: 0, cartao: 0 }; recOfDay(key).forEach(function (e) { if (rec[e.r.pay] !== undefined) rec[e.r.pay] += Number(e.r.valor) || 0; });
+    var gastos = money(expIndex().dayTot.get(key) || 0);
+    document.getElementById('cxGastosLbl').textContent = 'Os gastos do dia (' + brl(gastos) + ') foram pagos com o dinheiro da gaveta';
+    var fundo = st.fundo.trim() === '' ? 0 : parseMoney(st.fundo), contado = st.contado.trim() === '' ? NaN : parseMoney(st.contado);
+    var row = function (l, v, cls) { return '<div class="totals-row' + (cls ? ' ' + cls : '') + '"><span>' + l + '</span><span>' + v + '</span></div>'; };
+    var h = row('Vendas em dinheiro', brl(money(por.dinheiro))) + (rec.dinheiro ? row('Fiado recebido em dinheiro', brl(money(rec.dinheiro))) : '');
+    if (isNaN(fundo)) h += '<div class="hint" style="display:block">Troco inválido: digite só o valor (ex: 50 ou 50,00).</div>';
+    else {
+      var esperado = money(por.dinheiro + rec.dinheiro + fundo - (st.gastos ? gastos : 0));
+      h += (fundo ? row('Troco no início', brl(money(fundo))) : '') + (st.gastos && gastos ? row('Gastos pagos da gaveta', '− ' + brl(gastos)) : '') + row('<b>Deve ter na gaveta</b>', '<b>' + brl(esperado) + '</b>', 'cx-total');
+      if (st.contado.trim() !== '') {
+        if (isNaN(contado)) h += '<div class="hint" style="display:block">Valor contado inválido: digite só o valor (ex: 320 ou 320,50).</div>';
+        else { var dif = money(contado - esperado); h += '<div class="cx-dif ' + (dif === 0 ? 'ok' : dif > 0 ? 'mais' : 'menos') + '" role="status">' + (dif === 0 ? '✓ Confere: o dinheiro bate.' : dif > 0 ? 'Sobrando ' + brl(dif) + ' na gaveta.' : 'Faltando ' + brl(-dif) + ' na gaveta.') + '</div>'; }
+      }
+    }
+    h += '<div class="item-price cx-outros">Para conferir no app do banco/maquininha: Pix ' + brl(money(por.pix + rec.pix)) + ' · Cartão ' + brl(money(por.cartao + rec.cartao)) +
+      (fiado ? ' · Fiado (não entrou dinheiro): ' + brl(money(fiado)) : '') + (outros ? ' · Sem forma de pagamento: ' + brl(money(outros)) + ' (fora da conta)' : '') + '</div>';
+    document.getElementById('cxRes').innerHTML = h;
+  }
+  (function () {
+    var f = function (id, k) { var el = document.getElementById(id); if (el) el.addEventListener('input', function () { caixaUi[viewDay][k] = el.value; renderCaixa(); }); };
+    f('cxFundo', 'fundo'); f('cxContado', 'contado');
+    var g = document.getElementById('cxGastos'); if (g) g.addEventListener('change', function () { caixaUi[viewDay].gastos = g.checked; renderCaixa(); });
+  })();
   var lastHistQ = '';
   function renderHistoryAndTotal() {
     var all = loadVendas();
@@ -1764,6 +1817,7 @@
       histEl.insertAdjacentHTML('beforeend', moreHtml(expKey, sorted.length, n, step));
       bindShowMore(histEl);
     }
+    var cb = document.getElementById('caixaBox'); if (cb) { cb.hidden = searching; if (!searching) renderCaixa(); }
     var recs = searching ? NONE : recOfDay(key);
     if (recs.length) {
       histEl.insertAdjacentHTML('beforeend', '<div class="section-title" style="padding:14px 0 4px">Fiado recebido neste dia</div>' + recs.map(function (e) {
