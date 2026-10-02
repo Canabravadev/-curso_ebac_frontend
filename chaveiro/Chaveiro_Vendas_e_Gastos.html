@@ -1431,9 +1431,7 @@
   }
 
   function gStockId(gid, m) { return 'g-' + gid + '-' + m; }
-  function ensureGroupStock() {
-    if (corruptKeys[STORAGE_ESTOQUE]) return; // estoque ilegível/bloqueado: não grava nada por cima
-    if (Object.prototype.hasOwnProperty.call(RAW, STORAGE_ESTOQUE) && lsGet(STORAGE_ESTOQUE) !== RAW[STORAGE_ESTOQUE]) invalidateCache(STORAGE_ESTOQUE); // relê antes
+  function missingGroupStock() {
     var idx = estIndex(), missing = [];
     GROUPS.forEach(function (g) {
       g.models.forEach(function (m) {
@@ -1441,7 +1439,13 @@
         if (!idx.map.has(id)) missing.push({ id: id, cat: g.label, marca: m, modelo: '', qty: 0, preco: PRECO_AVULSO, min: 0, g: true });
       });
     });
-    if (!missing.length) return;
+    return missing;
+  }
+  function ensureGroupStock() {
+    if (corruptKeys[STORAGE_ESTOQUE]) return; // estoque ilegível/bloqueado: não grava nada por cima
+    var missing = missingGroupStock(); if (!missing.length) return; // caso normal: nada a fazer, nada é relido
+    // Vai gravar: antes, confere se outra aba mudou o estoque (relê) e se ele continua legível.
+    if (Object.prototype.hasOwnProperty.call(RAW, STORAGE_ESTOQUE) && lsGet(STORAGE_ESTOQUE) !== RAW[STORAGE_ESTOQUE]) { invalidateCache(STORAGE_ESTOQUE); missing = missingGroupStock(); if (!missing.length) return; }
     // Gravação direta, sem touch(): criar os produtos-base vazios não é uma alteração do usuário, então não
     // pode mudar o "savedAt" nem disparar gravação no arquivo (isso fazia um navegador novo parecer "mais novo").
     if (corruptKeys[STORAGE_ESTOQUE]) return; // a releitura acima pode ter encontrado o estoque ilegível
