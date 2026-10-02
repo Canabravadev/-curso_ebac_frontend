@@ -161,7 +161,7 @@
   .cols.single > .col:first-child { display: none; }
   .cols .totalbar { margin-top: 16px; }
   #resumoContent { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-  #resumoContent .totals-card, #resumoContent .footer-actions, #resumoContent .export-msg { grid-column: 1 / -1; }
+  #resumoContent .card-wide, #resumoContent .footer-actions, #resumoContent .export-msg { grid-column: 1 / -1; }
   .picker { position: relative; cursor: pointer; border-radius: 10px; padding: 2px 8px; user-select: none; }
   .picker:hover { background: var(--brass-wash); }
   .picker .date::after { content: ' ▾'; font-size: 0.75em; color: var(--ink-soft); }
@@ -174,11 +174,6 @@
   .mpop button.sel { background: var(--brass); color: #fff; border-color: var(--brass); }
   .mpop button:disabled { opacity: 0.35; cursor: default; }
   @media (max-width: 860px) { .cols, #resumoContent { grid-template-columns: minmax(0, 1fr); } }
-  @media (max-height: 800px) { header { padding-top: calc(10px + env(safe-area-inset-top, 0px)); padding-bottom: 8px; } h1 { font-size: 1.3rem; } .daynav { padding-top: 8px; } .item-row { padding: 9px 0; } }
-  @media (min-width: 861px) {
-    #history, #expHistory { max-height: calc(100vh - 460px); overflow-y: auto; padding-right: 6px; }
-    #estList { max-height: calc(100vh - 430px); overflow-y: auto; padding-right: 6px; }
-  }
   .mgrid2 { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
   .mcell { border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; background: var(--bg); }
   .mcell.on { border-color: var(--brass); }
@@ -199,7 +194,6 @@
   .s-edit { border: none; background: none; color: var(--steel); font-size: 1rem; padding: 6px 8px; cursor: pointer; border-radius: 8px; }
   .s-edit:active { background: var(--brass-wash); color: var(--brass-strong); }
   .sale-item.editing { background: var(--brass-wash); border-radius: 10px; padding-left: 8px; padding-right: 8px; }
-  #saleFormWrap, #expenseFormWrap { scroll-margin-top: 110px; }
   .databar { margin: 10px 20px 0; padding: 10px 14px; border: 1px solid var(--danger); border-radius: 12px; background: var(--bg-elevated); display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; font-size: 0.85rem; }
   .databar.ok { border-color: var(--line); color: var(--ink-soft); padding: 6px 12px; font-size: 0.78rem; }
   .databar button, .est-btn { border: 1px solid var(--brass); background: var(--brass); color: #fff; border-radius: 8px; padding: 6px 12px; font-family: inherit; font-size: 0.82rem; cursor: pointer; }
@@ -273,10 +267,8 @@
   .sel-line .sel-v.pend { color: var(--danger); }
   .sel-empty { font-size: .85rem; color: var(--ink-soft); padding: 2px 0 4px; }
   @keyframes selIn { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
-  .totals-card { position: sticky; top: calc(96px + env(safe-area-inset-top, 0px)); }
   .stk-res:active { transform: scale(.99); }
   .item-row:last-of-type { border-radius: 0 0 12px 12px; }
-  @media (max-width: 860px) { .totals-card { position: static; } }
 
   /* ===== Polimento v3 ===== */
   .sel-line { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; margin-bottom: 6px; display: grid; grid-template-columns: minmax(0,1fr) auto auto; align-items: center; gap: 4px 10px; }
@@ -339,7 +331,6 @@
   .tab-btn .ti { width: 16px; height: 16px; flex: none; }
   .tab-btn:hover:not(.active) { background: color-mix(in srgb, var(--bg-elevated) 70%, transparent); color: var(--ink); }
   .tab-btn.active { background: linear-gradient(180deg, var(--brass-hi), var(--brass-lo)); box-shadow: 0 4px 12px var(--glow), inset 0 1px 0 rgba(255,255,255,.3); }
-  @media (max-width: 420px) { .tab-btn .ti { display: none; } }
 
   /* --- navegação de dia --- */
   .daylabel .date { font-size: 1.25rem; font-weight: 600; }
@@ -460,8 +451,7 @@
   /* recibo */
   .totals-card { border-radius: 24px 24px 0 0; margin-bottom: 28px; background: var(--bg-elevated); border-top: 5px solid var(--brass); }
   .totals-card::after { content: ''; position: absolute; left: 0; right: 0; bottom: -12px; height: 12px; background: linear-gradient(-45deg, transparent 8px, var(--bg-elevated) 0), linear-gradient(45deg, transparent 8px, var(--bg-elevated) 0); background-size: 16px 16px; background-position: left bottom; }
-  .totals-card { position: sticky; }
-  @media (max-width: 860px) { .totals-card { position: relative; } }
+  .totals-card { position: relative; }
   .registrar-btn, .pay-btn.on, .tab-btn.active { background: linear-gradient(180deg, var(--brass-hi), var(--brass-lo)); }
   .totalbar { background: var(--bg-elevated); }
 
@@ -565,9 +555,6 @@
   .sel-empty { line-height: 1.4; }
 
   /* ===== v8 — barra de dia fixa, compactação 1366×768 e lista de "Outros" ===== */
-  .daynav { position: sticky; top: var(--hdr-h, 0px); z-index: 9; background: var(--bg); max-width: none; margin-left: 0; margin-right: 0; padding: 10px max(20px, calc((100% - 480px) / 2)) 8px; }
-  @media (max-width: 640px) { .daynav { margin-left: 0; margin-right: 0; padding-left: 14px; padding-right: 14px; } }
-  .totals-card { top: calc(var(--stick-top, 96px) + 8px); }
   .outros-row { grid-column: 1 / -1 !important; }
   .outros-list { display: flex; flex-direction: column; gap: 8px; }
   .outro-line { display: grid; grid-template-columns: minmax(0, 1fr) 128px auto auto; gap: 8px; align-items: end; padding-bottom: 8px; border-bottom: 1px dashed var(--line); }
@@ -580,32 +567,6 @@
     .outro-line { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
     .outro-line .outro-desc { grid-column: 1 / -1; }
     .outro-line .stepper { grid-column: 1; } .outro-line .outro-del { grid-column: 2; justify-self: end; }
-  }
-  @media (max-height: 800px) {
-    header { padding-bottom: 6px; }
-    .sub { display: none; }
-    h1 { margin-bottom: 0; }
-    .daynav { padding-top: 6px; padding-bottom: 6px; }
-    .daynav button { width: 34px; height: 34px; }
-    .daylabel .date { font-size: 1.1rem; }
-    .hero { margin-top: 8px; padding: 12px 20px 0; border-radius: 22px; }
-    .hero .big { font-size: clamp(2rem, 6vw, 2.8rem); margin: 2px 0; }
-    .pays { margin-top: 6px; } .pays div { padding: 5px 10px; }
-    .goal { margin-top: 8px; padding-bottom: 2px; }
-    .spark { height: 52px; margin-top: 4px; }
-    #saleFormWrap .card { gap: 8px; padding: 4px 14px 12px; }
-    .card > .tile-row { padding: 10px 12px 10px; border-radius: 18px; }
-    .tile-row .ico { width: 34px; height: 34px; margin-bottom: 6px; }
-    .tile-row .stepper { margin-top: 8px; }
-    .tile-row .step-btn { width: 30px; height: 30px; }
-    .fav { margin: 4px 0 2px; padding: 6px 0 8px; }
-    .section-title { margin-top: 8px; }
-    .totals-card { margin-bottom: 16px; }
-  }
-  @media (max-height: 800px) and (min-width: 861px) {
-    .totals-card { max-height: calc(100vh - var(--stick-top, 96px) - 20px); overflow-y: auto; }
-    #history, #expHistory { max-height: calc(100vh - 380px); }
-    #estList { max-height: calc(100vh - 360px); }
   }
   /* ===== Fase 1 — estados de erro (integridade dos dados) ===== */
   .reg-hint.err { color: var(--danger); font-weight: 600; } .reg-hint.err::before { content: '⚠ '; color: var(--danger); }
@@ -628,6 +589,170 @@
   .tag-off { font-size: .68rem; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--line); color: var(--ink-soft); }
   .sl-btn:disabled, .step-btn:disabled { opacity: .35; cursor: default; }
   @media (max-width: 640px) { .day-warn { margin-left: 12px; margin-right: 12px; } .stk-sel.need-price .extra-fields { padding-left: 0; } }
+  /* =====================================================================
+     Fase 4 — layout, responsividade e 1366×768 (mesma identidade visual)
+     - um único header sticky: marca + navegação de dia/mês + abas (desktop); no celular as abas
+       continuam na barra flutuante inferior;
+     - só o recibo da venda é sticky (desktop), preso à área da venda; cards comuns nunca são sticky;
+     - listas sem rolagem interna (a paginação da Fase 2 já limita o tamanho).
+     ===================================================================== */
+  :root:not([data-theme="dark"]) { --ink-soft: #786A53; --pix: #17695D; }   /* texto secundário com contraste AA */
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ink-soft: #A89B82; --pix: #6FD0BF; } }
+  :root[data-theme="dark"] { --ink-soft: #A89B82; --pix: #6FD0BF; }
+  html { scroll-padding-top: calc(var(--stick-top, 96px) + 10px); }
+
+  /* --- header: fundo translúcido que vai de ponta a ponta, sem faixa dura --- */
+  /* o fundo (translúcido, com desfoque) é um pseudo-elemento de ponta a ponta da janela; o conteúdo segue no #app */
+  html, body { overflow-x: clip; }
+  header { background: transparent; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  header::before { content: ''; position: absolute; top: 0; bottom: 0; left: calc(50% - 50vw); width: 100vw; z-index: -1; pointer-events: none;
+    background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 1px 0 var(--line), 0 10px 24px -18px rgba(60,40,10,.35); }
+  header .brand { min-width: 0; }
+  header .daynav { position: static; z-index: auto; background: transparent; margin: 0; max-width: none; padding: 0; gap: 8px; }
+  .daylabel { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .daylabel .tag { margin-top: 0; }
+  .picker:focus-visible { outline: 2px solid var(--brass); outline-offset: 2px; }
+  .day-warn { margin-top: 10px; }
+
+  @media (min-width: 861px) {
+    header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px;
+      padding: calc(8px + env(safe-area-inset-top, 0px)) 20px 8px; }
+    header .brand { grid-column: 1; grid-row: 1; }
+    header .daynav { grid-column: 2; grid-row: 1; width: 100%; max-width: 470px; justify-self: center; }
+    header .tabbar { grid-column: 3; grid-row: 1; justify-self: end; }
+    header .sub { display: none; }
+    h1 { font-size: 1.45rem; } h1 .logo { width: 36px; height: 36px; border-radius: 11px; } h1 .logo svg { width: 20px; height: 20px; }
+    header .daynav button { width: 34px; height: 34px; }
+    .daylabel .date { font-size: 1.12rem; }
+    /* abas integradas ao header (não flutuam sobre o formulário) */
+    header .tabbar { position: static; transform: none; left: auto; bottom: auto; z-index: auto; width: auto; padding: 4px; gap: 3px; border-radius: 14px; border: 0;
+      background: color-mix(in srgb, var(--line) 55%, var(--bg)); box-shadow: inset 0 1px 3px rgba(60,40,10,.12); backdrop-filter: none; -webkit-backdrop-filter: none; }
+    .tab-btn { flex-direction: row; gap: 6px; padding: 7px 12px; font-size: .82rem; border-radius: 11px; }
+    .tab-btn .ti { width: 17px !important; height: 17px !important; }
+    .tab-btn .badge { margin-left: 2px !important; }
+    #app { padding-bottom: 28px; }
+  }
+  @media (min-width: 861px) and (max-width: 1100px) { .tab-btn { padding: 7px 9px; } .tab-btn .ti { display: none !important; } }
+  @media (max-width: 860px) {
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: calc(8px + env(safe-area-inset-top, 0px)) 14px 6px; }
+    header .brand { flex: 1 1 auto; }
+    header .sub { display: none; }
+    header .daynav { flex: 1 1 100%; }
+    h1 { font-size: 1.3rem; } h1 .logo { width: 32px; height: 32px; border-radius: 10px; } h1 .logo svg { width: 18px; height: 18px; }
+    header .daynav button { width: 38px; height: 38px; }
+    .daylabel .date { font-size: 1.05rem; }
+    #app { padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
+    .tab-btn { padding: 8px 14px; min-width: 64px; }
+  }
+
+  /* --- cards comuns nunca são sticky; o recibo é relativo (a serrilha usa ::after) --- */
+  .totals-card { position: relative; top: auto; max-height: none; overflow: visible; }
+  .card-buy { border-top-color: var(--danger); }
+  .card-buy .totals-row { font-size: .86rem; gap: 10px; align-items: baseline; }
+  .card-buy .totals-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+  .card-buy .totals-row > span:last-child { white-space: nowrap; }
+
+  /* --- Vendas: formulário | recibo. No desktop o recibo acompanha a rolagem dentro da área da venda --- */
+  @media (min-width: 861px) {
+    .sale-cols { grid-template-columns: minmax(0, 1.55fr) minmax(330px, 1fr); align-items: stretch; }
+    #saleTotalsWrap { position: sticky; top: calc(var(--stick-top, 70px) + 12px); }
+    #saleTotalsWrap .totals-card { margin-bottom: 20px; }
+    /* muitos itens: só a lista de itens rola; totais e botão "Registrar" ficam sempre à vista */
+    #saleTotalsWrap .sel-sum { max-height: max(150px, calc(100vh - var(--stick-top, 70px) - 450px)); overflow-y: auto; overscroll-behavior: contain; padding-right: 2px; }
+  }
+  @media (max-width: 860px) { #saleTotalsWrap .totals-card { margin-bottom: 26px; } }
+
+  /* --- histórico do dia: largura total, logo abaixo da venda --- */
+  .hist-area { margin-top: 4px; }
+  .hist-head { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; padding: 18px 20px 6px; }
+  .hist-head .section-title { padding: 0; flex: 1 1 auto; }
+  .hist-search { flex: 0 1 380px; min-width: 220px; }
+  .hist-search input { padding: 8px 0; }
+  .history { padding-bottom: 12px; }
+  @media (min-width: 1100px) {
+    #history { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; align-items: start; }
+    #history > :not(.sale-item) { grid-column: 1 / -1; }
+  }
+  @media (max-width: 640px) { .hist-head { padding: 16px 12px 6px; } .hist-search { flex: 1 1 100%; min-width: 0; } }
+
+  /* --- linhas do histórico: leitura fácil, valores alinhados, ações discretas --- */
+  .sale-item { align-items: flex-start; padding: 11px 10px; }
+  .sale-item .s-left { flex: 1 1 auto; min-width: 0; gap: 4px; }
+  .sale-item .s-desc { line-height: 1.38; overflow-wrap: anywhere; }
+  .sale-item .s-right { flex: 0 0 auto; gap: 2px; padding-top: 2px; }
+  .sale-item .s-total { min-width: 86px; text-align: right; font-variant-numeric: tabular-nums; }
+  .s-edit, .s-del { opacity: .6; transition: opacity .15s, background .15s, color .15s; }
+  .sale-item:hover .s-edit, .sale-item:hover .s-del, .s-edit:focus-visible, .s-del:focus-visible { opacity: 1; }
+  @media (hover: none) { .s-edit, .s-del { opacity: .9; } }
+  .s-discount.pay-tag { font-weight: 600; }
+  .s-discount.pay-tag.pay-dinheiro { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
+  .s-discount.pay-tag.pay-pix { background: color-mix(in srgb, var(--pix) 14%, transparent); color: var(--pix); }
+  .s-discount.pay-tag.pay-cartao { background: color-mix(in srgb, var(--brass) 20%, transparent); color: var(--brass-strong); }
+  .s-discount.pay-tag.pay-fiado { background: color-mix(in srgb, var(--danger) 13%, transparent); color: var(--danger); }
+  .sale-item .s-items { font-size: .8rem; color: var(--ink-soft); line-height: 1.35; overflow-wrap: anywhere; }
+  /* celular: valor em cima e ações embaixo, numa coluna estreita — a descrição ganha largura */
+  @media (hover: none) { .tab-btn:hover:not(.active) { background: transparent; } }
+  @media (max-width: 640px) { .sale-item .s-right { flex-wrap: wrap; justify-content: flex-end; width: 92px; row-gap: 0; } .sale-item .s-total { min-width: 0; width: 100%; } }
+
+  /* --- hero: em linha no desktop; compacto em telas baixas (sem perder informação) --- */
+  .hero-main { min-width: 0; }
+  @media (min-width: 861px) {
+    .hero { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(250px, 340px); grid-template-areas: "main pays goal" "spark spark spark";
+      column-gap: 28px; align-items: center; padding: 16px 24px 0; }
+    .hero-main { grid-area: main; } .hero .pays { grid-area: pays; margin-top: 0; }
+    .hero .goal { grid-area: goal; margin-top: 0; padding-bottom: 0; }
+    .hero .spark { grid-area: spark; height: 64px; margin: 6px -24px 0; width: calc(100% + 48px); }
+  }
+  @media (min-width: 861px) and (max-height: 820px) {
+    .hero { margin-top: 12px; padding-top: 12px; border-radius: 22px; }
+    .hero .big { font-size: 2.5rem; margin: 2px 0 0; }
+    .hero .spark { height: 40px; margin-top: 2px; }
+    .pays div { padding: 6px 10px; }
+  }
+  @media (max-width: 860px) {
+    .hero { padding: 14px 18px 0; border-radius: 22px; margin-top: 12px; }
+    .hero .big { font-size: clamp(2.2rem, 10vw, 3rem); }
+    .hero .spark { height: 52px; }
+    .goal { margin-top: 10px; }
+  }
+
+  /* --- Estoque: busca protagonista (fixa no topo do card); "Comprar" ao lado no desktop --- */
+  .est-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; }
+  @media (min-width: 1100px) { .est-layout { grid-template-columns: minmax(0, 1.75fr) minmax(300px, 1fr); } }
+  .est-side .totalbar { margin-top: 16px; }
+  .est-tools { position: sticky; top: var(--stick-top, 70px); z-index: 4; display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px 10px;
+    margin: 0 -16px; padding: 8px 16px 10px; background: var(--paper); border-bottom: 1px solid var(--line); }
+  .est-tools .field-wrap { min-width: 0; }
+  .est-tools .est-q { flex: 3 1 240px; } .est-tools .est-c { flex: 1 1 170px; }
+  .est-tools #estNew { flex: 0 0 auto; width: auto; margin: 0; padding: 10px 16px; font-size: .9rem; }
+  .est-tools .money-input input { padding: 10px 0; font-size: .95rem; }
+  #estList .sale-item { padding: 9px 8px; align-items: center; }
+  #estList .s-right { align-items: center; gap: 6px; }
+  #estList .qty { min-width: 34px; padding: 3px 8px; border-radius: 99px; background: color-mix(in srgb, var(--line) 50%, transparent); text-align: center; }
+  #estList .qty.low { background: color-mix(in srgb, var(--danger) 14%, transparent); }
+  .est-count { padding: 10px 2px 4px; }
+  @media (max-width: 640px) { .est-tools #estNew { flex: 1 1 100%; } }
+  #estList .s-time { border-radius: 8px; }
+  /* telas largas: aproveita melhor a largura sem esticar demais as linhas */
+  @media (min-width: 1600px) { #app { max-width: 1440px; } .hero .big { font-size: 3.4rem; } }
+
+  /* --- Resumo: faixa com os 3 números do mês no topo; nada sticky --- */
+  .resumo-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px 18px; }
+  .resumo-strip div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .resumo-strip small { font-size: .72rem; letter-spacing: .07em; text-transform: uppercase; font-weight: 600; color: var(--ink-soft); }
+  .resumo-strip b { font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; letter-spacing: -.02em; white-space: nowrap; }
+  .resumo-strip .saldo b { color: var(--brass-strong); }
+  .resumo-strip .neg b { color: var(--danger); }
+  @media (max-width: 640px) { .resumo-strip { grid-template-columns: 1fr 1fr; } .resumo-strip .saldo { grid-column: 1 / -1; } .resumo-strip b { font-size: 1.15rem; } }
+
+  /* --- toque confortável no celular --- */
+  @media (max-width: 640px) {
+    .tile-row .step-btn, .mcell .step-btn { width: 36px; height: 36px; }
+    .sl-btn { width: 30px; height: 30px; }
+    .s-edit, .s-del { width: 38px; height: 38px; }
+    .pay-btn { padding: 12px 2px; }
+  }
   /* ===== Fase 2 — contadores de listas longas ===== */
   .more-row { display: flex; gap: 8px; } .more-row .showmore { flex: 1; }
   .est-count { font-size: .78rem; color: var(--ink-soft); padding: 10px 2px 2px; }
@@ -638,9 +763,23 @@
 <body>
 <div id="app">
   <header>
-    <div>
+    <div class="brand">
     <h1><span class="logo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M13.5 9.5l2 2"/></svg></span>Chaveiro</h1>
     <p class="sub">Vendas e gastos do dia a dia</p>
+    </div>
+    <div class="daynav" id="dayNav">
+      <button id="prevDay" aria-label="Dia anterior">‹</button>
+      <div class="daylabel picker" id="dateBtn" title="Escolher outro dia" role="button" tabindex="0" aria-label="Escolher outro dia">
+        <div class="date" id="dateLabel">—</div>
+        <div class="tag" id="todayTag"></div>
+        <input type="date" id="datePick" tabindex="-1" aria-hidden="true">
+      </div>
+      <button id="nextDay" aria-label="Próximo dia">›</button>
+    </div>
+    <div class="daynav" id="monthNav" style="display:none">
+      <button id="prevMonth" aria-label="Mês anterior">‹</button>
+      <div class="daylabel picker" id="monthBtn" title="Escolher outro mês" role="button" tabindex="0" aria-label="Escolher outro mês"><div class="date" id="monthLabel">—</div><div class="mpop" id="monthPop" hidden></div></div>
+      <button id="nextMonth" aria-label="Próximo mês">›</button>
     </div>
     <div class="tabbar">
     <button class="tab-btn" data-tab="vendas"><svg class="ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"/></svg>Vendas</button>
@@ -651,34 +790,18 @@
   </header>
   <div class="databar" id="dataBar" style="display:none"></div>
 
-  <div class="daynav" id="dayNav">
-    <button id="prevDay" aria-label="Dia anterior">‹</button>
-    <div class="daylabel picker" id="dateBtn" title="Escolher outro dia">
-      <div class="date" id="dateLabel">—</div>
-      <div class="tag" id="todayTag"></div>
-      <input type="date" id="datePick" tabindex="-1" aria-hidden="true">
-    </div>
-    <button id="nextDay" aria-label="Próximo dia">›</button>
-  </div>
   <div class="day-warn" id="dayWarn" role="status" hidden></div>
 
-  <div class="daynav" id="monthNav" style="display:none">
-    <button id="prevMonth" aria-label="Mês anterior">‹</button>
-    <div class="daylabel picker" id="monthBtn" title="Escolher outro mês"><div class="date" id="monthLabel">—</div><div class="mpop" id="monthPop" hidden></div></div>
-    <button id="nextMonth" aria-label="Próximo mês">›</button>
-  </div>
-
   <div id="vendasSection">
-    <section class="hero"><small id="heroLbl">Faturamento do dia</small><div class="big" id="dayTotal">R$ 0,00</div><div class="pays" id="paySum"></div><div class="goal" id="goalBox"></div><svg class="spark" id="spark" viewBox="0 0 400 84" preserveAspectRatio="none"></svg><span class="spark-cap">últimos 7 dias</span></section>
-    <div class="cols" id="vendasCols"><div class="col"><div id="saleFormWrap"></div></div><div class="col">
-    <div id="saleTotalsWrap"></div>
-    <div class="extra-fields" style="padding:14px 20px 0"><div class="field-wrap" style="width:100%"><div class="money-input"><input class="text-input" type="text" id="histSearch" placeholder="Buscar no histórico (item, dia, pagamento)"></div></div></div>
-    <div class="section-title" id="histTitle">Vendas do dia</div>
-    <div class="history" id="history"></div>
-    <div class="footer-actions" id="footerActions">
-      <button class="clear-btn" id="clearBtn">Limpar vendas do dia</button>
+    <section class="hero"><div class="hero-main"><small id="heroLbl">Faturamento do dia</small><div class="big" id="dayTotal">R$ 0,00</div></div><div class="pays" id="paySum"></div><div class="goal" id="goalBox"></div><svg class="spark" id="spark" viewBox="0 0 400 84" preserveAspectRatio="none"></svg><span class="spark-cap">últimos 7 dias</span></section>
+    <div class="cols sale-cols" id="vendasCols"><div class="col"><div id="saleFormWrap"></div></div><div class="col col-receipt"><div id="saleTotalsWrap"></div></div></div>
+    <div class="hist-area" id="histArea">
+      <div class="hist-head"><div class="section-title" id="histTitle">Vendas do dia</div><div class="field-wrap hist-search"><div class="money-input"><input class="text-input" type="search" id="histSearch" placeholder="Buscar no histórico (item, dia, pagamento)" aria-label="Buscar no histórico"></div></div></div>
+      <div class="history" id="history"></div>
+      <div class="footer-actions" id="footerActions">
+        <button class="clear-btn" id="clearBtn">Limpar vendas do dia</button>
+      </div>
     </div>
-    </div></div>
   </div>
 
   <div id="despesasSection" style="display:none">
@@ -768,10 +891,12 @@
   resetItemState();
   var finalValueRaw = '';
   var editingSaleId = null, editingExpId = null;
+  var expDraft = null; // {id, desc, cat, valor}: o que está digitado no formulário de gasto (novo: id null)
   var groupOpen = (function () { try { return JSON.parse(localStorage.getItem('chaveiro_ui_v1')) || {}; } catch (e) { return {}; } })();
   if (groupOpen.svc === undefined) groupOpen.svc = false;
   function saveUi() { try { localStorage.setItem('chaveiro_ui_v1', JSON.stringify(groupOpen)); } catch (e) {} }
-  function cancelEdit() { if (editingSaleId) { resetItemState(); finalValueRaw = ''; } editingSaleId = null; editingExpId = null; }
+  function cancelEdit() { cancelSaleEdit(); editingExpId = null; expDraft = null; }
+  function cancelSaleEdit() { if (editingSaleId) { resetItemState(); finalValueRaw = ''; } editingSaleId = null; }
   // Há algo relevante no formulário de venda? (itens, desconto) — usado para não descartar em silêncio (B20).
   function hasDraft() {
     return Object.keys(stockItems).length > 0 || outrosList.length > 0 || legacyItems.length > 0 || String(finalValueRaw || '').trim() !== '' ||
@@ -1458,7 +1583,7 @@
     if (registrarBtn) { registrarBtn.addEventListener('click', function () { if (!isFormValid()) return; registrarVenda(); }); }
     bindStockPicker(wrap); bindPay();
     var cancelBtn = document.getElementById('cancelEditBtn');
-    if (cancelBtn) cancelBtn.addEventListener('click', function () { cancelEdit(); renderApp(); });
+    if (cancelBtn) cancelBtn.addEventListener('click', function () { cancelSaleEdit(); renderApp(); });
   }
 
   function registrarVenda() {
@@ -1541,7 +1666,7 @@
     finalValueRaw = (sale.discount > 0 || money(sale.total) !== money(sale.subtotal)) ? moneyInput(sale.total) : '';
     // B21: o pagamento original é mantido como está (inclusive "sem forma registrada"); nada é trocado em silêncio.
     payState = sale.pay == null ? '' : String(sale.pay); editingOrigPay = payState; clienteState = sale.cliente || '';
-    editingSaleId = sale.id; editingExpId = null;
+    editingSaleId = sale.id;
     renderApp();
     var f = document.getElementById('saleFormWrap'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -1550,7 +1675,7 @@
     gone.forEach(function (s) { applyStock(es, s, 1); });
     if (!commit(dataMap(all.filter(function (e) { return e.id !== id; }), null, es))) { renderApp(); return; }
     setUndo(gone.map(function (s) { return { before: s, after: null }; }));
-    if (editingSaleId === id) cancelEdit();
+    if (editingSaleId === id) cancelSaleEdit();
     showToast('Venda removida', true); renderApp();
   }
 
@@ -1640,18 +1765,25 @@
     var wrap = document.getElementById('expenseFormWrap');
     var dayTxt = isTodayKey(viewDay) ? '' : ' — ' + fmtDayMed(viewDay);
     var ed = editingExpId ? loadDespesas().find(function (x) { return x.id === editingExpId; }) : null;
-    var catOptions = EXPENSE_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (ed && ed.cat === c.id ? ' selected' : '') + '>' + c.label + '</option>'; }).join('');
+    if (editingExpId && !ed) editingExpId = null;
+    var dr = expDraft && expDraft.id === (ed ? ed.id : null) ? expDraft : null; // rascunho do mesmo formulário
+    var selCat = dr ? dr.cat : (ed ? ed.cat : null);
+    var catOptions = EXPENSE_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (selCat === c.id ? ' selected' : '') + '>' + c.label + '</option>'; }).join('');
     // B22: gasto com categoria antiga/desconhecida mantém a categoria ao editar (não troca em silêncio).
-    if (ed && !EXPENSE_CATEGORIES.some(function (c) { return c.id === ed.cat; })) catOptions = '<option value="' + escAttr(ed.cat) + '" selected>' + escAttr(expCatLabel(ed.cat)) + '</option>' + catOptions;
-    wrap.innerHTML = '<div class="card"><div class="card-title">' + (ed ? 'Editando gasto' : 'Novo gasto') + dayTxt + '</div>' +
-      '<div class="extra-fields" style="padding:10px 0 0;"><div class="field-wrap"><label>Descrição</label><div class="money-input"><input class="text-input" type="text" id="expDesc" placeholder="ex: compra de chaves virgens" value="' + escAttr(ed ? ed.desc : '') + '"></div></div></div>' +
+    if (ed && !EXPENSE_CATEGORIES.some(function (c) { return c.id === ed.cat; })) catOptions = '<option value="' + escAttr(ed.cat) + '"' + (selCat === ed.cat ? ' selected' : '') + '>' + escAttr(expCatLabel(ed.cat)) + '</option>' + catOptions;
+    var vDesc = dr ? dr.desc : (ed ? ed.desc : ''), vValor = dr ? dr.valor : (ed ? String(ed.valor).replace('.', ',') : '');
+    wrap.innerHTML = '<div class="card"><div class="card-title">' + (ed ? 'Editando gasto de ' + escAttr(fmtDayLong(ed.day)) + (ed.day !== viewDay ? ' <small class="mini">(continua nesse dia)</small>' : '') : 'Novo gasto' + dayTxt) + '</div>' +
+      '<div class="extra-fields" style="padding:10px 0 0;"><div class="field-wrap"><label>Descrição</label><div class="money-input"><input class="text-input" type="text" id="expDesc" placeholder="ex: compra de chaves virgens" value="' + escAttr(vDesc) + '"></div></div></div>' +
       '<div class="extra-fields" style="padding:10px 0;">' +
       '<div class="field-wrap"><label>Categoria</label><select id="expCat" class="select-input">' + catOptions + '</select></div>' +
-      '<div class="field-wrap" id="expValorWrap"><label>Valor (R$)</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="expValor" placeholder="0,00" value="' + (ed ? escAttr(String(ed.valor).replace('.', ',')) : '') + '"></div><span class="hint" id="expValorHint" style="display:none">Informe um valor maior que zero, ex: 45 ou 45,90.</span></div>' +
+      '<div class="field-wrap" id="expValorWrap"><label>Valor (R$)</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="expValor" placeholder="0,00" value="' + escAttr(vValor) + '"></div><span class="hint" id="expValorHint" style="display:none">Informe um valor maior que zero, ex: 45 ou 45,90.</span></div>' +
       '</div>' +
       '<button class="registrar-btn" id="registrarGastoBtn">' + (ed ? 'Salvar alterações' : (isTodayKey(viewDay) ? 'Registrar gasto' : 'Registrar gasto em ' + fmtDM(viewDay))) + '</button>' + (ed ? '<button class="clear-btn" id="cancelEditExpBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') + '</div>';
     var cancelExp = document.getElementById('cancelEditExpBtn');
-    if (cancelExp) cancelExp.addEventListener('click', function () { editingExpId = null; renderApp(); });
+    if (cancelExp) cancelExp.addEventListener('click', function () { editingExpId = null; expDraft = null; renderApp(); });
+    function keepDraft() { expDraft = { id: editingExpId || null, desc: document.getElementById('expDesc').value, cat: document.getElementById('expCat').value, valor: document.getElementById('expValor').value }; }
+    ['expDesc', 'expValor'].forEach(function (id) { document.getElementById(id).addEventListener('input', keepDraft); });
+    document.getElementById('expCat').addEventListener('change', keepDraft);
     document.getElementById('registrarGastoBtn').addEventListener('click', function () {
       var desc = document.getElementById('expDesc').value.trim();
       var cat = document.getElementById('expCat').value;
@@ -1674,16 +1806,16 @@
     else all.push(Object.assign({ id: genId(), day: key, ts: st.ts, manual: st.manual }, fields));
     if (!saveDespesas(all)) return; // falhou: o formulário continua preenchido, aviso já exibido
     var wasEdit = idx >= 0;
-    editingExpId = null;
+    editingExpId = null; expDraft = null;
     showToast(wasEdit ? 'Gasto alterado' : 'Gasto registrado');
     renderApp();
   }
   function startEditExp(e) {
-    cancelEdit(); editingExpId = e.id;
+    editingExpId = e.id; expDraft = null;
     renderApp();
     var f = document.getElementById('expenseFormWrap'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
-  function removerGasto(id) { var all = loadDespesas().filter(function (e) { return e.id !== id; }); if (saveDespesas(all) && editingExpId === id) cancelEdit(); renderApp(); }
+  function removerGasto(id) { var all = loadDespesas().filter(function (e) { return e.id !== id; }); if (saveDespesas(all) && editingExpId === id) { editingExpId = null; expDraft = null; } renderApp(); }
 
   function renderExpenseHistoryAndTotal() {
     var key = viewDay;
@@ -1863,13 +1995,15 @@
     var eb = document.getElementById('estBadge'); if (eb) { eb.textContent = low.length; eb.style.display = low.length ? 'inline-block' : 'none'; }
     // Card "Comprar": mostra 10 e cresce sob demanda; a lista do WhatsApp/cópia continua com todos.
     var lowShown = shownCount('comprar', 10, 50);
-    document.getElementById('estoqueContent').innerHTML =
-      '<div class="totalbar"><span class="t-label">Itens em estoque</span><span class="t-count">' + fmtInt(un) + '</span></div>' +
-      (low.length ? '<div class="totals-card" style="border-color:var(--danger)"><div class="card-title" style="padding-top:0">Comprar (' + fmtInt(low.length) + ')</div>' + low.slice(0, lowShown).map(function (x) { return '<div class="totals-row"><span>' + escAttr(pname(x)) + '</span><span>' + escAttr(x.qty) + ' / mín. ' + escAttr(x.min) + ' · <b>repor ' + reporQtd(x) + '</b></span></div>'; }).join('') +
-        (low.length > lowShown ? '<div class="item-price" style="padding-top:6px">Mostrando ' + fmtInt(lowShown) + ' de ' + fmtInt(low.length) + ' produtos abaixo do mínimo.</div>' : '') + moreHtml('comprar', low.length, Math.min(lowShown, low.length), 50) + '<div class="buy-actions"><button class="est-btn" id="buyWa">Enviar no WhatsApp</button><button class="est-btn alt" id="buyCopy">Copiar lista</button></div></div>' : '') +
-      '<div class="card"><div class="card-title">Produtos</div>' +
-      '<div class="extra-fields"><div class="field-wrap"><div class="money-input"><input class="text-input" id="estSearch" placeholder="Buscar nome, marca, modelo" value="' + escAttr(estUi.q) + '"></div></div><div class="field-wrap"><select class="select-input" id="estCat">' + opts(STOCK_CATS, estUi.cat, '<option value="">Todas as categorias</option>') + '</select></div></div>' +
-      '<button class="registrar-btn" id="estNew">+ Novo produto</button><div id="estForm"></div><div id="estList"></div></div>';
+    var buyCard = (low.length ? '<div class="card card-buy"><div class="card-title">Comprar (' + fmtInt(low.length) + ')</div>' + low.slice(0, lowShown).map(function (x) { return '<div class="totals-row"><span>' + escAttr(pname(x)) + '</span><span>' + escAttr(x.qty) + ' / mín. ' + escAttr(x.min) + ' · <b>repor ' + reporQtd(x) + '</b></span></div>'; }).join('') +
+        (low.length > lowShown ? '<div class="item-price" style="padding-top:6px">Mostrando ' + fmtInt(lowShown) + ' de ' + fmtInt(low.length) + ' produtos abaixo do mínimo.</div>' : '') + moreHtml('comprar', low.length, Math.min(lowShown, low.length), 50) + '<div class="buy-actions"><button class="est-btn" id="buyWa">Enviar no WhatsApp</button><button class="est-btn alt" id="buyCopy">Copiar lista</button></div></div>' : '');
+    document.getElementById('estoqueContent').innerHTML = '<div class="est-layout"><div class="est-main">' +
+      '<div class="card est-card"><div class="card-title">Produtos</div>' +
+      '<div class="est-tools"><div class="field-wrap est-q"><div class="money-input"><input class="text-input" type="search" id="estSearch" aria-label="Buscar produto" placeholder="Buscar nome, marca, modelo ou código" value="' + escAttr(estUi.q) + '"></div></div>' +
+      '<div class="field-wrap est-c"><select class="select-input" id="estCat" aria-label="Categoria">' + opts(STOCK_CATS, estUi.cat, '<option value="">Todas as categorias</option>') + '</select></div>' +
+      '<button class="registrar-btn" id="estNew">+ Novo produto</button></div>' +
+      '<div id="estForm"></div><div id="estList"></div></div></div>' +
+      '<aside class="est-side"><div class="totalbar"><span class="t-label">Itens em estoque</span><span class="t-count">' + fmtInt(un) + '</span></div>' + buyCard + '</aside></div>';
     // Busca com debounce: com milhares de produtos, filtra só quando a pessoa para de digitar.
     document.getElementById('estSearch').addEventListener('input', function (e) { estUi.q = e.target.value; estUi.limit = 0; clearTimeout(estTimer); estTimer = setTimeout(renderEstList, EST_DEBOUNCE); });
     document.getElementById('estCat').addEventListener('change', function (e) { estUi.cat = e.target.value; estUi.limit = 0; clearTimeout(estTimer); renderEstList(); });
@@ -2315,7 +2449,7 @@
       var rec = recebido(s), falta = saldoFiado(s), rs = recList(s), last = rs[rs.length - 1];
       t += ' · ' + (s.cliente || 'sem nome') + ' · ' + (falta <= 0 && last ? 'recebido em ' + fmtDayShort(last.day) + ' (' + payLabel(last.pay) + ')' : rec > 0 ? 'recebido ' + brl(rec) + ', falta ' + brl(falta) : 'a receber');
     } else if (s.recebidoEm) t += ' · fiado de ' + (s.cliente || 'cliente') + ' recebido em ' + fmtDayShort(s.recebidoEm);
-    return '<span class="s-discount">' + escAttr(t) + '</span>';
+    return '<span class="s-discount pay-tag pay-' + (payValid(s.pay) ? s.pay : 'outro') + '">' + escAttr(t) + '</span>';
   }
   function resumoExtras(vendas, porCat) {
     var porPag = {}; vendas.forEach(function (v) { var k = v.pay || 'nd'; porPag[k] = (porPag[k] || 0) + v.total; });
@@ -2334,7 +2468,7 @@
     if (pend.length) {
       h += '<div class="card" style="border-color:var(--danger)"><div class="card-title">A receber (fiado): ' + brl(pendTotal) + '</div><div class="item-price" style="padding-bottom:6px">A venda já está somada no dia em que foi feita. Ao receber, o dinheiro aparece no dia do recebimento — o dia da venda não muda.</div>' + pend.map(function (v) {
         var resumo = v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', '), rec = recebido(v);
-        return '<div class="sale-item" style="flex-wrap:wrap"><div class="s-left"><span class="s-desc"><b>' + escAttr(v.cliente || 'sem nome') + '</b> · ' + fmtDayShort(v.day) + '</span><span class="s-time">' + escAttr(resumo) + '</span></div><div class="s-right"><span class="s-total">' + brl(saldoFiado(v)) + '</span></div>' +
+        return '<div class="sale-item" style="flex-wrap:wrap"><div class="s-left"><span class="s-desc"><b>' + escAttr(v.cliente || 'sem nome') + '</b> · ' + fmtDayShort(v.day) + '</span><span class="s-items">' + escAttr(resumo) + '</span></div><div class="s-right"><span class="s-total">' + brl(saldoFiado(v)) + '</span></div>' +
           (rec > 0 ? '<div class="item-price" style="width:100%">Total ' + brl(v.total) + ' · já recebido ' + brl(rec) + '</div>' : '') +
           '<div style="width:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft)">Recebeu hoje em: ' + ['dinheiro', 'pix', 'cartao'].map(function (k) { return '<button class="est-btn alt" data-rec="' + escAttr(v.id) + '" data-how="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</div></div>';
       }).join('') + '</div>';
@@ -2378,7 +2512,7 @@
 
   function backupCardHtml() {
     var last = groupOpen._backup, nq = loadQuarantine().length;
-    return '<div class="totals-card"><div class="card-title" style="padding-top:0">Backup dos dados</div>' +
+    return '<div class="card card-wide card-backup"><div class="card-title">Backup dos dados</div>' +
       '<div class="sub" style="margin-bottom:10px">' + (last ? 'Último backup: ' + last.split('-').reverse().join('/') + '.' : 'Você ainda não fez backup.') + ' Guarde o arquivo no Google Drive ou em um pendrive.' +
       (nq ? ' <b>' + nq + ' registro(s) ilegível(is) estão guardados à parte</b> e vão junto no backup.' : '') + ' Restaurar junta o backup com os dados atuais, sem apagar nada.</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="clear-btn" id="backupBtn">Salvar backup</button><button class="clear-btn" id="restoreBtn">Restaurar backup</button><input type="file" id="restoreFile" accept=".json,application/json" style="display:none"></div>' +
@@ -2469,7 +2603,8 @@
       return '<div class="totals-row"><span>' + escAttr(expCatLabel(k)) + '</span><span>' + brl(money(val)) + '</span></div>';
     }).join('');
 
-    var html = '';
+    var html = '<div class="card card-wide resumo-strip"><div><small>Vendas do mês (líquido)</small><b>' + brl(totalLiquido) + '</b></div><div><small>Gastos do mês</small><b>' + brl(totalDespesas) + '</b></div>' +
+      '<div class="saldo' + (saldo < 0 ? ' neg' : '') + '"><small>Saldo do mês</small><b>' + brl(saldo) + '</b></div></div>';
     html += chartsHtml(mKey);
     html += '<div class="card"><div class="card-title">Vendas do mês</div>' +
       (vendasRows || '<div class="empty">Nenhuma venda neste mês.</div>') +
@@ -2480,7 +2615,6 @@
       (despesasRows || '<div class="empty">Nenhum gasto neste mês.</div>') +
       '<div class="totals-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-weight:700;"><span>Total de gastos</span><span>' + brl(totalDespesas) + '</span></div></div>';
     html += resumoExtras(vendas, porCategoria);
-    html += '<div class="totals-card"><div class="totals-row total-row"><span>Saldo do mês</span><span class="val">' + brl(saldo) + '</span></div></div>';
     html += '<div class="footer-actions"><button class="registrar-btn" id="exportBtn" style="width:auto;padding:12px 22px;">Baixar relatório do mês (Excel/CSV)</button></div>' +
       '<div class="export-msg" id="exportMsg"></div>';
     html += backupCardHtml();
@@ -2509,7 +2643,7 @@
     renderDataBar();
   }
 
-  document.querySelectorAll('.tab-btn').forEach(function (btn) { btn.addEventListener('click', function () { editingExpId = null; currentTab = btn.getAttribute('data-tab'); renderApp(); }); });
+  document.querySelectorAll('.tab-btn').forEach(function (btn) { btn.addEventListener('click', function () { currentTab = btn.getAttribute('data-tab'); renderApp(); }); });
   var histSearchEl = document.getElementById('histSearch');
   var histTimer = null; // debounce: a busca percorre todo o histórico
   if (histSearchEl) histSearchEl.addEventListener('input', function () { clearTimeout(histTimer); histTimer = setTimeout(renderHistoryAndTotal, 150); });
@@ -2518,7 +2652,7 @@
     if (ev.key === null || isListKey(ev.key)) { invalidateCache(ev.key); renderApp(); }
     else if (ev.key === STORAGE_META) renderApp();
   });
-  function goToDay(k) { var t = todayKey(); if (k > t) k = t; editingExpId = null; viewDay = k; followToday = k === t; dayRolled = false; renderApp(); }
+  function goToDay(k) { var t = todayKey(); if (k > t) k = t; viewDay = k; followToday = k === t; dayRolled = false; renderApp(); }
   document.getElementById('prevDay').addEventListener('click', function () { goToDay(addDays(viewDay, -1)); });
   document.getElementById('nextDay').addEventListener('click', function () { if (viewDay < todayKey()) goToDay(addDays(viewDay, 1)); });
   document.getElementById('prevMonth').addEventListener('click', function () { viewMonth = addMonths(viewMonth, -1); renderApp(); });
@@ -2641,16 +2775,16 @@
     if (isNaN(n) || n < 0) { showToast('Meta inválida. Digite só o número, ex: 20000 ou 20.000.', false, true); return; }
     if (saveMeta(n)) renderApp();
   });
+  // A navegação de dia/mês fica dentro do header: a área fixa no topo é só a altura real do header.
   function syncStickyOffsets() {
     var h = document.querySelector('header'), root = document.documentElement.style;
-    var hh = h ? h.offsetHeight : 0; root.setProperty('--hdr-h', hh + 'px');
-    var nav = document.getElementById(currentTab === 'resumo' ? 'monthNav' : 'dayNav');
-    var nh = nav && nav.offsetParent !== null ? nav.offsetHeight : 0;
-    root.setProperty('--stick-top', (hh + nh) + 'px');
+    var hh = h ? h.offsetHeight : 0; root.setProperty('--hdr-h', hh + 'px'); root.setProperty('--stick-top', hh + 'px');
   }
   window.addEventListener('resize', syncStickyOffsets);
   window.addEventListener('load', syncStickyOffsets);
-  if (window.ResizeObserver) { var ro = new ResizeObserver(syncStickyOffsets); ['header', '#dayNav', '#monthNav'].forEach(function (q) { var e = document.querySelector(q); if (e) ro.observe(e); }); }
+  if (window.ResizeObserver) { var ro = new ResizeObserver(syncStickyOffsets); var hd = document.querySelector('header'); if (hd) ro.observe(hd); }
+  // Seletores de dia/mês também pelo teclado (Enter/Espaço).
+  ['dateBtn', 'monthBtn'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('keydown', function (ev) { if (ev.target === el && (ev.key === 'Enter' || ev.key === ' ')) { ev.preventDefault(); el.click(); } }); });
   document.querySelectorAll('.tab-btn').forEach(function (b) { b.addEventListener('click', function () { setTimeout(syncStickyOffsets, 0); }); });
   try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {}
   renderApp();
