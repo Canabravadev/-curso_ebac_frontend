@@ -614,6 +614,20 @@
   .databar.err { border-width: 2px; }
   .databar .db-det { width: 100%; font-size: .78rem; color: var(--ink-soft); }
   .databar button.alt { background: transparent; color: var(--brass-strong); }
+  /* ===== Fase 3 — fluxos ===== */
+  .day-warn { margin: 6px 20px 0; padding: 10px 14px; border: 1px solid var(--danger); border-radius: 12px; background: var(--bg-elevated); font-size: .85rem; }
+  .day-warn button { margin-left: 8px; border: 1px solid var(--brass); background: var(--brass); color: var(--on-gold, #fff); border-radius: 8px; padding: 5px 10px; font: inherit; font-size: .8rem; cursor: pointer; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 60; display: grid; place-items: center; padding: 16px; }
+  .modal-bg[hidden] { display: none; }
+  .modal { background: var(--bg-elevated); color: var(--ink); border-radius: 16px; padding: 18px; max-width: 420px; width: 100%; box-shadow: 0 20px 50px rgba(0,0,0,.35); }
+  .modal p { margin: 0 0 14px; line-height: 1.45; }
+  .modal-btns { display: flex; gap: 8px; } .modal-btns > * { flex: 1; margin: 0 !important; width: auto !important; }
+  .stk-sel.need-price { flex-wrap: wrap; } .stk-sel.need-price .extra-fields { padding-left: 46px; }
+  .tile-go { white-space: nowrap; }
+  .stk-nostock { margin-top: 6px; border: none; background: none; color: var(--brass-strong); text-decoration: underline; font: inherit; font-size: .8rem; cursor: pointer; }
+  .tag-off { font-size: .68rem; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--line); color: var(--ink-soft); }
+  .sl-btn:disabled, .step-btn:disabled { opacity: .35; cursor: default; }
+  @media (max-width: 640px) { .day-warn { margin-left: 12px; margin-right: 12px; } .stk-sel.need-price .extra-fields { padding-left: 0; } }
   /* ===== Fase 2 — contadores de listas longas ===== */
   .more-row { display: flex; gap: 8px; } .more-row .showmore { flex: 1; }
   .est-count { font-size: .78rem; color: var(--ink-soft); padding: 10px 2px 2px; }
@@ -646,6 +660,7 @@
     </div>
     <button id="nextDay" aria-label="Próximo dia">›</button>
   </div>
+  <div class="day-warn" id="dayWarn" role="status" hidden></div>
 
   <div class="daynav" id="monthNav" style="display:none">
     <button id="prevMonth" aria-label="Mês anterior">‹</button>
@@ -684,6 +699,7 @@
   </div>
 </div>
 
+<div class="modal-bg" id="modal" hidden><div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalMsg"><p id="modalMsg"></p><div class="modal-btns"><button type="button" class="clear-btn" id="modalNo"></button><button type="button" class="registrar-btn" id="modalYes"></button></div></div></div>
 <div class="toast" id="toast" role="status"></div>
 <script>
 (function () {
@@ -731,15 +747,23 @@
   var STORAGE_DESPESAS = 'chaveiro_despesas_v1';
 
   var currentTab = 'vendas';
-  var currentOffset = 0;
-  var currentMonthOffset = 0;
+  // Dia e mês mostrados são ABSOLUTOS ('AAAA-MM-DD' / 'AAAA-MM'), nunca "deslocamento a partir de hoje": assim a
+  // virada da meia-noite (ou do mês) nunca troca em silêncio o dia em que a pessoa está trabalhando (B18).
+  var viewDay = dayKey(new Date()), viewMonth = viewDay.slice(0, 7);
+  var followToday = true, lastToday = viewDay, dayRolled = false;
 
   // legacyItems: itens de uma venda em edição que não cabem no formulário (categoria antiga/desconhecida,
   // linhas repetidas). São mostrados só para leitura e regravados intactos ao salvar.
+  // editBase (B13): quantidades por produto da venda que está sendo editada — o estoque atual já está sem elas,
+  // então a disponibilidade real para a edição é estoque + editBase. editingOrigPay (B21): pagamento original.
+  // Cada item carregado de uma venda guarda "src" (o item original) para preservar campos extras ao salvar.
   var itemState = {}, stockItems = {}, stockQueries = {}, payState = 'cartao', clienteState = '', outrosList = [], outrosFocus = false, legacyItems = [];
+  var editBase = {}, editingOrigPay = null, editingSaleDay = null;
+  var DEFAULT_PAY = 'cartao';
   function resetItemState() {
-    stockItems = {}; stockQueries = {}; payState = 'cartao'; clienteState = ''; outrosList = []; legacyItems = [];
-    CATEGORIES.forEach(function (c) { itemState[c.id] = { qty: 0, price: c.price !== null ? c.price : '', desc: '', over: null }; });
+    stockItems = {}; stockQueries = {}; payState = DEFAULT_PAY; clienteState = ''; outrosList = []; legacyItems = [];
+    editBase = {}; editingOrigPay = null; editingSaleDay = null;
+    CATEGORIES.forEach(function (c) { itemState[c.id] = { qty: 0, price: c.price !== null ? c.price : '', desc: '', over: null, src: null }; });
   }
   resetItemState();
   var finalValueRaw = '';
@@ -748,6 +772,16 @@
   if (groupOpen.svc === undefined) groupOpen.svc = false;
   function saveUi() { try { localStorage.setItem('chaveiro_ui_v1', JSON.stringify(groupOpen)); } catch (e) {} }
   function cancelEdit() { if (editingSaleId) { resetItemState(); finalValueRaw = ''; } editingSaleId = null; editingExpId = null; }
+  // Há algo relevante no formulário de venda? (itens, desconto) — usado para não descartar em silêncio (B20).
+  function hasDraft() {
+    return Object.keys(stockItems).length > 0 || outrosList.length > 0 || legacyItems.length > 0 || String(finalValueRaw || '').trim() !== '' ||
+      CATEGORIES.some(function (c) { return itemState[c.id].qty > 0; });
+  }
+  function availQty(pr) { return pr ? (Number(pr.qty) || 0) + (editBase[pr.id] || 0) : 0; }
+  // Tiles de chave sem vínculo com o estoque (B12): o "+" abre a busca do estoque correspondente.
+  var TILE_SEARCH = { simples: { box: 1 }, tetra: { box: 2 }, moto: { box: 0, q: 'moto' } };
+  function payValid(p) { return Object.prototype.hasOwnProperty.call(PAY, p); }
+  function payLabel(p) { return payValid(p) ? PAY[p] : (p ? String(p) : 'Não informado'); }
 
   /* ----- Cache em memória (Fase 2) -----
      As listas são lidas (JSON.parse + validação) UMA vez e ficam em CACHE. loadVendas/loadDespesas/loadEstoque
@@ -780,10 +814,13 @@
   function estIndex() {
     var es = loadEstoque(); if (_ei.src === es) return _ei;
     var map = new Map(), low = [];
-    es.forEach(function (x) { map.set(x.id, x); if (x.min > 0 && x.qty < x.min) low.push(x); });
+    es.forEach(function (x) { map.set(x.id, x); if (isLowStock(x)) low.push(x); });
     _ei = { src: es, map: map, low: low, sorted: null };
     return _ei;
   }
+  // "Avisar quando ≤ mínimo" (B15): quantidade menor OU IGUAL ao mínimo. Produto desativado não gera aviso.
+  function isLowStock(x) { return !x.inativo && x.min > 0 && (Number(x.qty) || 0) <= x.min; }
+  function reporQtd(x) { return Math.max(1, x.min - (Number(x.qty) || 0) + 1); }
   function sortedEst() {
     var ix = estIndex();
     if (!ix.sorted) ix.sorted = ix.src.slice().sort(function (a, b) { return (STOCK_CATS.indexOf(a.cat) - STOCK_CATS.indexOf(b.cat)) || collator.compare(String(a.marca), String(b.marca)) || collator.compare(String(a.modelo), String(b.modelo)); });
@@ -808,11 +845,12 @@
     return 1;                                             // só contém
   }
   // Busca por relevância: todos os termos precisam aparecer; empate mantém a ordem normal da lista.
-  function searchProducts(q, cat) {
+  function searchProducts(q, cat, activeOnly) {
     var toks = norm(q).split(/\s+/).filter(Boolean); if (!toks.length) return null;
     var res = [];
     sortedEst().forEach(function (x, i) {
       if (cat && x.cat !== cat) return;
+      if (activeOnly && x.inativo) return;
       var d = searchData(x), sc = 0;
       for (var j = 0; j < toks.length; j++) { if (d.n.indexOf(toks[j]) < 0) return; sc += tokScore(d, toks[j]); }
       res.push({ x: x, s: sc, i: i });
@@ -833,7 +871,28 @@
     return { src: list, byDay: byDay, byMonth: byMonth, dayTot: dayTot, monTot: monTot };
   }
   var _si = { src: null }, _xi = { src: null };
-  function salesIndex() { var vs = loadVendas(); if (_si.src !== vs) { _si = buildIndex(vs, function (v) { return v.total; }); _si.fiado = vs.filter(function (v) { return v.pay === 'fiado'; }).sort(function (a, b) { return a.ts - b.ts; }); } return _si; }
+  function salesIndex() {
+    var vs = loadVendas(); if (_si.src === vs) return _si;
+    _si = buildIndex(vs, function (v) { return v.total; });
+    // Fiado (B11): a venda continua "fiado"; cada recebimento fica em venda.recebimentos[] com o próprio dia.
+    _si.fiado = vs.filter(function (v) { return v.pay === 'fiado' && saldoFiado(v) > 0; }).sort(function (a, b) { return a.ts - b.ts; });
+    _si.recByDay = new Map(); _si.recByMonth = new Map(); _si.pids = new Set();
+    vs.forEach(function (v) {
+      recList(v).forEach(function (r) {
+        var e = { s: v, r: r };
+        (_si.recByDay.get(r.day) || _si.recByDay.set(r.day, []).get(r.day)).push(e);
+        (_si.recByMonth.get(r.day.slice(0, 7)) || _si.recByMonth.set(r.day.slice(0, 7), []).get(r.day.slice(0, 7))).push(e);
+      });
+      v.items.forEach(function (it) { if (it.pid) _si.pids.add(it.pid); });
+    });
+    return _si;
+  }
+  // Recebimentos válidos de um fiado (registros malformados são ignorados na conta, mas não apagados).
+  function recList(s) { return Array.isArray(s && s.recebimentos) ? s.recebimentos.filter(function (r) { return isObj(r) && validDay(r.day) && fin(Number(r.valor)); }) : []; }
+  function recebido(s) { return money(recList(s).reduce(function (a, r) { return a + Number(r.valor); }, 0)); }
+  function saldoFiado(s) { return s && s.pay === 'fiado' ? money(Math.max(0, s.total - recebido(s))) : 0; }
+  function recOfDay(k) { return salesIndex().recByDay.get(k) || NONE; }
+  function recOfMonth(m) { return salesIndex().recByMonth.get(m) || NONE; }
   function expIndex() { var xs = loadDespesas(); if (_xi.src !== xs) _xi = buildIndex(xs, function (e) { return num(e.valor) || 0; }); return _xi; }
   var NONE = [];
   function salesOfDay(k) { return salesIndex().byDay.get(k) || NONE; }
@@ -1040,9 +1099,23 @@
     return o;
   }
 
-  function dateForOffset(offset) { var d = new Date(); d.setDate(d.getDate() + offset); return d; }
+  function todayKey() { return dayKey(new Date()); }
+  function parseDay(k) { var p = k.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function addDays(k, n) { var d = parseDay(k); d.setDate(d.getDate() + n); return dayKey(d); }
+  function addMonths(m, n) { return monthKeyOf(new Date(+m.slice(0, 4), +m.slice(5, 7) - 1 + n, 1)); }
+  function isTodayKey(k) { return k === todayKey(); }
+  function fmtDayLong(k) { return parseDay(k).toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' }); }
+  function fmtDayMed(k) { return parseDay(k).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' }); }
+  function fmtDayShort(k) { return String(k || '').split('-').reverse().join('/'); }
+  // Dia curto para botões: "02/10" (com o ano só quando não é o ano atual, para não ficar ambíguo).
+  function fmtDM(k) { return k.slice(8, 10) + '/' + k.slice(5, 7) + (k.slice(0, 4) === todayKey().slice(0, 4) ? '' : '/' + k.slice(0, 4)); }
+  // Hora de um registro novo no dia k: hoje = agora; outro dia = "sem horário" (manual), como antes.
+  function stampFor(k) {
+    if (isTodayKey(k)) return { ts: Date.now(), manual: false };
+    var n = new Date(), d = parseDay(k); d.setHours(n.getHours(), n.getMinutes(), n.getSeconds(), 0);
+    return { ts: d.getTime(), manual: true };
+  }
   function dayKey(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
-  function monthForOffset(offset) { var d = new Date(); d.setDate(1); d.setMonth(d.getMonth() + offset); return d; }
   function monthKeyOf(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
   function brl(n) { return (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); }
   // Arredondamento monetário central: tudo que é dinheiro e vai ser gravado/somado passa por aqui (centavos).
@@ -1074,7 +1147,7 @@
   function moneyCsv(n) { return (n || 0).toFixed(2).replace('.', ','); }
   function csvEscape(v) { v = String(v == null ? '' : v); if (/[;"\n]/.test(v)) { v = '"' + v.replace(/"/g, '""') + '"'; } return v; }
   function catLabel(id) { var c = CATEGORIES.find(function (x) { return x.id === id; }); return c ? c.label : id; }
-  function expCatLabel(id) { var c = EXPENSE_CATEGORIES.find(function (x) { return x.id === id; }); return c ? c.label : id; }
+  function expCatLabel(id) { var c = EXPENSE_CATEGORIES.find(function (x) { return x.id === id; }); return c ? c.label : (id ? 'Categoria antiga: ' + id : 'Sem categoria'); }
 
   function legacyValue(i) { return money((Number(i.qty) || 0) * (Number(i.unitPrice) || 0)); }
   function computeSubtotal() {
@@ -1104,6 +1177,7 @@
     var subtotal = computeSubtotal();
     if (subtotal <= 0) return false;
     if (finalInfo().error) return false;
+    if (payProblem()) return false;
     var ok = Object.keys(stockItems).every(function (k) { return num(stockItems[k].price) > 0; }) && !(payState === 'fiado' && !clienteState.trim());
     if (!outrosList.every(function (o) { return num(o.price) > 0 && o.qty > 0; })) ok = false;
     CATEGORIES.forEach(function (c) {
@@ -1126,16 +1200,29 @@
     return '<div class="sel-sum" id="selSum"><div class="sel-title">Itens da venda</div>' + (L.length ? L.map(function (l) {
       if (l.legacy) return '<div class="sel-line" title="Item de uma versão antiga do sistema: não pode ser alterado aqui e será mantido como está."><span class="sel-name">' + escAttr(l.name) + ' <small class="mini">(mantido como está)</small></span><span class="sel-step"><span class="sel-q">' + escAttr(l.q) + '</span></span><span class="sel-v">' + brl(l.v) + '</span></div>';
       var idAttr = l.sp ? 'data-sp="' + escAttr(l.sp) + '"' : (l.so !== undefined ? 'data-so="' + l.so + '"' : 'data-sc="' + l.sc + '"');
-      return '<div class="sel-line"><span class="sel-name">' + escAttr(l.name) + '</span><span class="sel-step"><button class="sl-btn sl-minus" ' + idAttr + ' aria-label="Diminuir">−</button><span class="sel-q">' + l.q + '</span><button class="sl-btn sl-plus" ' + idAttr + ' aria-label="Aumentar">+</button></span><span class="sel-v' + (l.pend ? ' pend' : '') + '">' + (l.pend ? 'sem valor' : brl(l.v)) + '</span></div>';
+      var isOutro = l.so !== undefined, minusOff = isOutro && l.q <= 1;
+      return '<div class="sel-line"><span class="sel-name">' + escAttr(l.name) + '</span><span class="sel-step"><button class="sl-btn sl-minus" ' + idAttr + (minusOff ? ' disabled title="Quantidade mínima é 1. Para tirar o item, use 🗑."' : '') + ' aria-label="Diminuir">−</button><span class="sel-q">' + l.q + '</span><button class="sl-btn sl-plus" ' + idAttr + ' aria-label="Aumentar">+</button>' + (isOutro ? '<button class="sl-btn sl-del" data-so-del="' + l.so + '" aria-label="Remover este item" title="Remover este item">🗑</button>' : '') + '</span><span class="sel-v' + (l.pend ? ' pend' : '') + '">' + (l.pend ? 'sem valor' : brl(l.v)) + '</span></div>';
     }).join('') : '<div class="sel-empty">Toque num produto ou busque no estoque para começar.</div>') + '</div>';
+  }
+  // Problemas de pagamento da venda em edição (B21/B11).
+  function payProblem() {
+    if (!payValid(payState) && !(editingSaleId && payState === editingOrigPay)) return 'Escolha como o cliente pagou.';
+    var orig = editingSaleId ? loadVendas().find(function (v) { return v.id === editingSaleId; }) : null;
+    if (orig && recList(orig).length) {
+      if (payState !== 'fiado') return 'Esta venda fiado já tem recebimento registrado. Para mudar a forma de pagamento, desfaça o recebimento primeiro (no Resumo ou no dia do recebimento).';
+      var fi = finalInfo(); if (!fi.error && fi.total < recebido(orig)) return 'O total não pode ficar menor que o valor já recebido deste fiado (' + brl(recebido(orig)) + ').';
+    }
+    return '';
   }
   function regHint() {
     if (isFormValid()) return '';
     var fe = finalInfo().error; if (fe) return fe;
+    var pp = payProblem(); if (pp) return pp;
     var c =CATEGORIES.find(function (c) { return c.price === null && itemState[c.id].qty > 0 && !(num(itemState[c.id].price) > 0); });
     if (c) return 'Informe o valor de "' + c.label + '" para continuar.';
-    if (outrosList.some(function (o) { return !(num(o.price) > 0); })) return 'Informe o valor de cada item de "Outros".';
-    if (Object.keys(stockItems).some(function (k) { return !(num(stockItems[k].price) > 0); })) return 'Informe o preço do produto do estoque.';
+    if (outrosList.some(function (o) { return !(num(o.price) > 0); })) return 'Informe o valor de cada item de "Outros" (ou remova com 🗑 a linha que não vai usar).';
+    var semPreco = Object.keys(stockItems).filter(function (k) { return !(num(stockItems[k].price) > 0); })[0];
+    if (semPreco) return 'Informe o preço de "' + stockItems[semPreco].name + '" no campo logo abaixo do produto (ele está sem preço no estoque).';
     if (payState === 'fiado' && !clienteState.trim()) return 'No fiado, digite o nome do cliente.';
     return 'Adicione um item (toque num produto ou busque no estoque) para registrar.';
   }
@@ -1149,6 +1236,9 @@
     var fvi = document.getElementById('finalValueInput'); if (fvi) { fvi.classList.toggle('invalid', !!fi.error); fvi.placeholder = moneyInput(fi.subtotal); }
     var registrarBtn = document.getElementById('registrarBtn'); if (registrarBtn) registrarBtn.disabled = !isFormValid();
     var rh = document.getElementById('regHint'); if (rh) { rh.textContent = regHint(); rh.classList.toggle('err', !!fi.error); }
+    document.querySelectorAll('[data-sp-wrap]').forEach(function (w) {
+      var s = stockItems[w.getAttribute('data-sp-wrap')]; if (s) w.classList.toggle('invalid', !(num(s.price) > 0));
+    });
     document.querySelectorAll('[data-outro-wrap]').forEach(function (w) {
       var o = outrosList[+w.getAttribute('data-outro-wrap')]; if (o) w.classList.toggle('invalid', !(num(o.price) > 0));
     });
@@ -1194,7 +1284,7 @@
         var t = cats.find(function (c) { return c.model === m && c.kind === 'troca'; });
         var on = itemState[a.id].qty > 0 || itemState[t.id].qty > 0;
         var pr = estoqueFind(gStockId(g.id, m));
-        var stockQty = pr ? (Number(pr.qty) || 0) : 0;
+        var stockQty = availQty(pr);
         var used = itemState[a.id].qty + itemState[t.id].qty;
         var warn = used > stockQty;
         return '<div class="mcell' + (on ? ' on' : '') + '"><div class="mrow"><span class="mname">' + m + '</span><span class="mtag"' + (warn ? ' style="color:var(--danger)"' : '') + '>estoque: ' + stockQty + '</span></div>' +
@@ -1213,7 +1303,7 @@
       return '<div class="outro-line">' +
         '<div class="field-wrap outro-desc"><label>Descrição</label><div class="money-input"><input class="text-input" type="text" placeholder="ex: controle clonável" data-outro-desc="' + i + '" value="' + escAttr(o.desc) + '"></div></div>' +
         '<div class="field-wrap outro-price' + inv + '" data-outro-wrap="' + i + '"><label>Valor un.</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" placeholder="0,00" data-outro-price="' + i + '" value="' + escAttr(o.price) + '"></div></div>' +
-        '<div class="stepper"><button class="step-btn minus" data-outro-minus="' + i + '" aria-label="Diminuir">−</button><span class="step-count">' + o.qty + '</span><button class="step-btn plus" data-outro-plus="' + i + '" aria-label="Aumentar">+</button></div>' +
+        '<div class="stepper"><button class="step-btn minus" data-outro-minus="' + i + '"' + (o.qty <= 1 ? ' disabled title="Quantidade mínima é 1. Para tirar o item, use 🗑."' : '') + ' aria-label="Diminuir">−</button><span class="step-count">' + o.qty + '</span><button class="step-btn plus" data-outro-plus="' + i + '" aria-label="Aumentar">+</button></div>' +
         '<button class="step-btn outro-del" data-outro-del="' + i + '" aria-label="Remover este item" title="Remover">🗑</button></div>';
     }).join('');
     return '<div class="item-row tile-row outros-row' + (n > 0 ? ' on' : '') + '" data-block="outros"><span class="ico">' + KEY_SVG + '</span>' +
@@ -1224,6 +1314,12 @@
   function catRowHtml(c) {
     var it = itemState[c.id];
     var priceLabel = c.price !== null ? brl(c.price) + ' un.' : 'valor variável';
+    if (TILE_SEARCH[c.id]) {
+      if (it.qty === 0) return '<div class="item-row tile-row" data-block="c-' + c.id + '"><span class="ico">' + KEY_SVG + '</span>' +
+        '<div class="item-info"><span class="item-label">' + c.label + '</span><span class="item-price">busque o modelo no estoque</span></div>' +
+        '<button class="est-btn alt tile-go" data-tile-search="' + c.id + '">Buscar no estoque</button></div>';
+      priceLabel += ' · sem baixa no estoque';
+    }
     var extra = '';
     if (c.price === null && it.qty > 0) {
       var invalidClass = (!(num(it.price) > 0)) ? ' invalid' : '';
@@ -1241,10 +1337,26 @@
   }
   function stockSelRowHtml(k) {
     var s = stockItems[k]; if (!s) return '';
-    var pr = estoqueFind(k), warn = pr && s.qty > pr.qty;
-    var stockInfo = pr ? ('estoque: ' + pr.qty + ' → sobra ' + (pr.qty - s.qty)) : 'produto não está mais no estoque';
-    return '<div class="item-row stk-sel" data-block="sp-' + escAttr(k) + '"><span class="ico">' + KEY_SVG + '</span><div class="item-info"><span class="item-label">' + escAttr(s.name) + '</span><span class="item-price">' + brl(num(s.price)) + ' cada · ' + stockInfo + (warn ? ' <span style="color:var(--danger)">· só tem ' + pr.qty + '</span>' : '') + '</span></div>' +
-      '<div class="stepper"><button class="step-btn stk-minus" data-pid="' + escAttr(k) + '">−</button><span class="step-count">' + s.qty + '</span><button class="step-btn stk-plus" data-pid="' + escAttr(k) + '">+</button></div></div>';
+    var pr = estoqueFind(k), av = availQty(pr), warn = pr && s.qty > av;
+    var stockInfo = pr ? ('estoque: ' + av + (editBase[k] ? ' (inclui ' + editBase[k] + ' desta venda)' : '') + ' → sobra ' + (av - s.qty)) : 'produto não está mais no estoque';
+    var priceTxt = s.needPrice ? 'sem preço no estoque' : brl(num(s.price)) + ' cada';
+    var priceField = s.needPrice ? '<div class="extra-fields"><div class="field-wrap' + (num(s.price) > 0 ? '' : ' invalid') + '" data-sp-wrap="' + escAttr(k) + '"><label>Preço de venda (R$) — sem preço no estoque</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" placeholder="0,00" data-sp-price="' + escAttr(k) + '" value="' + escAttr(s.price) + '"></div></div></div>' : '';
+    return '<div class="item-row stk-sel' + (s.needPrice ? ' need-price' : '') + '" data-block="sp-' + escAttr(k) + '"><span class="ico">' + KEY_SVG + '</span><div class="item-info"><span class="item-label">' + escAttr(s.name) + '</span><span class="item-price">' + priceTxt + ' · ' + stockInfo + (warn ? ' <span style="color:var(--danger)">· só tem ' + av + '</span>' : '') + '</span></div>' +
+      '<div class="stepper"><button class="step-btn stk-minus" data-pid="' + escAttr(k) + '">−</button><span class="step-count">' + s.qty + '</span><button class="step-btn stk-plus" data-pid="' + escAttr(k) + '">+</button></div>' + priceField + '</div>';
+  }
+  // Coloca um produto do estoque na venda. Sem preço válido no estoque → pede o preço na própria linha (B10).
+  function addStockItem(x) {
+    if (stockItems[x.id]) { stockItems[x.id].qty += 1; return; }
+    var p = prodPrice(x), ok = p > 0;
+    stockItems[x.id] = { qty: 1, price: ok ? String(p).replace('.', ',') : '', name: pname(x), needPrice: !ok };
+  }
+  // Preço de venda de um produto: bateria/pilha avulsa usa o preço fixo da tela de vendas (B17).
+  function prodPrice(x) { return x.g ? PRECO_AVULSO : (Number(x.preco) || 0); }
+  function goStockSearch(catId) {
+    var t = TILE_SEARCH[catId]; if (!t) return;
+    var inp = document.querySelector('#saleFormWrap [data-stock-box="' + t.box + '"]'); if (!inp) return;
+    if (t.q && !inp.value) { inp.value = t.q; inp.dispatchEvent(new Event('input')); }
+    inp.focus({ preventScroll: true }); inp.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
   /* ----- Atualização parcial do formulário de venda -----
@@ -1280,9 +1392,10 @@
     wrap.addEventListener('click', function (ev) {
       var b = ev.target.closest('button'); if (!b || !wrap.contains(b)) return;
       var v;
+      if ((v = b.getAttribute('data-tile-search')) !== null) return goStockSearch(v);
       if ((v = b.getAttribute('data-cat')) !== null) return changeCat(v, b.classList.contains('plus') ? 1 : -1);
       if (b.classList.contains('stk-minus') || b.classList.contains('stk-plus')) return changeStock(b.getAttribute('data-pid'), b.classList.contains('stk-plus') ? 1 : -1);
-      if ((v = b.getAttribute('data-outro-minus')) !== null) { var o = outrosList[+v]; if (o) o.qty = Math.max(1, o.qty - 1); return refreshOutros(); }
+      if ((v = b.getAttribute('data-outro-minus')) !== null) { var o = outrosList[+v]; if (o) o.qty = Math.max(1, o.qty - 1); return refreshOutros(); } // "−" nunca remove (B24)
       if ((v = b.getAttribute('data-outro-plus')) !== null) { if (outrosList[+v]) outrosList[+v].qty += 1; return refreshOutros(); }
       if ((v = b.getAttribute('data-outro-del')) !== null) { outrosList.splice(+v, 1); return refreshOutros(); }
       if (b.id === 'outroAddBtn') { outrosList.push({ desc: '', price: '', qty: 1 }); outrosFocus = true; return refreshOutros(); }
@@ -1294,7 +1407,7 @@
       }
       if ((v = b.getAttribute('data-fav')) !== null) {
         var id = v.slice(2);
-        if (v.charAt(0) === 'p') { var x = estoqueFind(id); if (!x) return; if (stockItems[id]) stockItems[id].qty += 1; else stockItems[id] = { qty: 1, price: String(x.preco || '').replace('.', ','), name: pname(x) }; }
+        if (v.charAt(0) === 'p') { var x = estoqueFind(id); if (!x) return; addStockItem(x); }
         else if (itemState[id]) itemState[id].qty += 1;
         return renderSaleForm();
       }
@@ -1304,12 +1417,15 @@
       if ((v = inp.getAttribute('data-outro-desc')) !== null) { if (outrosList[+v]) outrosList[+v].desc = inp.value; var e = document.getElementById('selSum'); if (e) e.outerHTML = selSumHtml(); return; }
       if ((v = inp.getAttribute('data-outro-price')) !== null) { if (outrosList[+v]) outrosList[+v].price = inp.value; return updateTotalsDisplay(); }
       if ((v = inp.getAttribute('data-price-cat')) !== null) { if (itemState[v]) itemState[v].price = inp.value; return updateTotalsDisplay(); }
+      if ((v = inp.getAttribute('data-sp-price')) !== null) { if (stockItems[v]) stockItems[v].price = inp.value; return updateTotalsDisplay(); }
     });
   }
 
   function renderSaleForm() {
     var wrap = document.getElementById('saleFormWrap');
-    var dayTxt = currentOffset === 0 ? '' : ' — ' + dateForOffset(currentOffset).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+    // B19: na edição, o título mostra o dia DA VENDA (que é preservado), não o dia selecionado na tela.
+    var title = editingSaleId ? 'Editando venda de ' + escAttr(fmtDayLong(editingSaleDay)) + (editingSaleDay !== viewDay ? ' <small class="mini">(continua nesse dia)</small>' : '')
+      : 'Nova venda' + (isTodayKey(viewDay) ? '' : ' — ' + escAttr(fmtDayMed(viewDay)));
 
     var rowsHtml = CATEGORIES.map(function (c) {
       if (c.group) return '';
@@ -1324,14 +1440,14 @@
     var legacyNote = legacyItems.length ? '<div class="stk-tip" style="margin-top:8px;color:var(--brass-strong)">Esta venda tem ' + legacyItems.length + ' item(ns) de uma versão antiga do sistema. Eles aparecem no resumo da venda, não podem ser alterados aqui e serão mantidos como estão ao salvar.</div>' : '';
 
     wrap.innerHTML =
-      '<div class="card"><div class="card-title">' + (editingSaleId ? 'Editando venda' : 'Nova venda') + dayTxt + '</div>' + legacyNote + favHtml() + stockPickerHtml() + rowsHtml + '</div>';
+      '<div class="card"><div class="card-title">' + title + '</div>' + legacyNote + favHtml() + stockPickerHtml() + rowsHtml + '</div>';
     document.getElementById('saleTotalsWrap').innerHTML =
       '<div class="totals-card">' + selSumHtml() +
       '<div class="totals-row"><span>Subtotal</span><span id="subtotalDisplay">' + brl(fi.subtotal) + '</span></div>' +
       '<div class="totals-row discount-row"><span>Valor final <small class=\"mini\">(só se deu desconto)</small></span><input type="text" inputmode="decimal" placeholder="' + moneyInput(fi.subtotal) + '" id="finalValueInput"' + (fi.error ? ' class="invalid"' : '') + ' value="' + escAttr(finalValueRaw) + '"></div>' +
       '<div class="totals-row" id="discountRow" style="display:' + (fi.discount > 0 ? 'flex' : 'none') + '"><span>Desconto aplicado</span><span id="discountDisplay">' + brl(fi.discount) + '</span></div>' +
       '<div class="totals-row total-row"><span>Total</span><span class="val" id="totalDisplay">' + (fi.error ? '—' : brl(fi.total)) + '</span></div>' +
-      payHtml() + '<button class="registrar-btn" id="registrarBtn" ' + (valid ? '' : 'disabled') + '>' + (editingSaleId ? 'Salvar alterações' : 'Registrar venda') + '</button><div class="reg-hint' + (fi.error ? ' err' : '') + '" id="regHint">' + escAttr(regHint()) + '</div>' + (editingSaleId ? '<button class="clear-btn" id="cancelEditBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') +
+      payHtml() + '<button class="registrar-btn" id="registrarBtn" ' + (valid ? '' : 'disabled') + '>' + (editingSaleId ? 'Salvar alterações' : (isTodayKey(viewDay) ? 'Registrar venda' : 'Registrar venda em ' + fmtDM(viewDay))) + '</button><div class="reg-hint' + (fi.error ? ' err' : '') + '" id="regHint">' + escAttr(regHint()) + '</div>' + (editingSaleId ? '<button class="clear-btn" id="cancelEditBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') +
       '</div>';
 
     bindSaleFormEvents();
@@ -1346,83 +1462,94 @@
   }
 
   function registrarVenda() {
-    var viewDate = dateForOffset(currentOffset);
-    var key = dayKey(viewDate);
+    var key = viewDay;
     var items = [];
     CATEGORIES.forEach(function (c) {
       var it = itemState[c.id];
       if (it.qty > 0) {
         var unit = unitOf(c);
-        var rec = { cat: c.id, qty: it.qty, unitPrice: unit, desc: it.desc || '' };
+        var rec = Object.assign({}, it.src || {}, { cat: c.id, qty: it.qty, unitPrice: unit, desc: it.desc || '' });
         if (c.group) { rec.pid = gStockId(c.group, c.model); }
         items.push(rec);
       }
     });
-    outrosList.forEach(function (o) { if (num(o.price) > 0 && o.qty > 0) items.push({ cat: 'outros', qty: o.qty, unitPrice: money(num(o.price)), desc: (o.desc || '').trim() }); });
-    Object.keys(stockItems).forEach(function (k) { var s = stockItems[k]; items.push({ cat: 'estoque', pid: k, qty: s.qty, unitPrice: money(num(s.price)), desc: s.name }); });
+    outrosList.forEach(function (o) { if (num(o.price) > 0 && o.qty > 0) items.push(Object.assign({}, o.src || {}, { cat: 'outros', qty: o.qty, unitPrice: money(num(o.price)), desc: (o.desc || '').trim() })); });
+    Object.keys(stockItems).forEach(function (k) { var s = stockItems[k]; items.push(Object.assign({}, s.src || {}, { cat: 'estoque', pid: k, qty: s.qty, unitPrice: money(num(s.price)), desc: s.name })); });
     legacyItems.forEach(function (i) { items.push(i); }); // itens antigos voltam exatamente como estavam
     var fi = finalInfo();
     if (fi.error || !isFormValid()) { updateTotalsDisplay(); return; }
-    // Cópias rasas para alterar; os arrays do cache ficam intactos e servem de snapshot para "desfazer".
-    var snap = { v: loadVendas(), e: loadEstoque() };
-    var all = snap.v.slice(), es = snap.e.slice();
-    var fields = { items: items, subtotal: fi.subtotal, discount: fi.discount, total: fi.total, pay: payState, cliente: payState === 'fiado' ? clienteState.trim() : '' };
+    // Cópias rasas para alterar; os arrays do cache ficam intactos até o commit().
+    var all = loadVendas().slice(), es = loadEstoque().slice();
+    var fields = { items: items, subtotal: fi.subtotal, discount: fi.discount, total: fi.total };
+    if (payValid(payState)) { fields.pay = payState; fields.cliente = payState === 'fiado' ? clienteState.trim() : ''; }
     var idx = editingSaleId ? all.findIndex(function (e) { return e.id === editingSaleId; }) : -1;
     if (editingSaleId && idx < 0) { showToast('Esta venda não existe mais (foi removida). Cancele a edição.', false, true); return; }
-    var rec;
+    var rec, orig = null;
     if (idx >= 0) {
       // Edição: merge sobre o registro original, preservando id/dia/hora e qualquer campo extra (recebidoEm etc.).
-      var orig = all[idx];
+      orig = all[idx];
       applyStock(es, orig, 1);
       rec = Object.assign({}, orig, fields);
-      if (payState !== 'fiado' && orig.recebidoEm && orig.cliente) rec.cliente = orig.cliente; // fiado já recebido: mantém o nome
+      if (payValid(payState) && payState !== 'fiado' && orig.recebidoEm && orig.cliente) rec.cliente = orig.cliente; // fiado recebido no modelo antigo: mantém o nome
       all[idx] = rec;
     } else {
-      rec = Object.assign({ id: genId(), day: key, ts: viewDate.getTime(), manual: currentOffset !== 0 }, fields);
+      var st = stampFor(key);
+      rec = Object.assign({ id: genId(), day: key, ts: st.ts, manual: st.manual }, fields);
       all.push(rec);
     }
     applyStock(es, rec, -1);
     // Venda e estoque gravados juntos: se falhar, nada muda e o formulário continua preenchido.
     if (!commit(dataMap(all, null, es))) return;
-    undoSnap = snap;
+    setUndo([{ before: idx >= 0 ? orig : null, after: rec }]);
     var wasEdit = idx >= 0; editingSaleId = null;
     showToast(wasEdit ? 'Alterações salvas' : 'Venda registrada', true);
     resetItemState();
     finalValueRaw = '';
     renderApp();
   }
+  // Abrir uma venda para editar sem descartar em silêncio o que está no formulário (B20).
+  function requestEditSale(sale) {
+    if (editingSaleId === sale.id) { var f0 = document.getElementById('saleFormWrap'); if (f0) f0.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+    if (!hasDraft()) return startEditSale(sale);
+    askConfirm(editingSaleId ? 'Você está editando outra venda. Deseja descartar as alterações dela e editar esta venda?' : 'Você possui uma venda em andamento. Deseja descartá-la e editar esta venda?',
+      'Descartar e editar', 'Continuar venda atual', function () { startEditSale(sale); });
+  }
   function startEditSale(sale) {
     resetItemState();
     (sale.items || []).forEach(function (i) {
       if (!isObj(i)) return;
+      if (i.pid) editBase[i.pid] = (editBase[i.pid] || 0) + (Number(i.qty) || 0);
       if (i.cat === 'estoque' && i.pid) {
-        var ex = stockItems[i.pid];
-        if (!ex) { stockItems[i.pid] = { qty: i.qty, price: String(i.unitPrice).replace('.', ','), name: i.desc }; return; }
-        if (money(num(ex.price)) === money(i.unitPrice)) { ex.qty += i.qty; return; }
-        legacyItems.push(i); return; // mesmo produto com outro preço na mesma venda: preserva a linha
+        // O mesmo produto em mais de uma linha não cabe numa linha só: a linha extra fica como item antigo, intacta.
+        if (stockItems[i.pid]) { legacyItems.push(i); return; }
+        var pr = estoqueFind(i.pid), sp = String(i.unitPrice).replace('.', ',');
+        stockItems[i.pid] = { qty: i.qty, price: sp, name: i.desc, src: i, needPrice: !(num(sp) > 0) || !!(pr && !(Number(pr.preco) > 0)) };
+        return;
       }
-      if (i.cat === 'outros') { outrosList.push({ desc: i.desc || '', price: String(i.unitPrice).replace('.', ','), qty: i.qty }); return; }
+      if (i.cat === 'outros') { outrosList.push({ desc: i.desc || '', price: String(i.unitPrice).replace('.', ','), qty: i.qty, src: i }); return; }
       var st = itemState[i.cat], c = CATEGORIES.find(function (x) { return x.id === i.cat; });
       // Categoria antiga/desconhecida, ou linha repetida da mesma categoria: não cabe no formulário,
       // então fica como "item antigo", somente leitura, e é regravada intacta.
       if (!st || !c || st.qty > 0) { legacyItems.push(i); return; }
-      st.qty = i.qty; st.desc = i.desc || '';
+      st.qty = i.qty; st.desc = i.desc || ''; st.src = i;
       if (c.price === null) st.price = String(i.unitPrice).replace('.', ',');
       else if (i.unitPrice !== c.price) st.over = i.unitPrice;
     });
+    editingSaleDay = sale.day;
     // Se o total gravado difere do subtotal (desconto, ou acréscimo de versões antigas), o valor final é
     // carregado explicitamente; um acréscimo antigo aparece como erro em vez de sumir em silêncio.
     finalValueRaw = (sale.discount > 0 || money(sale.total) !== money(sale.subtotal)) ? moneyInput(sale.total) : '';
-    payState = sale.pay || 'dinheiro'; clienteState = sale.cliente || '';
+    // B21: o pagamento original é mantido como está (inclusive "sem forma registrada"); nada é trocado em silêncio.
+    payState = sale.pay == null ? '' : String(sale.pay); editingOrigPay = payState; clienteState = sale.cliente || '';
     editingSaleId = sale.id; editingExpId = null;
     renderApp();
     var f = document.getElementById('saleFormWrap'); if (f) f.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   function removerVenda(id) {
-    var snap = { v: loadVendas(), e: loadEstoque() }, all = snap.v, es = snap.e.slice();
-    all.filter(function (e) { return e.id === id; }).forEach(function (s) { applyStock(es, s, 1); });
+    var all = loadVendas(), es = loadEstoque().slice(), gone = all.filter(function (e) { return e.id === id; });
+    gone.forEach(function (s) { applyStock(es, s, 1); });
     if (!commit(dataMap(all.filter(function (e) { return e.id !== id; }), null, es))) { renderApp(); return; }
-    undoSnap = snap;
+    setUndo(gone.map(function (s) { return { before: s, after: null }; }));
     if (editingSaleId === id) cancelEdit();
     showToast('Venda removida', true); renderApp();
   }
@@ -1440,19 +1567,20 @@
     var time = new Date(sale.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); if (sale.manual) time = 'sem horário';
     if (showDay) time = sale.day.split('-').reverse().join('/') + ' · ' + time;
     var summary = sale.items.map(function (it) {
-      if (it.cat === 'outros') return (it.qty > 1 ? it.qty + 'x ' : '') + escAttr(itemName(it)) + ' — ' + brl((it.unitPrice || 0) * it.qty);
-      return it.qty + 'x ' + itemName(it);
-    }).join(', ');
+      if (it.cat === 'outros') return (it.qty > 1 ? escAttr(it.qty) + 'x ' : '') + escAttr(itemName(it)) + ' — ' + brl((it.unitPrice || 0) * it.qty);
+      return escAttr(it.qty) + 'x ' + escAttr(itemName(it));
+    }).join(', ') || '<i>(sem itens)</i>';
     var row = document.createElement('div'); row.className = 'sale-item';
     row.innerHTML = '<div class="s-left"><span class="s-time">' + time + '</span><span class="s-desc">' + summary + '</span>' +
       (sale.discount > 0 ? '<span class="s-discount">desconto ' + brl(sale.discount) + '</span>' : '') + payTag(sale) + '</div>' +
       '<div class="s-right"><span class="s-total">' + brl(sale.total) + '</span><button class="s-edit" aria-label="Editar">✎</button><button class="s-del" aria-label="Remover">✕</button></div>';
     if (sale.id === editingSaleId) row.classList.add('editing');
-    row.querySelector('.s-edit').addEventListener('click', function () { startEditSale(sale); });
+    row.querySelector('.s-edit').addEventListener('click', function () { requestEditSale(sale); });
     row.querySelector('.s-del').addEventListener('click', function () {
       var rightEl = row.querySelector('.s-right');
       rightEl.innerHTML = '<span class="s-confirm-text">Remover?</span><button class="s-confirm-btn yes">Sim</button><button class="s-confirm-btn no">Não</button>';
       rightEl.querySelector('.yes').addEventListener('click', function () { removerVenda(sale.id); });
+      // (pode ser desfeito pelo aviso que aparece em seguida)
       rightEl.querySelector('.no').addEventListener('click', renderApp);
     });
     return row;
@@ -1460,17 +1588,14 @@
   var lastHistQ = '';
   function renderHistoryAndTotal() {
     var all = loadVendas();
-    var viewDate = dateForOffset(currentOffset);
-    var key = dayKey(viewDate);
-    var isToday = currentOffset === 0;
+    var key = viewDay;
+    var isToday = isTodayKey(key);
     var daySales = salesOfDay(key);
-    document.getElementById('dateLabel').textContent = viewDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-    document.getElementById('todayTag').textContent = isToday ? 'HOJE' : '';
-    document.getElementById('nextDay').disabled = currentOffset >= 0;
+    updateDayUI();
     document.getElementById('dayTotal').textContent = brl(dayTotalOf(key));
-    var ps = document.getElementById('paySum'); if (ps) ps.innerHTML = payChips(daySales);
+    var ps = document.getElementById('paySum'); if (ps) ps.innerHTML = payChips(daySales, key);
     var sp = document.getElementById('spark'); if (sp) sp.innerHTML = sparkInner();
-    var hl = document.getElementById('heroLbl'); if (hl) hl.textContent = isToday ? 'Faturamento de hoje' : 'Faturamento de ' + viewDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+    var hl = document.getElementById('heroLbl'); if (hl) hl.textContent = isToday ? 'Faturamento de hoje' : 'Faturamento de ' + fmtDayMed(key);
     var gb = document.getElementById('goalBox'); if (gb) gb.innerHTML = goalHtml(key.slice(0, 7));
 
     var searchEl = document.getElementById('histSearch');
@@ -1501,43 +1626,52 @@
       histEl.insertAdjacentHTML('beforeend', moreHtml(expKey, sorted.length, n, step));
       bindShowMore(histEl);
     }
+    var recs = searching ? NONE : recOfDay(key);
+    if (recs.length) {
+      histEl.insertAdjacentHTML('beforeend', '<div class="section-title" style="padding:14px 0 4px">Fiado recebido neste dia</div>' + recs.map(function (e) {
+        return '<div class="sale-item"><div class="s-left"><span class="s-desc">Recebimento de fiado — <b>' + escAttr(e.s.cliente || 'sem nome') + '</b></span><span class="s-time">venda de ' + fmtDayShort(e.s.day) + ' · ' + escAttr(payLabel(e.r.pay)) + '</span></div><div class="s-right"><span class="s-total">' + brl(Number(e.r.valor)) + '</span><button class="est-btn alt" data-unrec="' + escAttr(e.s.id) + '" data-rid="' + escAttr(e.r.id) + '">Desfazer</button></div></div>';
+      }).join(''));
+      bindReceber(histEl);
+    }
     document.getElementById('footerActions').style.display = (!searching && daySales.length > 0) ? 'flex' : 'none';
   }
 
   function renderExpenseForm() {
     var wrap = document.getElementById('expenseFormWrap');
-    var dayTxt = currentOffset === 0 ? '' : ' — ' + dateForOffset(currentOffset).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+    var dayTxt = isTodayKey(viewDay) ? '' : ' — ' + fmtDayMed(viewDay);
     var ed = editingExpId ? loadDespesas().find(function (x) { return x.id === editingExpId; }) : null;
     var catOptions = EXPENSE_CATEGORIES.map(function (c) { return '<option value="' + c.id + '"' + (ed && ed.cat === c.id ? ' selected' : '') + '>' + c.label + '</option>'; }).join('');
+    // B22: gasto com categoria antiga/desconhecida mantém a categoria ao editar (não troca em silêncio).
+    if (ed && !EXPENSE_CATEGORIES.some(function (c) { return c.id === ed.cat; })) catOptions = '<option value="' + escAttr(ed.cat) + '" selected>' + escAttr(expCatLabel(ed.cat)) + '</option>' + catOptions;
     wrap.innerHTML = '<div class="card"><div class="card-title">' + (ed ? 'Editando gasto' : 'Novo gasto') + dayTxt + '</div>' +
       '<div class="extra-fields" style="padding:10px 0 0;"><div class="field-wrap"><label>Descrição</label><div class="money-input"><input class="text-input" type="text" id="expDesc" placeholder="ex: compra de chaves virgens" value="' + escAttr(ed ? ed.desc : '') + '"></div></div></div>' +
       '<div class="extra-fields" style="padding:10px 0;">' +
       '<div class="field-wrap"><label>Categoria</label><select id="expCat" class="select-input">' + catOptions + '</select></div>' +
-      '<div class="field-wrap" id="expValorWrap"><label>Valor (R$)</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="expValor" placeholder="0,00" value="' + (ed ? String(ed.valor).replace('.', ',') : '') + '"></div></div>' +
+      '<div class="field-wrap" id="expValorWrap"><label>Valor (R$)</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="expValor" placeholder="0,00" value="' + (ed ? escAttr(String(ed.valor).replace('.', ',')) : '') + '"></div><span class="hint" id="expValorHint" style="display:none">Informe um valor maior que zero, ex: 45 ou 45,90.</span></div>' +
       '</div>' +
-      '<button class="registrar-btn" id="registrarGastoBtn">' + (ed ? 'Salvar alterações' : 'Registrar gasto') + '</button>' + (ed ? '<button class="clear-btn" id="cancelEditExpBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') + '</div>';
+      '<button class="registrar-btn" id="registrarGastoBtn">' + (ed ? 'Salvar alterações' : (isTodayKey(viewDay) ? 'Registrar gasto' : 'Registrar gasto em ' + fmtDM(viewDay))) + '</button>' + (ed ? '<button class="clear-btn" id="cancelEditExpBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') + '</div>';
     var cancelExp = document.getElementById('cancelEditExpBtn');
-    if (cancelExp) cancelExp.addEventListener('click', function () { cancelEdit(); renderApp(); });
+    if (cancelExp) cancelExp.addEventListener('click', function () { editingExpId = null; renderApp(); });
     document.getElementById('registrarGastoBtn').addEventListener('click', function () {
       var desc = document.getElementById('expDesc').value.trim();
       var cat = document.getElementById('expCat').value;
       var valor = parseMoney(document.getElementById('expValor').value);
       var wrapEl = document.getElementById('expValorWrap');
-      if (isNaN(valor) || money(valor) <= 0) { wrapEl.classList.add('invalid'); return; }
-      wrapEl.classList.remove('invalid');
+      var hintEl = document.getElementById('expValorHint');
+      if (isNaN(valor) || money(valor) <= 0) { wrapEl.classList.add('invalid'); if (hintEl) hintEl.style.display = 'block'; return; }
+      wrapEl.classList.remove('invalid'); if (hintEl) hintEl.style.display = 'none';
       registrarGasto(desc, cat, money(valor));
     });
   }
   function registrarGasto(desc, cat, valor) {
-    var viewDate = dateForOffset(currentOffset);
-    var key = dayKey(viewDate);
+    var key = viewDay, st = stampFor(key);
     var all = loadDespesas().slice();
     var fields = { desc: desc, cat: cat, valor: money(valor) };
     var idx = editingExpId ? all.findIndex(function (e) { return e.id === editingExpId; }) : -1;
     if (editingExpId && idx < 0) { showToast('Este gasto não existe mais (foi removido). Cancele a edição.', false, true); return; }
     // Edição: merge sobre o original (preserva id/dia/hora e campos extras).
     if (idx >= 0) all[idx] = Object.assign({}, all[idx], fields);
-    else all.push(Object.assign({ id: genId(), day: key, ts: viewDate.getTime(), manual: currentOffset !== 0 }, fields));
+    else all.push(Object.assign({ id: genId(), day: key, ts: st.ts, manual: st.manual }, fields));
     if (!saveDespesas(all)) return; // falhou: o formulário continua preenchido, aviso já exibido
     var wasEdit = idx >= 0;
     editingExpId = null;
@@ -1552,13 +1686,10 @@
   function removerGasto(id) { var all = loadDespesas().filter(function (e) { return e.id !== id; }); if (saveDespesas(all) && editingExpId === id) cancelEdit(); renderApp(); }
 
   function renderExpenseHistoryAndTotal() {
-    var viewDate = dateForOffset(currentOffset);
-    var key = dayKey(viewDate);
-    var isToday = currentOffset === 0;
+    var key = viewDay;
+    var isToday = isTodayKey(key);
     var despesas = expOfDay(key);
-    document.getElementById('dateLabel').textContent = viewDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
-    document.getElementById('todayTag').textContent = isToday ? 'HOJE' : '';
-    document.getElementById('nextDay').disabled = currentOffset >= 0;
+    updateDayUI();
     document.getElementById('expDayTotal').textContent = brl(money(expIndex().dayTot.get(key) || 0));
     var histEl = document.getElementById('expHistory');
     histEl.innerHTML = '';
@@ -1572,13 +1703,13 @@
       sortedExp.slice(0, nExp).forEach(function (e) {
         var time = new Date(e.ts).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }); if (e.manual) time = 'sem horário';
         var row = document.createElement('div'); row.className = 'sale-item';
-        row.innerHTML = '<div class="s-left"><span class="s-time">' + time + '</span><span class="s-desc">' + (e.desc ? e.desc + ' — ' : '') + expCatLabel(e.cat) + '</span></div>' +
+        row.innerHTML = '<div class="s-left"><span class="s-time">' + time + '</span><span class="s-desc">' + (e.desc ? escAttr(e.desc) + ' — ' : '') + escAttr(expCatLabel(e.cat)) + '</span></div>' +
           '<div class="s-right"><span class="s-total">' + brl(e.valor) + '</span><button class="s-edit" aria-label="Editar">✎</button><button class="s-del" aria-label="Remover">✕</button></div>';
         if (e.id === editingExpId) row.classList.add('editing');
         row.querySelector('.s-edit').addEventListener('click', function () { startEditExp(e); });
         row.querySelector('.s-del').addEventListener('click', function () {
           var rightEl = row.querySelector('.s-right');
-          rightEl.innerHTML = '<span class="s-confirm-text">Remover?</span><button class="s-confirm-btn yes">Sim</button><button class="s-confirm-btn no">Não</button>';
+          rightEl.innerHTML = '<span class="s-confirm-text">Remover? Não dá para desfazer.</span><button class="s-confirm-btn yes">Sim</button><button class="s-confirm-btn no">Não</button>';
           rightEl.querySelector('.yes').addEventListener('click', function () { removerGasto(e.id); });
           rightEl.querySelector('.no').addEventListener('click', renderApp);
         });
@@ -1596,10 +1727,12 @@
     lines.push('');
     lines.push('VENDAS');
     lines.push(['Data', 'Hora', 'Itens', 'Subtotal', 'Desconto', 'Total', 'Pagamento', 'Cliente'].join(';'));
-    vendas.slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (v) {
+    vendas.slice().sort(function (a, b) { return a.day < b.day ? -1 : a.day > b.day ? 1 : a.ts - b.ts; }).forEach(function (v) {
       var d = new Date(v.ts);
       var itensStr = v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', ');
-      lines.push([d.toLocaleDateString('pt-BR'), (v.manual ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })), csvEscape(itensStr), moneyCsv(v.subtotal), moneyCsv(v.discount), moneyCsv(v.total), PAY[v.pay] || '', csvEscape(v.cliente || '')].join(';'));
+      var pg = v.pay ? payLabel(v.pay) : '';
+      if (v.pay === 'fiado') { var rs = recList(v); pg += saldoFiado(v) <= 0 && rs.length ? ' (recebido ' + rs.map(function (r) { return fmtDayShort(r.day) + ' ' + payLabel(r.pay); }).join(', ') + ')' : (rs.length ? ' (recebido ' + moneyCsv(recebido(v)) + ', falta ' + moneyCsv(saldoFiado(v)) + ')' : ' (a receber)'); }
+      lines.push([fmtDayShort(v.day), (v.manual ? '' : d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })), csvEscape(itensStr), moneyCsv(v.subtotal), moneyCsv(v.discount), moneyCsv(v.total), csvEscape(pg), csvEscape(v.cliente || '')].join(';'));
     });
     lines.push('');
     lines.push('Total bruto de vendas;' + moneyCsv(totalBruto));
@@ -1608,9 +1741,8 @@
     lines.push('');
     lines.push('GASTOS');
     lines.push(['Data', 'Descricao', 'Categoria', 'Valor'].join(';'));
-    despesas.slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (e) {
-      var d = new Date(e.ts);
-      lines.push([d.toLocaleDateString('pt-BR'), csvEscape(e.desc || ''), csvEscape(expCatLabel(e.cat)), moneyCsv(num(e.valor) || 0)].join(';'));
+    despesas.slice().sort(function (a, b) { return a.day < b.day ? -1 : a.day > b.day ? 1 : a.ts - b.ts; }).forEach(function (e) {
+      lines.push([fmtDayShort(e.day), csvEscape(e.desc || ''), csvEscape(expCatLabel(e.cat)), moneyCsv(num(e.valor) || 0)].join(';'));
     });
     lines.push('');
     lines.push('Total de gastos;' + moneyCsv(totalDespesas));
@@ -1670,7 +1802,7 @@
   function saveEstoque(l) { var m = {}; m[STORAGE_ESTOQUE] = l; return commit(m); }
   function estoqueFind(id) { return estIndex().map.get(id); }
   function stockSum() { var s = 0; Object.keys(stockItems).forEach(function (k) { s += money(num(stockItems[k].price) * stockItems[k].qty); }); return money(s); }
-  function opts(list, sel, first) { return (first || '') + list.map(function (c) { return '<option' + (c === sel ? ' selected' : '') + '>' + c + '</option>'; }).join(''); }
+  function opts(list, sel, first) { return (first || '') + list.map(function (c) { return '<option value="' + escAttr(c) + '"' + (c === sel ? ' selected' : '') + '>' + escAttr(c) + '</option>'; }).join(''); }
 
   // ----- busca de produtos na venda
   var STOCK_BOXES = [{ key: 'all', label: 'Do estoque', sub: 'qualquer produto', cat: null, ph: 'nome, marca ou modelo' }, { key: 'Chave simples', label: 'Chave simples', sub: 'R$ 14', cat: 'Chave simples', ph: 'marca ou modelo (ex: HAG 682)' }, { key: 'Chave tetra', label: 'Chave tetra', sub: 'R$ 35', cat: 'Chave tetra', ph: 'marca ou modelo' }];
@@ -1686,12 +1818,15 @@
   }
   // Resultados por relevância (modelo exato primeiro). Mostra 8, informa o total e permite ver mais.
   function stockResultsHtml(box) {
-    var list = searchProducts(stockQueries[box.key] || '', box.cat); if (!list) return '';
-    if (!list.length) return '<div class="empty" style="padding:8px">Nenhum produto encontrado.</div>';
+    var q = stockQueries[box.key] || '', list = searchProducts(q, box.cat, true); if (!list) return '';
+    if (!list.length) {
+      var fb = box.cat === 'Chave simples' ? 'simples' : box.cat === 'Chave tetra' ? 'tetra' : (/moto/.test(norm(q)) ? 'moto' : '');
+      return '<div class="empty" style="padding:8px">Nenhum produto encontrado.' + (fb ? '<br><button type="button" class="stk-nostock" data-nostock="' + fb + '">Não está no estoque? Vender como “' + catLabel(fb) + '” sem baixa no estoque</button>' : '') + '</div>';
+    }
     var lim = stockLimit[box.key] || 8;
     var h = list.slice(0, lim).map(function (x) {
-      var q = Number(x.qty) || 0, cls = q <= 0 ? ' out' : (x.min > 0 && q < x.min ? ' low' : ''), nm = box.cat ? [x.marca, x.modelo].filter(Boolean).join(' · ') : pname(x);
-      return '<button class="stk-res" data-pid="' + escAttr(x.id) + '"><span class="r-name">' + escAttr(nm) + '</span><span class="r-meta"><span class="r-price">' + brl(x.preco) + '</span><span class="r-qty' + cls + '">' + (q <= 0 ? 'sem estoque' : q + ' un.') + '</span><span class="r-add">+</span></span></button>';
+      var q = availQty(x), cls = q <= 0 ? ' out' : (x.min > 0 && q <= x.min ? ' low' : ''), nm = box.cat ? [x.marca, x.modelo].filter(Boolean).join(' · ') : pname(x);
+      return '<button class="stk-res" data-pid="' + escAttr(x.id) + '"><span class="r-name">' + escAttr(nm) + '</span><span class="r-meta"><span class="r-price">' + (prodPrice(x) > 0 ? brl(prodPrice(x)) : 'sem preço') + '</span><span class="r-qty' + cls + '">' + (q <= 0 ? 'sem estoque' : q + ' un.') + '</span><span class="r-add">+</span></span></button>';
     }).join('');
     if (list.length > lim) h += '<div class="stk-more">Mostrando ' + fmtInt(lim) + ' de ' + fmtInt(list.length) + ' resultados · <button type="button" data-more="1">ver mais</button> ou digite mais para refinar</div>';
     return h;
@@ -1704,9 +1839,11 @@
       draw();
       resBox.onclick = function (ev) {
         if (ev.target.closest('[data-more]')) { stockLimit[box.key] = (stockLimit[box.key] || 8) + 20; draw(); return; }
+        var ns = ev.target.closest('[data-nostock]');
+        if (ns) { var cid = ns.getAttribute('data-nostock'); if (itemState[cid]) itemState[cid].qty += 1; stockQueries[box.key] = ''; renderSaleForm(); return; }
         var b = ev.target.closest('.stk-res'); if (!b) return;
         var x = estoqueFind(b.getAttribute('data-pid')); if (!x) return;
-        if (stockItems[x.id]) stockItems[x.id].qty += 1; else stockItems[x.id] = { qty: 1, price: String(x.preco || '').replace('.', ','), name: pname(x) };
+        addStockItem(x);
         stockQueries[box.key] = ''; stockLimit[box.key] = 0; renderSaleForm();
         var again = document.querySelector('#saleFormWrap [data-stock-box="' + idx + '"]'); if (again) again.focus({ preventScroll: true }); // continua digitando o próximo
       };
@@ -1728,7 +1865,7 @@
     var lowShown = shownCount('comprar', 10, 50);
     document.getElementById('estoqueContent').innerHTML =
       '<div class="totalbar"><span class="t-label">Itens em estoque</span><span class="t-count">' + fmtInt(un) + '</span></div>' +
-      (low.length ? '<div class="totals-card" style="border-color:var(--danger)"><div class="card-title" style="padding-top:0">Comprar (' + fmtInt(low.length) + ')</div>' + low.slice(0, lowShown).map(function (x) { return '<div class="totals-row"><span>' + escAttr(pname(x)) + '</span><span>' + x.qty + ' / mín. ' + x.min + ' · <b>repor ' + Math.max(1, x.min - x.qty) + '</b></span></div>'; }).join('') +
+      (low.length ? '<div class="totals-card" style="border-color:var(--danger)"><div class="card-title" style="padding-top:0">Comprar (' + fmtInt(low.length) + ')</div>' + low.slice(0, lowShown).map(function (x) { return '<div class="totals-row"><span>' + escAttr(pname(x)) + '</span><span>' + escAttr(x.qty) + ' / mín. ' + escAttr(x.min) + ' · <b>repor ' + reporQtd(x) + '</b></span></div>'; }).join('') +
         (low.length > lowShown ? '<div class="item-price" style="padding-top:6px">Mostrando ' + fmtInt(lowShown) + ' de ' + fmtInt(low.length) + ' produtos abaixo do mínimo.</div>' : '') + moreHtml('comprar', low.length, Math.min(lowShown, low.length), 50) + '<div class="buy-actions"><button class="est-btn" id="buyWa">Enviar no WhatsApp</button><button class="est-btn alt" id="buyCopy">Copiar lista</button></div></div>' : '') +
       '<div class="card"><div class="card-title">Produtos</div>' +
       '<div class="extra-fields"><div class="field-wrap"><div class="money-input"><input class="text-input" id="estSearch" placeholder="Buscar nome, marca, modelo" value="' + escAttr(estUi.q) + '"></div></div><div class="field-wrap"><select class="select-input" id="estCat">' + opts(STOCK_CATS, estUi.cat, '<option value="">Todas as categorias</option>') + '</select></div></div>' +
@@ -1739,7 +1876,7 @@
     bindShowMore(document.getElementById('estoqueContent'));
     document.getElementById('estNew').addEventListener('click', function () { estUi.form = 'new'; estUi.pre = null; renderEstForm(); });
     renderEstForm(); renderEstList();
-    var txt = 'Lista de compras — Chaveiro\n' + low.map(function (x) { return '• ' + pname(x) + ' — repor ' + Math.max(1, x.min - x.qty) + ' (tenho ' + x.qty + ', mínimo ' + x.min + ')'; }).join('\n');
+    var txt = 'Lista de compras — Chaveiro\n' + low.map(function (x) { return '• ' + pname(x) + ' — repor ' + reporQtd(x) + ' (tenho ' + x.qty + ', aviso quando ≤ ' + x.min + ')'; }).join('\n');
     var bw = document.getElementById('buyWa'), bc = document.getElementById('buyCopy');
     if (bw) bw.addEventListener('click', function () { window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); });
     if (bc) bc.addEventListener('click', function () {
@@ -1755,21 +1892,33 @@
     var x = isNew ? { cat: (estUi.pre && estUi.pre.cat) || STOCK_CATS[0], marca: (estUi.pre && estUi.pre.marca) || '', modelo: '', qty: 0, preco: '', min: '' } : estoqueFind(estUi.form);
     if (!x) { estUi.form = null; box.innerHTML = ''; return; }
     var dec = function (v) { return v === '' || v == null ? '' : String(v).replace('.', ','); };
-    var f = function (id, label, v, mode) { return '<div class="field-wrap"><label>' + label + '</label><div class="money-input"><input class="text-input" type="text"' + (mode ? ' inputmode="' + mode + '"' : '') + ' id="' + id + '" value="' + escAttr(v) + '"></div></div>'; };
-    box.innerHTML = '<div class="card" style="margin:12px 0 0;border-color:var(--brass)"><div class="card-title">' + (isNew ? 'Novo produto' : 'Editar produto') + '</div>' +
-      '<div class="extra-fields"><div class="field-wrap"><label>Categoria</label><select class="select-input" id="fCat">' + opts(STOCK_CATS, x.cat) + '</select></div>' + f('fMarca', 'Marca', x.marca) + f('fModelo', 'Modelo / numeração', x.modelo) + '</div>' +
-      '<div class="extra-fields" style="padding-top:10px">' + f('fQtd', 'Quantidade', x.qty, 'numeric') + f('fPreco', 'Preço de venda (R$)', dec(x.preco), 'decimal') + f('fMin', 'Avisar quando ≤', x.min, 'numeric') + '</div>' +
-      '<div class="hint" id="fErr" style="display:none;margin-top:8px">Informe a marca ou o modelo.</div>' +
+    var isG = !isNew && !!x.g, used = !isNew && salesIndex().pids.has(x.id);
+    var f = function (id, label, v, mode, ro) { return '<div class="field-wrap"><label>' + label + '</label><div class="money-input"><input class="text-input" type="text"' + (mode ? ' inputmode="' + mode + '"' : '') + ' id="' + id + '" value="' + escAttr(v) + '"' + (ro ? ' readonly' : '') + '></div></div>'; };
+    var catList = STOCK_CATS.indexOf(x.cat) < 0 && x.cat ? [x.cat].concat(STOCK_CATS) : STOCK_CATS; // categoria antiga não é trocada em silêncio
+    var delBtn = isNew ? '' : isG ? '<div class="item-price" style="margin-top:10px">Baterias e pilhas fazem parte da tela de vendas e não podem ser excluídas. O preço da venda é fixo (avulso ' + brl(PRECO_AVULSO) + ' · troca no controle ' + brl(PRECO_TROCA) + '); aqui você ajusta quantidade e aviso de mínimo.</div>'
+      : used ? '<button class="clear-btn" id="fToggle" style="width:100%;margin-top:8px">' + (x.inativo ? 'Reativar produto' : 'Desativar produto') + '</button><div class="item-price" style="margin-top:6px">Este produto tem vendas registradas, por isso não pode ser excluído (o histórico e a devolução ao estoque dependem dele). Desativado, ele some da busca de vendas e da lista de compras.</div>'
+      : '<button class="clear-btn" id="fDel" style="width:100%;margin-top:8px;color:var(--danger)">Excluir produto</button>';
+    box.innerHTML = '<div class="card" style="margin:12px 0 0;border-color:var(--brass)"><div class="card-title">' + (isNew ? 'Novo produto' : 'Editar produto') + (x.inativo ? ' <span class="tag-off">desativado</span>' : '') + '</div>' +
+      '<div class="extra-fields"><div class="field-wrap"><label>Categoria</label><select class="select-input" id="fCat"' + (isG ? ' disabled' : '') + '>' + opts(catList, x.cat) + '</select></div>' + f('fMarca', 'Marca', x.marca, '', isG) + f('fModelo', 'Modelo / numeração', x.modelo, '', isG) + '</div>' +
+      '<div class="extra-fields" style="padding-top:10px">' + f('fQtd', 'Quantidade', x.qty, 'numeric') + f('fPreco', isG ? 'Preço (fixo na venda)' : 'Preço de venda (R$)', isG ? dec(PRECO_AVULSO) : dec(x.preco), 'decimal', isG) + f('fMin', 'Avisar quando ≤', x.min, 'numeric') + '</div>' +
+      '<div class="hint" id="fErr" style="display:none;margin-top:8px"></div>' +
       '<button class="registrar-btn" id="fSave">Salvar produto</button>' + (isNew ? '<button class="clear-btn" id="fAgain" style="width:100%;margin-top:8px">Salvar e cadastrar outro da mesma marca</button>' : '') +
-      '<button class="clear-btn" id="fCancel" style="width:100%;margin-top:8px">Cancelar</button>' + (isNew ? '' : '<button class="clear-btn" id="fDel" style="width:100%;margin-top:8px;color:var(--danger)">Excluir produto</button>') + '</div>';
+      '<button class="clear-btn" id="fCancel" style="width:100%;margin-top:8px">Cancelar</button>' + delBtn + '</div>';
+    function fail(msg) { var e = document.getElementById('fErr'); e.textContent = msg; e.style.display = 'block'; }
     function save(again) {
       var g = function (id) { return document.getElementById(id).value.trim(); };
-      if (!g('fMarca') && !g('fModelo')) { document.getElementById('fErr').style.display = 'block'; return; }
+      if (!g('fMarca') && !g('fModelo')) return fail('Informe a marca ou o modelo.');
+      // Campos numéricos: vazio = 0; texto que não é número é recusado com explicação (não vira 0 em silêncio).
+      var nq = g('fQtd') === '' ? 0 : parseMoney(g('fQtd')), np = g('fPreco') === '' ? 0 : parseMoney(g('fPreco')), nm = g('fMin') === '' ? 0 : parseMoney(g('fMin'));
+      if (isNaN(nq)) return fail('Quantidade inválida: digite só números (ex: 12).');
+      if (!isG && (isNaN(np) || np < 0)) return fail('Preço inválido: digite só o valor (ex: 14 ou 14,50). Pode deixar vazio se ainda não tem preço.');
+      if (isNaN(nm) || nm < 0) return fail('"Avisar quando ≤" inválido: digite um número (ex: 5) ou deixe vazio.');
       var es = loadEstoque().slice(), pos = isNew ? -1 : es.findIndex(function (y) { return y.id === x.id; });
       if (!isNew && pos < 0) { estUi.form = null; renderEstoque(); return; } // produto removido enquanto o formulário estava aberto
       // Objeto novo (copy-on-write): preserva campos extras do produto e não altera o cache antes de gravar.
       var o = Object.assign({}, isNew ? { id: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5) } : es[pos],
-        { cat: g('fCat'), marca: g('fMarca'), modelo: g('fModelo'), qty: Math.round(num(g('fQtd'))), preco: money(num(g('fPreco'))), min: Math.round(num(g('fMin'))) });
+        isG ? { qty: Math.round(nq), min: Math.round(nm) } // bateria/pilha: categoria, modelo e preço são fixos
+          : { cat: g('fCat'), marca: g('fMarca'), modelo: g('fModelo'), qty: Math.round(nq), preco: money(np), min: Math.round(nm) });
       if (isNew) es.push(o); else es[pos] = o;
       if (!saveEstoque(es)) return; // falhou: o formulário continua aberto e preenchido
       estUi.pre = again ? { cat: o.cat, marca: o.marca } : null; estUi.form = again ? 'new' : null;
@@ -1780,8 +1929,17 @@
     document.getElementById('fCancel').addEventListener('click', function () { estUi.form = null; renderEstForm(); });
     var del = document.getElementById('fDel');
     if (del) del.addEventListener('click', function () {
-      if (!del.getAttribute('data-ask')) { del.setAttribute('data-ask', '1'); del.textContent = 'Toque de novo para confirmar a exclusão'; return; }
+      if (!del.getAttribute('data-ask')) { del.setAttribute('data-ask', '1'); del.textContent = 'Toque de novo para excluir — isso não pode ser desfeito'; return; }
+      if (salesIndex().pids.has(x.id)) { estUi.form = x.id; renderEstForm(); return; } // ganhou venda enquanto o formulário estava aberto
       if (!saveEstoque(loadEstoque().filter(function (y) { return y.id !== x.id; }))) return;
+      estUi.form = null; renderEstoque();
+    });
+    var tog = document.getElementById('fToggle');
+    if (tog) tog.addEventListener('click', function () {
+      var es = loadEstoque().slice(), k = es.findIndex(function (y) { return y.id === x.id; }); if (k < 0) return;
+      var o = Object.assign({}, es[k]); if (o.inativo) delete o.inativo; else o.inativo = true;
+      es[k] = o; if (!saveEstoque(es)) return;
+      showToast(o.inativo ? 'Produto desativado (o histórico continua)' : 'Produto reativado');
       estUi.form = null; renderEstoque();
     });
     box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1799,10 +1957,10 @@
     var palavra = searching || estUi.cat ? ' produtos encontrados' : ' produtos';
     var head = '<div class="est-count">' + (shown.length < list.length ? 'Mostrando ' + fmtInt(shown.length) + ' de ' + fmtInt(list.length) + palavra : fmtInt(list.length) + palavra) + '</div>';
     box.innerHTML = head + shown.map(function (x) {
-      var isLow = x.min > 0 && x.qty < x.min, id = escAttr(x.id);
-      var row = '<div class="sale-item"><div class="s-left"><span class="s-desc"><b>' + escAttr(pname(x)) + '</b></span><span class="s-time">venda ' + brl(x.preco) + (x.min > 0 ? ' · mín. ' + x.min : '') + '</span></div>' +
-        '<div class="s-right"><span class="qty' + (isLow ? ' low' : '') + '">' + x.qty + '</span><button class="est-btn alt" data-in="' + id + '">Entrada</button><button class="s-edit" data-ed="' + id + '" aria-label="Editar">✎</button></div></div>';
-      if (estUi.entrada === x.id) row += '<div class="sale-item" style="flex-wrap:wrap;background:var(--brass-wash);border-radius:10px;padding:10px"><div class="extra-fields" style="padding:0"><div class="field-wrap"><label>Quantidade que chegou</label><div class="money-input"><input class="text-input" inputmode="numeric" id="eQtd"></div></div></div>' +
+      var isLow = isLowStock(x), id = escAttr(x.id);
+      var row = '<div class="sale-item"><div class="s-left"><span class="s-desc"><b>' + escAttr(pname(x)) + '</b>' + (x.inativo ? ' <span class="tag-off">desativado</span>' : '') + '</span><span class="s-time">venda ' + (prodPrice(x) > 0 ? brl(prodPrice(x)) + (x.g ? ' (avulso)' : '') : 'sem preço') + (x.min > 0 ? ' · avisa com ≤ ' + escAttr(x.min) : '') + '</span></div>' +
+        '<div class="s-right"><span class="qty' + (isLow ? ' low' : '') + '">' + escAttr(x.qty) + '</span><button class="est-btn alt" data-in="' + id + '">Entrada</button><button class="s-edit" data-ed="' + id + '" aria-label="Editar">✎</button></div></div>';
+      if (estUi.entrada === x.id) row += '<div class="sale-item" style="flex-wrap:wrap;background:var(--brass-wash);border-radius:10px;padding:10px"><div class="extra-fields" style="padding:0"><div class="field-wrap"><label>Quantidade que chegou</label><div class="money-input"><input class="text-input" inputmode="numeric" id="eQtd"></div><span class="hint" id="eHint" style="display:none">Digite quantas unidades chegaram (número maior que zero).</span></div></div>' +
         '<div style="display:flex;gap:8px;margin-top:8px"><button class="est-btn" id="eSave">Salvar entrada</button><button class="est-btn alt" id="eCancel">Cancelar</button></div></div>';
       return row;
     }).join('') + (list.length > shown.length ? '<button class="showmore" id="estMore">Mostrar mais (' + fmtInt(Math.min(EST_PAGE, list.length - shown.length)) + ' de ' + fmtInt(list.length - shown.length) + ' restantes)</button>' : '');
@@ -1817,8 +1975,8 @@
     if (es) {
       document.getElementById('eCancel').addEventListener('click', function () { estUi.entrada = null; renderEstList(); });
       es.addEventListener('click', function () {
-        var q = Math.round(num(document.getElementById('eQtd').value));
-        if (q <= 0) return;
+        var qv = parseMoney(document.getElementById('eQtd').value), q = Math.round(qv);
+        if (isNaN(qv) || q <= 0) { var eh = document.getElementById('eHint'); if (eh) eh.style.display = 'block'; return; }
         var arr = loadEstoque().slice(), k = arr.findIndex(function (y) { return y.id === estUi.entrada; }); if (k < 0) return;
         arr[k] = Object.assign({}, arr[k], { qty: (Number(arr[k].qty) || 0) + q });
         if (!saveEstoque(arr)) return;
@@ -2005,6 +2163,7 @@
 
   function payHtml() {
     return '<div class="paybox"><div class="pay-l">Como o cliente pagou?</div><div class="pay-opts">' + Object.keys(PAY).map(function (k) { return '<button class="pay-btn' + (payState === k ? ' on' : '') + '" data-pay="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</div>' +
+      (!payValid(payState) && editingSaleId ? '<div class="mini" style="margin-top:6px">' + (payState ? 'Forma de pagamento original desta venda: “' + escAttr(payState) + '” — é mantida se você não escolher outra.' : 'Esta venda antiga não tem forma de pagamento registrada — continua assim se você não escolher uma.') + '</div>' : '') +
       (payState === 'fiado' ? '<div class="field-wrap" style="margin-top:8px"><label>Nome do cliente (obrigatório no fiado)</label><div class="money-input"><input class="text-input" type="text" id="clienteInput" value="' + escAttr(clienteState) + '"></div></div>' : '') + '</div>';
   }
   function bindPay() {
@@ -2017,16 +2176,48 @@
     return '<div class="item-row" data-block="svchead"><button class="ghead" data-group="svc"><span class="item-info"><span class="item-label">Serviços (mão de obra)</span><span class="item-price">abertura, cópia codificada, programação…</span></span><span class="gr">' + (n > 0 ? '<span class="badge">' + n + '</span>' : '') + '<span class="chev' + (open ? ' open' : '') + '">▶</span></span></button></div>';
   }
   var KEY_SVG = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3M16 7l3 3M13.5 9.5l2 2"/></svg>';
-  var toastT = null, undoSnap = null, STORAGE_META = 'chaveiro_meta_v1';
+  var toastT = null, undoState = null, STORAGE_META = 'chaveiro_meta_v1';
+  /* Desfazer granular (B26): guarda só os pares {before, after} das vendas afetadas. Ao desfazer, parte dos
+     dados ATUAIS: confere que cada venda ainda é exatamente o "after" (senão recusa), volta ao "before" e
+     corrige o estoque apenas pelos itens dessas vendas. Alterações feitas depois (entrada de estoque, outras
+     vendas) continuam intactas. */
+  function setUndo(pairs) { undoState = pairs && pairs.length ? { pairs: pairs } : null; }
+  function sameRec(a, b) { return a === b || (!a && !b) || (!!a && !!b && JSON.stringify(a) === JSON.stringify(b)); }
   function doUndo() {
-    if (!undoSnap) return;
-    if (!commit(dataMap(undoSnap.v, null, undoSnap.e))) return;
-    undoSnap = null; renderApp(); showToast('Desfeito');
+    var u = undoState; if (!u) return; undoState = null;
+    var all = loadVendas().slice(), es = loadEstoque().slice(), pos = new Map();
+    all.forEach(function (v, i) { pos.set(v.id, i); });
+    var ok = u.pairs.every(function (p) { var id = (p.after || p.before).id, i = pos.get(id); return sameRec(i === undefined ? null : all[i], p.after); });
+    if (!ok) { showToast('Não dá para desfazer: essa venda foi alterada depois. Nada foi mudado.', false, true); renderApp(); return; }
+    var drop = {};
+    u.pairs.forEach(function (p) {
+      var id = (p.after || p.before).id, i = pos.get(id);
+      if (p.after) applyStock(es, p.after, 1);
+      if (p.before) applyStock(es, p.before, -1);
+      if (p.after && p.before) all[i] = p.before;
+      else if (p.after) drop[id] = 1;
+      else all.push(p.before);
+    });
+    all = all.filter(function (v) { return !drop[v.id]; });
+    if (!commit(dataMap(all, null, es))) return;
+    renderApp(); showToast('Desfeito');
+  }
+  // Confirmação simples (texto + 2 botões). onOk só roda no botão de confirmar.
+  function askConfirm(msg, okLabel, cancelLabel, onOk) {
+    var m = document.getElementById('modal'); if (!m) { if (window.confirm(msg)) onOk(); return; }
+    document.getElementById('modalMsg').textContent = msg;
+    var yes = document.getElementById('modalYes'), no = document.getElementById('modalNo');
+    yes.textContent = okLabel; no.textContent = cancelLabel;
+    function close() { m.hidden = true; document.removeEventListener('keydown', onKey); }
+    function onKey(ev) { if (ev.key === 'Escape') close(); }
+    yes.onclick = function () { close(); onOk(); };
+    no.onclick = close; m.onclick = function (ev) { if (ev.target === m) close(); };
+    m.hidden = false; document.addEventListener('keydown', onKey); no.focus();
   }
   function showToast(msg, undo, err) {
     var t = document.getElementById('toast'); if (!t) return;
     t.innerHTML = ''; var sp = document.createElement('span'); sp.textContent = (err ? '⚠ ' : '✓ ') + msg; t.appendChild(sp);
-    var withUndo = !!(undo && undoSnap && !err);
+    var withUndo = !!(undo && undoState && !err);
     if (withUndo) { var b = document.createElement('button'); b.className = 't-undo'; b.textContent = 'Desfazer'; b.addEventListener('click', doUndo); t.appendChild(b); }
     t.classList.toggle('has-undo', withUndo); t.classList.toggle('err', !!err); t.classList.add('show');
     clearTimeout(toastT); toastT = setTimeout(function () { t.classList.remove('show'); }, err ? 6000 : (withUndo ? 7000 : 1800));
@@ -2035,9 +2226,9 @@
   function saveMeta(v) { return commit(dataMap(null, null, null, money(v))); }
   function goalHtml(mKey) {
     var meta = loadMeta(), tot = monthTotalOf(mKey);
-    if (!meta) return '<button class="goal-set" data-goal>🎯 Definir meta do mês</button>';
+    if (!meta) return '<button class="goal-set" data-goal>🎯 Definir meta mensal</button>';
     var pct = Math.min(100, Math.round(tot / meta * 100)), done = tot >= meta;
-    return '<div class="g-top"><span>Meta do mês</span><b>' + Math.round(tot / meta * 100) + '%</b></div><div class="g-bar"><i class="' + (done ? 'done' : '') + '" style="width:' + pct + '%"></i></div><div class="g-foot">' + brl(tot) + ' de ' + brl(meta) + (done ? ' · meta batida! 🎉' : ' · faltam ' + brl(meta - tot)) + ' <button data-goal aria-label="Editar meta">✎</button></div>';
+    return '<div class="g-top"><span title="A mesma meta vale para todos os meses">Meta mensal (' + escAttr(new Date(+mKey.slice(0, 4), +mKey.slice(5, 7) - 1, 1).toLocaleDateString('pt-BR', { month: 'long' })) + ')</span><b>' + Math.round(tot / meta * 100) + '%</b></div><div class="g-bar"><i class="' + (done ? 'done' : '') + '" style="width:' + pct + '%"></i></div><div class="g-foot">' + brl(tot) + ' de ' + brl(meta) + (done ? ' · meta batida! 🎉' : ' · faltam ' + brl(meta - tot)) + ' <button data-goal aria-label="Editar meta">✎</button></div>';
   }
   // Mais vendidos: as contagens são somadas uma vez por versão da lista de vendas; os nomes vêm do Map do
   // estoque (O(1)). O top 6 fica guardado até vendas ou estoque mudarem.
@@ -2057,8 +2248,8 @@
       var out = [];
       Object.keys(_fav.cnt).forEach(function (k) {
         var id = k.slice(2), name;
-        if (k.charAt(0) === 'p') { var pr = estoqueFind(id); if (!pr) return; name = pname(pr); }
-        else { if (!itemState[id]) return; name = catLabel(id); }
+        if (k.charAt(0) === 'p') { var pr = estoqueFind(id); if (!pr || pr.inativo) return; name = pname(pr); }
+        else { if (!itemState[id] || TILE_SEARCH[id]) return; name = catLabel(id); }
         out.push({ k: k, n: _fav.cnt[k], name: name });
       });
       _fav.top = out.sort(function (a, b) { return b.n - a.n; }).slice(0, 6); _fav.e = es;
@@ -2097,13 +2288,19 @@
     var c2 = '<div class="card"><div class="card-title">Quando você mais vende</div>' + (tc ? '<div class="insight">🏆 Melhor dia: <b>' + WN[bestD] + '</b>' + (bestH !== null ? ' · melhor horário: <b>' + bestH + 'h</b>' : '') + '</div><div class="item-price">Por dia da semana</div>' + hbars(wd, WN) + (hv.length ? '<div class="item-price" style="margin-top:10px">Por horário</div>' + hbars(hv, hl) : '') : '<div class="empty">Nenhuma venda neste mês.</div>') + '</div>';
     return c1 + c2;
   }
-  function payChips(sales) {
-    var t = {}; sales.forEach(function (s) { if (s.pay) t[s.pay] = (t[s.pay] || 0) + s.total; });
-    return Object.keys(PAY).filter(function (k) { return t[k]; }).map(function (k) { return '<div>' + PAY[k] + '<b>' + brl(t[k]) + '</b></div>'; }).join('');
+  function payChips(sales, dayKeyRec) {
+    var t = {}; sales.forEach(function (s) { var k = s.pay || ''; t[k] = (t[k] || 0) + s.total; });
+    var keys = Object.keys(PAY).filter(function (k) { return t[k]; }).concat(Object.keys(t).filter(function (k) { return !payValid(k) && t[k]; }));
+    var h = keys.map(function (k) { return '<div>' + escAttr(payLabel(k)) + '<b>' + brl(t[k]) + '</b></div>'; }).join('');
+    if (dayKeyRec) {
+      var r = {}; recOfDay(dayKeyRec).forEach(function (e) { r[e.r.pay] = (r[e.r.pay] || 0) + Number(e.r.valor); });
+      h += Object.keys(r).map(function (k) { return '<div>Fiado recebido · ' + escAttr(payLabel(k)) + '<b>' + brl(money(r[k])) + '</b></div>'; }).join('');
+    }
+    return h;
   }
   function sparkInner() {
     var vals = [];
-    for (var i = 6; i >= 0; i--) vals.push(dayTotalOf(dayKey(dateForOffset(currentOffset - i))));
+    for (var i = 6; i >= 0; i--) vals.push(dayTotalOf(addDays(viewDay, -i)));
     var mx = Math.max.apply(null, vals.concat([1])), line = 'M' + vals.map(function (v, i) { return (i * 400 / 6).toFixed(1) + ' ' + (72 - (v / mx) * 56).toFixed(1); }).join(' L');
     return '<defs><linearGradient id="sg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFD98A" stop-opacity=".55"/><stop offset="1" stop-color="#FFD98A" stop-opacity="0"/></linearGradient></defs><path d="' + line + ' V84 H0Z" fill="url(#sg)"/><path d="' + line + '" fill="none" stroke="#FFD98A" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
   }
@@ -2111,32 +2308,71 @@
     var t = {}; sales.forEach(function (s) { if (s.pay) t[s.pay] = (t[s.pay] || 0) + s.total; });
     return Object.keys(PAY).filter(function (k) { return t[k]; }).map(function (k) { return PAY[k] + ' ' + brl(t[k]); }).join(' · ');
   }
-  function payTag(s) { return s.pay ? '<span class="s-discount">' + PAY[s.pay] + (s.pay === 'fiado' ? ' · ' + escAttr(s.cliente) + ' · a receber' : '') + '</span>' : ''; }
+  function payTag(s) {
+    if (!s.pay) return '<span class="s-discount">Pagamento não registrado</span>';
+    var t = payLabel(s.pay);
+    if (s.pay === 'fiado') {
+      var rec = recebido(s), falta = saldoFiado(s), rs = recList(s), last = rs[rs.length - 1];
+      t += ' · ' + (s.cliente || 'sem nome') + ' · ' + (falta <= 0 && last ? 'recebido em ' + fmtDayShort(last.day) + ' (' + payLabel(last.pay) + ')' : rec > 0 ? 'recebido ' + brl(rec) + ', falta ' + brl(falta) : 'a receber');
+    } else if (s.recebidoEm) t += ' · fiado de ' + (s.cliente || 'cliente') + ' recebido em ' + fmtDayShort(s.recebidoEm);
+    return '<span class="s-discount">' + escAttr(t) + '</span>';
+  }
   function resumoExtras(vendas, porCat) {
     var porPag = {}; vendas.forEach(function (v) { var k = v.pay || 'nd'; porPag[k] = (porPag[k] || 0) + v.total; });
-    var payRows = Object.keys(porPag).map(function (k) { return '<div class="totals-row"><span>' + (PAY[k] || 'Não informado') + '</span><span>' + brl(porPag[k]) + '</span></div>'; }).join('');
+    var payRows = Object.keys(porPag).map(function (k) { return '<div class="totals-row"><span>' + escAttr(k === 'nd' ? 'Não informado' : payLabel(k)) + '</span><span>' + brl(money(porPag[k])) + '</span></div>'; }).join('');
+    var mKeyR = vendas[0] ? vendas[0].day.slice(0, 7) : viewMonth, recs = recOfMonth(viewMonth), recPag = {};
+    recs.forEach(function (e) { recPag[e.r.pay] = (recPag[e.r.pay] || 0) + Number(e.r.valor); });
+    var recRows = Object.keys(recPag).map(function (k) { return '<div class="totals-row"><span>Fiado recebido · ' + escAttr(payLabel(k)) + '</span><span>' + brl(money(recPag[k])) + '</span></div>'; }).join('');
     var svc = SERVICES.reduce(function (s, c) { return s + (porCat[c.id] ? porCat[c.id].valor : 0); }, 0);
     var rank = Object.keys(porCat).filter(function (k) { return porCat[k].qty > 0; }).sort(function (a, b) { return porCat[b].qty - porCat[a].qty; }).slice(0, 8);
     var pend = salesIndex().fiado;
-    var pendTotal = pend.reduce(function (s, v) { return s + v.total; }, 0);
+    var pendTotal = money(pend.reduce(function (s, v) { return s + saldoFiado(v); }, 0));
     var h = '<div class="card"><div class="card-title">Por forma de pagamento</div>' + (payRows || '<div class="empty">Nenhuma venda neste mês.</div>') +
+      (recRows ? '<div class="item-price" style="padding-top:8px">Recebimentos de fiado neste mês (entram no dia em que foram recebidos; a venda continua como fiado):</div>' + recRows : '') +
       (svc ? '<div class="totals-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;"><span>Mão de obra (serviços)</span><span>' + brl(svc) + '</span></div>' : '') + '</div>';
-    h += '<div class="card"><div class="card-title">Mais vendidos do mês</div>' + (rank.length ? capList('rank-' + (vendas[0] ? vendas[0].day.slice(0, 7) : ''), rank, 5, function (k, i) { return '<div class="totals-row"><span>' + (i + 1) + '. ' + porCat[k].label + '</span><span>' + porCat[k].qty + ' un.</span></div>'; }) : '<div class="empty">Nenhuma venda neste mês.</div>') + '</div>';
+    h += '<div class="card"><div class="card-title">Mais vendidos do mês</div>' + (rank.length ? capList('rank-' + mKeyR, rank, 5, function (k, i) { return '<div class="totals-row"><span>' + (i + 1) + '. ' + escAttr(porCat[k].label) + '</span><span>' + porCat[k].qty + ' un.</span></div>'; }) : '<div class="empty">Nenhuma venda neste mês.</div>') + '</div>';
     if (pend.length) {
-      h += '<div class="card" style="border-color:var(--danger)"><div class="card-title">A receber (fiado): ' + brl(pendTotal) + '</div><div class="item-price" style="padding-bottom:6px">Já está somado nas vendas do mês em que foi feito.</div>' + pend.map(function (v) {
-        var resumo = v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', ');
-        return '<div class="sale-item" style="flex-wrap:wrap"><div class="s-left"><span class="s-desc"><b>' + escAttr(v.cliente) + '</b> · ' + v.day.split('-').reverse().join('/') + '</span><span class="s-time">' + resumo + '</span></div><div class="s-right"><span class="s-total">' + brl(v.total) + '</span></div>' +
-          '<div style="width:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft)">Recebeu em: ' + ['dinheiro', 'pix', 'cartao'].map(function (k) { return '<button class="est-btn alt" data-rec="' + v.id + '" data-how="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</div></div>';
+      h += '<div class="card" style="border-color:var(--danger)"><div class="card-title">A receber (fiado): ' + brl(pendTotal) + '</div><div class="item-price" style="padding-bottom:6px">A venda já está somada no dia em que foi feita. Ao receber, o dinheiro aparece no dia do recebimento — o dia da venda não muda.</div>' + pend.map(function (v) {
+        var resumo = v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', '), rec = recebido(v);
+        return '<div class="sale-item" style="flex-wrap:wrap"><div class="s-left"><span class="s-desc"><b>' + escAttr(v.cliente || 'sem nome') + '</b> · ' + fmtDayShort(v.day) + '</span><span class="s-time">' + escAttr(resumo) + '</span></div><div class="s-right"><span class="s-total">' + brl(saldoFiado(v)) + '</span></div>' +
+          (rec > 0 ? '<div class="item-price" style="width:100%">Total ' + brl(v.total) + ' · já recebido ' + brl(rec) + '</div>' : '') +
+          '<div style="width:100%;display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:.78rem;color:var(--ink-soft)">Recebeu hoje em: ' + ['dinheiro', 'pix', 'cartao'].map(function (k) { return '<button class="est-btn alt" data-rec="' + escAttr(v.id) + '" data-how="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</div></div>';
       }).join('') + '</div>';
+    }
+    if (recs.length) {
+      h += '<div class="card"><div class="card-title">Fiado recebido neste mês</div>' + capList('recs-' + viewMonth, recs.slice().sort(function (a, b) { return b.r.ts - a.r.ts; }), 5, function (e) {
+        return '<div class="sale-item"><div class="s-left"><span class="s-desc"><b>' + escAttr(e.s.cliente || 'sem nome') + '</b> · recebido em ' + fmtDayShort(e.r.day) + ' (' + escAttr(payLabel(e.r.pay)) + ')</span><span class="s-time">venda de ' + fmtDayShort(e.s.day) + '</span></div><div class="s-right"><span class="s-total">' + brl(Number(e.r.valor)) + '</span><button class="est-btn alt" data-unrec="' + escAttr(e.s.id) + '" data-rid="' + escAttr(e.r.id) + '">Desfazer</button></div></div>';
+      }) + '</div>';
     }
     return h;
   }
-  function bindReceber() {
-    document.querySelectorAll('[data-rec]').forEach(function (b) { b.addEventListener('click', function () {
-      var all = loadVendas().slice(), k = all.findIndex(function (x) { return x.id === b.getAttribute('data-rec'); });
-      if (k < 0) return;
-      all[k] = Object.assign({}, all[k], { pay: b.getAttribute('data-how'), recebidoEm: dayKey(new Date()) });
-      if (saveVendas(all)) renderApp();
+  // B11: receber um fiado NÃO muda a venda para outra forma de pagamento; registra um recebimento com data,
+  // forma e valor (o saldo inteiro; a estrutura em lista já comporta recebimentos parciais no futuro).
+  function receberFiado(id, how) {
+    var all = loadVendas().slice(), k = all.findIndex(function (x) { return x.id === id; }); if (k < 0) return;
+    var s = all[k], falta = saldoFiado(s); if (!(falta > 0)) return;
+    var r = { id: genId(), day: todayKey(), ts: Date.now(), pay: how, valor: falta };
+    var novo = Object.assign({}, s, { recebimentos: (Array.isArray(s.recebimentos) ? s.recebimentos : []).concat([r]) });
+    all[k] = novo;
+    if (!saveVendas(all)) return;
+    setUndo([{ before: s, after: novo }]);
+    renderApp(); showToast('Recebido hoje: ' + brl(falta) + ' (' + PAY[how] + ') de ' + (s.cliente || 'cliente'), true);
+  }
+  function desfazerRecebimento(saleId, recId) {
+    var all = loadVendas().slice(), k = all.findIndex(function (x) { return x.id === saleId; }); if (k < 0) return;
+    var s = all[k], lista = Array.isArray(s.recebimentos) ? s.recebimentos : [];
+    if (!lista.some(function (r) { return r && r.id === recId; })) return;
+    var novo = Object.assign({}, s, { recebimentos: lista.filter(function (r) { return !(r && r.id === recId); }) });
+    all[k] = novo;
+    if (!saveVendas(all)) return;
+    setUndo([{ before: s, after: novo }]);
+    renderApp(); showToast('Recebimento desfeito: o fiado voltou para "a receber"', true);
+  }
+  function bindReceber(root) {
+    (root || document).querySelectorAll('[data-rec]').forEach(function (b) { b.addEventListener('click', function () { receberFiado(b.getAttribute('data-rec'), b.getAttribute('data-how')); }); });
+    (root || document).querySelectorAll('[data-unrec]').forEach(function (b) { b.addEventListener('click', function () {
+      var sid = b.getAttribute('data-unrec'), rid = b.getAttribute('data-rid');
+      askConfirm('Desfazer este recebimento? O fiado volta para "a receber" e o valor sai do dia em que foi recebido.', 'Desfazer recebimento', 'Manter', function () { desfazerRecebimento(sid, rid); });
     }); });
   }
 
@@ -2194,10 +2430,9 @@
   }
 
   function renderResumo() {
-    var monthDate = monthForOffset(currentMonthOffset);
-    var mKey = monthKeyOf(monthDate);
+    var mKey = viewMonth, monthDate = new Date(+mKey.slice(0, 4), +mKey.slice(5, 7) - 1, 1);
     document.getElementById('monthLabel').textContent = monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-    document.getElementById('nextMonth').disabled = currentMonthOffset >= 0;
+    document.getElementById('nextMonth').disabled = mKey >= todayKey().slice(0, 7);
 
     var vendas = salesOfMonth(mKey);
     var despesas = expOfMonth(mKey);
@@ -2224,12 +2459,14 @@
     var vendasKeys = Object.keys(porCategoria).filter(function (k) { return porCategoria[k].qty > 0; });
     var vendasRows = capList('vendasmes-' + mKey, vendasKeys, 5, function (k) {
       var v = porCategoria[k];
-      return '<div class="totals-row"><span>' + v.qty + 'x ' + v.label + '</span><span>' + brl(v.valor) + '</span></div>';
+      return '<div class="totals-row"><span>' + escAttr(v.qty) + 'x ' + escAttr(v.label) + '</span><span>' + brl(v.valor) + '</span></div>';
     });
-    var despesasRows = EXPENSE_CATEGORIES.map(function (c) {
-      var val = despesaPorCategoria[c.id];
+    var expKeys = EXPENSE_CATEGORIES.map(function (c) { return c.id; });
+    Object.keys(despesaPorCategoria).forEach(function (k) { if (expKeys.indexOf(k) < 0) expKeys.push(k); });
+    var despesasRows = expKeys.map(function (k) {
+      var val = despesaPorCategoria[k];
       if (!val) return '';
-      return '<div class="totals-row"><span>' + c.label + '</span><span>' + brl(val) + '</span></div>';
+      return '<div class="totals-row"><span>' + escAttr(expCatLabel(k)) + '</span><span>' + brl(money(val)) + '</span></div>';
     }).join('');
 
     var html = '';
@@ -2272,7 +2509,7 @@
     renderDataBar();
   }
 
-  document.querySelectorAll('.tab-btn').forEach(function (btn) { btn.addEventListener('click', function () { cancelEdit(); currentTab = btn.getAttribute('data-tab'); renderApp(); }); });
+  document.querySelectorAll('.tab-btn').forEach(function (btn) { btn.addEventListener('click', function () { editingExpId = null; currentTab = btn.getAttribute('data-tab'); renderApp(); }); });
   var histSearchEl = document.getElementById('histSearch');
   var histTimer = null; // debounce: a busca percorre todo o histórico
   if (histSearchEl) histSearchEl.addEventListener('input', function () { clearTimeout(histTimer); histTimer = setTimeout(renderHistoryAndTotal, 150); });
@@ -2281,10 +2518,37 @@
     if (ev.key === null || isListKey(ev.key)) { invalidateCache(ev.key); renderApp(); }
     else if (ev.key === STORAGE_META) renderApp();
   });
-  document.getElementById('prevDay').addEventListener('click', function () { cancelEdit(); currentOffset -= 1; renderApp(); });
-  document.getElementById('nextDay').addEventListener('click', function () { if (currentOffset < 0) { cancelEdit(); currentOffset += 1; renderApp(); } });
-  document.getElementById('prevMonth').addEventListener('click', function () { currentMonthOffset -= 1; renderApp(); });
-  document.getElementById('nextMonth').addEventListener('click', function () { if (currentMonthOffset < 0) { currentMonthOffset += 1; renderApp(); } });
+  function goToDay(k) { var t = todayKey(); if (k > t) k = t; editingExpId = null; viewDay = k; followToday = k === t; dayRolled = false; renderApp(); }
+  document.getElementById('prevDay').addEventListener('click', function () { goToDay(addDays(viewDay, -1)); });
+  document.getElementById('nextDay').addEventListener('click', function () { if (viewDay < todayKey()) goToDay(addDays(viewDay, 1)); });
+  document.getElementById('prevMonth').addEventListener('click', function () { viewMonth = addMonths(viewMonth, -1); renderApp(); });
+  document.getElementById('nextMonth').addEventListener('click', function () { if (viewMonth < todayKey().slice(0, 7)) { viewMonth = addMonths(viewMonth, 1); renderApp(); } });
+  // Cabeçalho do dia: rótulo, "HOJE", botão "próximo" e o aviso de virada de dia.
+  function updateDayUI() {
+    var t = todayKey(), isToday = viewDay === t;
+    document.getElementById('dateLabel').textContent = fmtDayLong(viewDay);
+    document.getElementById('todayTag').textContent = isToday ? 'HOJE' : '';
+    document.getElementById('nextDay').disabled = viewDay >= t;
+    var w = document.getElementById('dayWarn');
+    if (w) {
+      var show = !isToday && dayRolled && (currentTab === 'vendas' || currentTab === 'despesas');
+      w.hidden = !show;
+      if (show) { w.innerHTML = '⚠ O dia virou: hoje é <b>' + escAttr(fmtDayLong(t)) + '</b>. Esta tela continua em <b>' + escAttr(fmtDayLong(viewDay)) + '</b> — o que você registrar aqui vai para esse dia. <button type="button" id="goTodayBtn">Ir para hoje</button>'; document.getElementById('goTodayBtn').onclick = function () { goToDay(todayKey()); }; }
+    }
+    var hl = document.getElementById('heroLbl'); if (hl) hl.textContent = isToday ? 'Faturamento de hoje' : 'Faturamento de ' + fmtDayMed(viewDay);
+    var rb = document.getElementById('registrarBtn'); if (rb && !editingSaleId) rb.textContent = isToday ? 'Registrar venda' : 'Registrar venda em ' + fmtDM(viewDay);
+    var gb = document.getElementById('registrarGastoBtn'); if (gb && !editingExpId) gb.textContent = isToday ? 'Registrar gasto' : 'Registrar gasto em ' + fmtDM(viewDay);
+  }
+  // Virada do dia com o app aberto: NÃO muda o dia selecionado; só atualiza rótulos e avisa (B18).
+  function checkDayChange() {
+    var t = todayKey(); if (t === lastToday) return;
+    var prev = lastToday; lastToday = t;
+    if (followToday && viewDay === prev) dayRolled = true;
+    if (currentTab === 'vendas' || currentTab === 'despesas') updateDayUI();
+    else if (currentTab === 'resumo') { var nm = document.getElementById('nextMonth'); if (nm) nm.disabled = viewMonth >= t.slice(0, 7); }
+  }
+  setInterval(checkDayChange, 20000);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) checkDayChange(); });
 
   function setupClear(footerId, btnId, btnLabel, msg, chkId, yesId, doClear) {
     var footer = document.getElementById(footerId);
@@ -2297,35 +2561,34 @@
         '<span class="cbtns" style="justify-content:flex-end;"><button class="no">Cancelar</button><button class="yes" id="' + yesId + '" disabled>Apagar tudo</button></span></div>';
       document.getElementById(chkId).addEventListener('change', function (ev) { document.getElementById(yesId).disabled = !ev.target.checked; });
       footer.querySelector('.no').addEventListener('click', again);
-      document.getElementById(yesId).addEventListener('click', function () { doClear(dayKey(dateForOffset(currentOffset))); renderApp(); });
+      document.getElementById(yesId).addEventListener('click', function () { doClear(viewDay); renderApp(); });
     });
   }
   function setupClearVendas() {
-    setupClear('footerActions', 'clearBtn', 'Limpar vendas do dia', 'Isso vai apagar TODAS as vendas registradas neste dia. Não dá pra desfazer.', 'confirmClearVendas', 'confirmClearVendasBtn',
+    setupClear('footerActions', 'clearBtn', 'Limpar vendas do dia', 'Isso vai apagar TODAS as vendas registradas neste dia (o estoque delas volta). Logo depois aparece um aviso com o botão "Desfazer", caso tenha sido engano.', 'confirmClearVendas', 'confirmClearVendasBtn',
       function (key) {
-        var snap = { v: loadVendas(), e: loadEstoque() }, all = snap.v, es = snap.e.slice();
-        all.filter(function (e) { return e.day === key; }).forEach(function (s) { applyStock(es, s, 1); });
+        var all = loadVendas(), es = loadEstoque().slice(), gone = all.filter(function (e) { return e.day === key; });
+        gone.forEach(function (s) { applyStock(es, s, 1); });
         if (!commit(dataMap(all.filter(function (e) { return e.day !== key; }), null, es))) return;
-        undoSnap = snap; showToast('Vendas do dia apagadas', true);
+        setUndo(gone.map(function (s) { return { before: s, after: null }; })); showToast('Vendas do dia apagadas', true);
       });
   }
   function setupClearExp() {
-    setupClear('expFooterActions', 'clearExpBtn', 'Limpar gastos do dia', 'Isso vai apagar TODOS os gastos registrados neste dia. Não dá pra desfazer.', 'confirmClearDespesas', 'confirmClearDespesasBtn',
+    setupClear('expFooterActions', 'clearExpBtn', 'Limpar gastos do dia', 'Isso vai apagar TODOS os gastos registrados neste dia. Isso NÃO pode ser desfeito.', 'confirmClearDespesas', 'confirmClearDespesasBtn',
       function (key) { if (saveDespesas(loadDespesas().filter(function (e) { return e.day !== key; }))) showToast('Gastos do dia apagados'); });
   }
 
   // Escolher um dia específico
   var datePick = document.getElementById('datePick');
   document.getElementById('dateBtn').addEventListener('click', function () {
-    datePick.max = dayKey(new Date());
-    datePick.value = dayKey(dateForOffset(currentOffset));
+    datePick.max = todayKey();
+    datePick.value = viewDay;
     try { datePick.showPicker(); } catch (e) { datePick.focus(); }
   });
   datePick.addEventListener('change', function () {
     if (!datePick.value) return;
-    var p = datePick.value.split('-'), t = new Date(); t.setHours(0, 0, 0, 0);
-    cancelEdit(); currentOffset = Math.min(0, Math.round((new Date(+p[0], +p[1] - 1, +p[2]) - t) / 86400000));
-    renderApp();
+    if (!validDay(datePick.value)) return;
+    goToDay(datePick.value); // valor 'AAAA-MM-DD' usado direto: sem conversão de fuso horário
   });
 
   // Escolher um mês específico
@@ -2333,7 +2596,7 @@
   var pickYear = 0;
   var monthPop = document.getElementById('monthPop');
   function renderMonthPop() {
-    var now = new Date(), cur = monthForOffset(currentMonthOffset);
+    var now = new Date(), cur = new Date(+viewMonth.slice(0, 4), +viewMonth.slice(5, 7) - 1, 1);
     var h = '<div class="myear"><button data-y="-1">‹</button><b>' + pickYear + '</b><button data-y="1"' + (pickYear >= now.getFullYear() ? ' disabled' : '') + '>›</button></div><div class="mgrid">';
     MESES.forEach(function (m, i) {
       var future = pickYear > now.getFullYear() || (pickYear === now.getFullYear() && i > now.getMonth());
@@ -2343,7 +2606,7 @@
     monthPop.innerHTML = h + '</div>';
   }
   document.getElementById('monthBtn').addEventListener('click', function () {
-    if (monthPop.hidden) { pickYear = monthForOffset(currentMonthOffset).getFullYear(); renderMonthPop(); monthPop.hidden = false; }
+    if (monthPop.hidden) { pickYear = +viewMonth.slice(0, 4); renderMonthPop(); monthPop.hidden = false; }
     else { monthPop.hidden = true; }
   });
   monthPop.addEventListener('click', function (ev) {
@@ -2352,8 +2615,7 @@
     if (!b || b.disabled) return;
     if (b.getAttribute('data-y')) { pickYear += parseInt(b.getAttribute('data-y'), 10); renderMonthPop(); }
     else if (b.getAttribute('data-m')) {
-      var now = new Date();
-      currentMonthOffset = (pickYear - now.getFullYear()) * 12 + (parseInt(b.getAttribute('data-m'), 10) - now.getMonth());
+      viewMonth = pickYear + '-' + String(parseInt(b.getAttribute('data-m'), 10) + 1).padStart(2, '0');
       monthPop.hidden = true;
       renderApp();
     }
@@ -2365,14 +2627,15 @@
       var b = ev.target.closest('.sl-btn'); if (!b) return;
       var d = b.classList.contains('sl-plus') ? 1 : -1, sp = b.getAttribute('data-sp'), sc = b.getAttribute('data-sc'), so = b.getAttribute('data-so');
       // Mesmo caminho dos botões do formulário: atualiza só o bloco afetado + totais.
-      if (so !== null && outrosList[+so]) { outrosList[+so].qty += d; if (outrosList[+so].qty <= 0) outrosList.splice(+so, 1); refreshOutros(); }
+      if (b.hasAttribute('data-so-del')) { outrosList.splice(+b.getAttribute('data-so-del'), 1); refreshOutros(); return; }
+      if (so !== null && outrosList[+so]) { outrosList[+so].qty = Math.max(1, outrosList[+so].qty + d); refreshOutros(); } // "−" nunca remove: remover é só no 🗑
       else if (sp && stockItems[sp]) changeStock(sp, d);
       else if (sc && itemState[sc]) changeCat(sc, d);
     });
   })();
   document.addEventListener('click', function (ev) {
     if (!ev.target.closest('[data-goal]')) return;
-    var cur = loadMeta(), v = prompt('Meta de faturamento do mês (R$):', cur ? String(cur).replace('.', ',') : '');
+    var cur = loadMeta(), v = prompt('Meta de faturamento mensal (R$) — é um valor só, usado em todos os meses:', cur ? String(cur).replace('.', ',') : '');
     if (v === null) return;
     var n = parseMoney(v.trim() === '' ? '0' : v);
     if (isNaN(n) || n < 0) { showToast('Meta inválida. Digite só o número, ex: 20000 ou 20.000.', false, true); return; }
