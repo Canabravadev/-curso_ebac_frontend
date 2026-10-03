@@ -920,6 +920,23 @@
   /* --- herói: "Últimos 7 dias" numa pílula — a linha do gráfico não passa mais por cima do texto --- */
   .spark-cap { z-index: 2; pointer-events: none; bottom: 7px; padding: 2px 9px; border-radius: 99px; background: rgba(20,14,6,.42); opacity: .9; }
 
+  /* --- retrato do ano --- */
+  #resumoContent > .retrato { grid-column: 1 / -1; }
+  .retrato > summary { cursor: pointer; list-style: none; } .retrato > summary::-webkit-details-marker { display: none; }
+  .retrato > summary::after { content: ' ▸'; color: var(--ink-soft); } .retrato[open] > summary::after { content: ' ▾'; }
+  .retrato-g { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
+  .retrato-g .pulse-c b { font-family: 'JetBrains Mono', monospace; font-size: 1rem; }
+  .retrato-g .pulse-c small { font-size: .68rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+  .retrato-c { font-size: .88rem; margin-bottom: 4px; }
+
+  /* --- comprar: vão acabar em breve --- */
+  .buy-soon { margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  /* linhas do Comprar: nome em cima, números embaixo (com o ritmo de vendas a linha ficou longa demais lado a lado) */
+  .card-buy .totals-row { flex-direction: column; align-items: flex-start; gap: 1px; padding: 6px 0; }
+  .card-buy .totals-row > span:last-child { font-size: .8rem; color: var(--ink-soft); }
+  .card-buy .totals-row > span:last-child b { color: var(--ink); }
+  .buy-soon-t { font-weight: 700; font-size: .9rem; color: var(--brass-strong); }
+
   /* --- herói: comparação com a semana anterior · estoque: valor --- */
   .day-cmp { font-size: .76rem; opacity: .9; margin-top: 2px; }
   .day-cmp b { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
@@ -1227,7 +1244,27 @@
   }
   // Aviso de estoque: quantidade ABAIXO do mínimo (estritamente <). No mínimo = em dia. Produto desativado não gera aviso.
   function isLowStock(x) { return !x.inativo && x.min > 0 && (Number(x.qty) || 0) < x.min; }
-  function reporQtd(x) { return Math.max(1, x.min - (Number(x.qty) || 0)); }   // repor até voltar ao mínimo
+  // Reposição inteligente: o que for maior entre voltar ao mínimo e cobrir um mês de vendas (ritmo dos últimos
+  // 30 dias). Sem vendas no período, é só voltar ao mínimo.
+  function reporQtd(x) { var q = Number(x.qty) || 0; return Math.max(1, x.min - q, Math.ceil(vende30(x.id)) - q); }
+  // Unidades vendidas por produto nos últimos 30 dias (contando hoje). Só leitura; recalculado quando as vendas
+  // mudam ou o dia vira.
+  var _v30 = { src: null, dia: '', m: null };
+  function vende30(pid) {
+    var si = salesIndex(), hoje = todayKey();
+    if (_v30.src !== si.src || _v30.dia !== hoje) {
+      var ini = addDays(hoje, -29), m = new Map();
+      si.src.forEach(function (v) { if (v.day >= ini && v.day <= hoje) v.items.forEach(function (it) { if (it.pid) m.set(it.pid, (m.get(it.pid) || 0) + (Number(it.qty) || 0)); }); });
+      _v30 = { src: si.src, dia: hoje, m: m };
+    }
+    return _v30.m.get(pid) || 0;
+  }
+  // "Vão acabar em breve": ativos que ainda não estão abaixo do mínimo, mas que no ritmo dos últimos 30 dias duram
+  // menos de 15 dias (e venderam pelo menos 2 unidades — uma venda isolada não é ritmo).
+  function acabaLogo() {
+    return sortedEst().filter(function (x) { var q = Number(x.qty) || 0; return !x.inativo && q > 0 && !isLowStock(x) && vende30(x.id) >= 2 && q / (vende30(x.id) / 30) < 15; })
+      .map(function (x) { return { x: x, dias: Math.floor((Number(x.qty) || 0) / (vende30(x.id) / 30)) }; }).sort(function (a, b) { return a.dias - b.dias; });
+  }
   function sortedEst() {
     var ix = estIndex();
     if (!ix.sorted) ix.sorted = ix.src.slice().sort(function (a, b) { return (STOCK_CATS.indexOf(a.cat) - STOCK_CATS.indexOf(b.cat)) || collator.compare(String(a.marca), String(b.marca)) || collator.compare(String(a.modelo), String(b.modelo)); });
@@ -2545,8 +2582,12 @@
     var eb = document.getElementById('estBadge'); if (eb) { eb.textContent = low.length; eb.style.display = low.length ? 'inline-block' : 'none'; }
     // Card "Comprar": mostra 10 e cresce sob demanda; a lista do WhatsApp/cópia continua com todos.
     var lowShown = shownCount('comprar', 10, 50);
-    var buyCard = (low.length ? '<div class="card card-buy"><div class="card-title">Comprar (' + fmtInt(low.length) + ')</div>' + low.slice(0, lowShown).map(function (x) { return '<div class="totals-row"><span>' + escAttr(pname(x)) + '</span><span>' + escAttr(x.qty) + ' / mín. ' + escAttr(x.min) + ' · <b>repor ' + reporQtd(x) + '</b></span></div>'; }).join('') +
-        (low.length > lowShown ? '<div class="item-price" style="padding-top:6px">Mostrando ' + fmtInt(lowShown) + ' de ' + fmtInt(low.length) + ' produtos abaixo do mínimo.</div>' : '') + moreHtml('comprar', low.length, Math.min(lowShown, low.length), 50) + '<div class="buy-actions"><button class="est-btn" id="buyWa">Enviar no WhatsApp</button><button class="est-btn alt" id="buyCopy">Copiar lista</button></div></div>' : '');
+    var vmes = function (x) { var v = vende30(x.id); return v > 0 ? ' · vende ~' + fmtInt(Math.round(v)) + '/mês' : ''; };
+    var logo = acabaLogo(), logoShown = logo.slice(0, 8);
+    var buyCard = (low.length || logo.length ? '<div class="card card-buy"><div class="card-title">Comprar (' + fmtInt(low.length) + ')</div>' + (low.length ? '' : '<div class="item-price">Nada abaixo do mínimo.</div>') + low.slice(0, lowShown).map(function (x) { return '<div class="totals-row"><span>' + escAttr(pname(x)) + '</span><span>' + escAttr(x.qty) + ' / mín. ' + escAttr(x.min) + vmes(x) + ' · <b>repor ' + reporQtd(x) + '</b></span></div>'; }).join('') +
+        (low.length > lowShown ? '<div class="item-price" style="padding-top:6px">Mostrando ' + fmtInt(lowShown) + ' de ' + fmtInt(low.length) + ' produtos abaixo do mínimo.</div>' : '') + moreHtml('comprar', low.length, Math.min(lowShown, low.length), 50) +
+        (logo.length ? '<div class="buy-soon"><div class="buy-soon-t">Vão acabar em breve (' + fmtInt(logo.length) + ')</div><div class="item-price">Pelo ritmo de vendas dos últimos 30 dias.</div>' + logoShown.map(function (o) { return '<div class="totals-row"><span>' + escAttr(pname(o.x)) + '</span><span>' + escAttr(o.x.qty) + ' un.' + vmes(o.x) + ' · dura ~' + o.dias + (o.dias === 1 ? ' dia' : ' dias') + ' · <b>repor ' + reporQtd(o.x) + '</b></span></div>'; }).join('') + (logo.length > logoShown.length ? '<div class="item-price">e mais ' + (logo.length - logoShown.length) + ' (todos vão na lista do WhatsApp).</div>' : '') + '</div>' : '') +
+        '<div class="buy-actions"><button class="est-btn" id="buyWa">Enviar no WhatsApp</button><button class="est-btn alt" id="buyCopy">Copiar lista</button></div></div>' : '');
     document.getElementById('estoqueContent').innerHTML = '<div class="est-layout"><div class="est-main">' +
       '<div class="card est-card"><div class="card-title">Produtos</div>' +
       '<div class="est-tools"><div class="field-wrap est-q"><div class="money-input"><input class="text-input" type="search" id="estSearch" aria-label="Buscar produto" placeholder="Buscar nome, marca, modelo ou código" value="' + escAttr(estUi.q) + '"></div></div>' +
@@ -2565,7 +2606,8 @@
     bindShowMore(document.getElementById('estoqueContent'));
     document.getElementById('estNew').addEventListener('click', function () { estUi.form = 'new'; estUi.pre = null; renderEstForm(); });
     renderEstForm(); renderEstList();
-    var txt = 'Lista de compras — Chaveiro\n' + low.map(function (x) { return '• ' + pname(x) + ' — repor ' + reporQtd(x) + ' (tenho ' + x.qty + ', aviso abaixo de ' + x.min + ')'; }).join('\n');
+    var txt = 'Lista de compras — Chaveiro\n' + low.map(function (x) { var v = vende30(x.id); return '• ' + pname(x) + ' — repor ' + reporQtd(x) + ' (tenho ' + x.qty + ', aviso abaixo de ' + x.min + (v > 0 ? ', vende ~' + Math.round(v) + '/mês' : '') + ')'; }).join('\n') +
+      (logo.length ? (low.length ? '\n\n' : '\n') + 'Vão acabar em breve:\n' + logo.map(function (o) { return '• ' + pname(o.x) + ' — repor ' + reporQtd(o.x) + ' (tenho ' + o.x.qty + ', dura ~' + o.dias + ' dias)'; }).join('\n') : '');
     var bw = document.getElementById('buyWa'), bc = document.getElementById('buyCopy');
     if (bw) bw.addEventListener('click', function () { window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); });
     if (bc) bc.addEventListener('click', function () {
@@ -3320,6 +3362,50 @@
     f.addEventListener('change', function () { if (f.files[0]) restaurarBackup(f.files[0]); });
   }
 
+  // Retrato do ano (do mês em vista): só números tirados das vendas, gastos e recebimentos do ano. Aberto em
+  // dezembro; nos outros meses fica recolhido ("até agora" no ano corrente).
+  function retratoDados(ano) {
+    var vs = salesIndex().src.filter(function (v) { return v.day.slice(0, 4) === ano; });
+    if (!vs.length) return null;
+    var r = { ano: ano, n: vs.length, tot: 0, meses: {}, dias: {}, pag: {}, prod: {}, rec: 0, gastos: 0 };
+    vs.forEach(function (v) {
+      r.tot += v.total; r.meses[v.day.slice(0, 7)] = (r.meses[v.day.slice(0, 7)] || 0) + v.total; r.dias[v.day] = (r.dias[v.day] || 0) + v.total;
+      var pk = v.pay || ''; r.pag[pk] = (r.pag[pk] || 0) + v.total;
+      v.items.forEach(function (it) { if (it.cat === 'outros') return; var k = it.cat === 'estoque' ? 'p:' + it.pid : 'c:' + it.cat; var p = r.prod[k] || (r.prod[k] = { nome: itemName(it), q: 0 }); p.q += Number(it.qty) || 0; });
+    });
+    salesIndex().src.forEach(function (v) { recList(v).forEach(function (x) { if (x.day.slice(0, 4) === ano) r.rec += Number(x.valor) || 0; }); });
+    expIndex().src.forEach(function (e) { if (e.day.slice(0, 4) === ano) r.gastos += Number(e.valor) || 0; });
+    r.tot = money(r.tot); r.gastos = money(r.gastos); r.rec = money(r.rec);
+    var top = function (o) { return Object.keys(o).sort(function (a, b) { return o[b] - o[a]; })[0]; };
+    r.mesTop = top(r.meses); r.diaTop = top(r.dias); r.pagTop = top(r.pag);
+    var cp = cloneProd();
+    r.campeoes = Object.keys(r.prod).map(function (k) { var p = r.prod[k]; if (cp && k === 'p:' + cp.id) p.nome = 'Controle clonável'; return p; }).sort(function (a, b) { return b.q - a.q; }).slice(0, 3);
+    return r;
+  }
+  function nomeMes(mk) { return capIni(new Date(+mk.slice(0, 4), +mk.slice(5, 7) - 1, 1).toLocaleDateString('pt-BR', { month: 'long' })); }
+  function retratoHtml(mKey) {
+    var ano = mKey.slice(0, 4), r = retratoDados(ano); if (!r) return '';
+    var agora = todayKey().slice(0, 4) === ano && todayKey().slice(5, 7) !== '12';
+    var t = function (l, v, i) { return '<span class="pulse-c"><small>' + l + '</small><b>' + v + '</b>' + (i ? '<i>' + i + '</i>' : '') + '</span>'; };
+    var nMeses = Object.keys(r.meses).length;
+    return '<details class="card card-wide retrato"' + (mKey.slice(5, 7) === '12' ? ' open' : '') + '><summary class="card-title">🏁 Retrato de ' + ano + (agora ? ' <small class="mini">(até agora)</small>' : '') + '</summary>' +
+      '<div class="retrato-g">' + t('Faturamento do ano', brl(r.tot), r.n + (r.n === 1 ? ' venda' : ' vendas') + ' · ' + nMeses + (nMeses === 1 ? ' mês' : ' meses') + ' com venda') +
+      t('Ticket médio', brl(money(r.tot / r.n))) + t('Melhor mês', nomeMes(r.mesTop), brl(money(r.meses[r.mesTop]))) +
+      t('Melhor dia', fmtDayShort(r.diaTop), brl(money(r.dias[r.diaTop]))) +
+      t('Forma preferida', r.pagTop ? payLabel(r.pagTop) : 'Não informada', Math.round(r.pag[r.pagTop] / r.tot * 100) + '% do faturamento') +
+      t('Gastos do ano', brl(r.gastos)) + t('Resultado', brl(money(r.tot - r.gastos)), 'vendas − gastos') +
+      (r.rec > 0 ? t('Fiado recebido no ano', brl(r.rec)) : '') + '</div>' +
+      (r.campeoes.length ? '<div class="retrato-c"><b>Campeões de venda:</b> ' + r.campeoes.map(function (p, i) { return ['🥇', '🥈', '🥉'][i] + ' ' + escAttr(p.nome) + ' (' + fmtInt(p.q) + ' un.)'; }).join(' · ') + '</div>' : '') +
+      '<button type="button" class="wa-lembra" id="retratoShare" data-ano="' + ano + '">' + WA_SVG + 'Compartilhar o retrato</button></details>';
+  }
+  function msgRetrato(ano) {
+    var r = retratoDados(ano); if (!r) return '';
+    var t = ['*Chaveiro — retrato de ' + ano + '* 🏁', 'Faturamento: ' + brl(r.tot) + ' em ' + r.n + ' vendas', 'Ticket médio: ' + brl(money(r.tot / r.n)),
+      'Melhor mês: ' + nomeMes(r.mesTop) + ' (' + brl(money(r.meses[r.mesTop])) + ')', 'Melhor dia: ' + fmtDayShort(r.diaTop) + ' (' + brl(money(r.dias[r.diaTop])) + ')',
+      'Gastos: ' + brl(r.gastos), '*Resultado: ' + brl(money(r.tot - r.gastos)) + '*'];
+    if (r.campeoes.length) t.push('Campeões: ' + r.campeoes.map(function (p, i) { return (i + 1) + '. ' + p.nome + ' (' + p.q + ' un.)'; }).join(', '));
+    return t.join('\n');
+  }
   // Pulso do mês: números honestos tirados das vendas (ticket médio, ritmo, projeção rotulada como estimativa e
   // quanto falta por dia para a meta). Nada é inventado: sem vendas, nada aparece.
   function pulsoHtml(mKey, vendas, tot) {
@@ -3396,6 +3482,7 @@
       (despesasRows || '<div class="empty">Nenhum gasto neste mês.</div>') +
       '<div class="totals-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-weight:700;"><span>Total de gastos</span><span>' + brl(totalDespesas) + '</span></div></div>';
     html += resumoExtras(vendas, porCategoria);
+    html += retratoHtml(mKey);
     html += '<div class="footer-actions"><button class="registrar-btn" id="exportBtn" style="width:auto;padding:12px 22px;">Baixar relatório do mês (Excel/CSV)</button></div>' +
       '<div class="export-msg" id="exportMsg"></div>';
     html += backupCardHtml();
@@ -3404,6 +3491,7 @@
     var exportBtn = document.getElementById('exportBtn');
     if (exportBtn) exportBtn.addEventListener('click', function () { exportarMes(mKey, vendas, despesas, totalBruto, totalDesconto, totalLiquido, totalDespesas, saldo); });
     bindBackup(); bindReceber(); bindShowMore();
+    var rs = document.getElementById('retratoShare'); if (rs) rs.addEventListener('click', function () { abreWhats(msgRetrato(rs.getAttribute('data-ano')), 'Retrato do ano pronto — escolha o contato no WhatsApp (texto copiado)'); });
     document.querySelectorAll('#resumoContent .a12-b').forEach(function (b) { b.addEventListener('click', function () { if (b.getAttribute('data-mes') !== viewMonth) { viewMonth = b.getAttribute('data-mes'); renderApp(); window.scrollTo(0, 0); } }); });
     document.querySelectorAll('#resumoContent .cal [data-goday]').forEach(function (b) { b.addEventListener('click', function () { currentTab = 'vendas'; goToDay(b.getAttribute('data-goday')); window.scrollTo(0, 0); }); });
   }
