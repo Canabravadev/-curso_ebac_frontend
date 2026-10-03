@@ -897,6 +897,16 @@
   .field-wrap:has(> #expCat) { flex: 999 1 230px; }
   #expValorWrap { flex: 1 1 112px; }
 
+  /* --- foco: uma linguagem só, sem moldura dupla ---
+     Campos: só o anel suave da Fase 7 (borda latão + halo 3px), no próprio campo ou na caixa que o envolve.
+     Botões e demais controles: contorno fino de latão só pelo teclado (:focus-visible). */
+  input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; }
+  .text-input:focus, .select-input:focus, textarea:focus, .money-input:focus-within {
+    border-color: var(--brass); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brass) 22%, transparent); }
+  .money-input input:focus, .stk-box input:focus, .cmd-in input:focus { box-shadow: none; }   /* a caixa em volta já mostra o foco */
+  button:focus-visible, [role="button"]:focus-visible, a:focus-visible, [tabindex]:focus-visible, .picker:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--brass) 65%, transparent); outline-offset: 2px; }
+
   /* --- fiado: idade da dívida --- */
   .f-age { font-family: 'JetBrains Mono', monospace; font-size: .7rem; color: var(--ink-soft); }
   .f-age.old { color: var(--danger); font-weight: 700; }
@@ -1014,6 +1024,15 @@
   ];
   var GENERIC_KEYS = { simples: 1, tetra: 1, moto: 1 }; // itens genéricos de chave (não são produtos do estoque)
   var PRECO_AVULSO = 20, PRECO_TROCA = 30;
+  // Controle clonável: item rápido VINCULADO ao produto do estoque (categoria "Controle de portão", marca "Controle
+  // clonavel", achado pelo nome, sem ID fixo). Vende a R$ 80,00 sem mudar o preço cadastrado; baixa/devolve estoque
+  // pelo mesmo caminho dos produtos do estoque (stockItems).
+  var PRECO_CLONAVEL = 80;
+  function cloneProd() {
+    var n = function (s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); };
+    var all = estIndex().src.filter(function (x) { return n(x.cat) === 'controle de portao' && n(x.marca) === 'controle clonavel'; });
+    return all.filter(function (x) { return !x.inativo; })[0] || all[0] || null;
+  }
   var GROUPS = [
     { id: 'bateria', label: 'Bateria', models: ['CR2032', 'CR2016', 'CR1620', 'CR2025', 'CR1616', 'CR2450'] },
     { id: 'pilha', label: 'Pilha', models: ['A23', 'A27'] }
@@ -1117,9 +1136,9 @@
     _ei = { src: es, map: map, low: low, sorted: null };
     return _ei;
   }
-  // "Avisar quando ≤ mínimo" (B15): quantidade menor OU IGUAL ao mínimo. Produto desativado não gera aviso.
-  function isLowStock(x) { return !x.inativo && x.min > 0 && (Number(x.qty) || 0) <= x.min; }
-  function reporQtd(x) { return Math.max(1, x.min - (Number(x.qty) || 0) + 1); }
+  // Aviso de estoque: quantidade ABAIXO do mínimo (estritamente <). No mínimo = em dia. Produto desativado não gera aviso.
+  function isLowStock(x) { return !x.inativo && x.min > 0 && (Number(x.qty) || 0) < x.min; }
+  function reporQtd(x) { return Math.max(1, x.min - (Number(x.qty) || 0)); }   // repor até voltar ao mínimo
   function sortedEst() {
     var ix = estIndex();
     if (!ix.sorted) ix.sorted = ix.src.slice().sort(function (a, b) { return (STOCK_CATS.indexOf(a.cat) - STOCK_CATS.indexOf(b.cat)) || collator.compare(String(a.marca), String(b.marca)) || collator.compare(String(a.modelo), String(b.modelo)); });
@@ -1672,6 +1691,22 @@
       '<div class="stepper"><button class="step-btn minus" data-cat="' + c.id + '" aria-label="Diminuir ' + escAttr(c.label) + '">−</button><span class="step-count">' + it.qty + '</span><button class="step-btn plus" data-cat="' + c.id + '" aria-label="Aumentar ' + escAttr(c.label) + '">+</button></div>' +
       extra + '</div>';
   }
+  function cloneRowHtml() {
+    var x = cloneProd(), s = x && stockItems[x.id], q = s ? s.qty : 0, av = x ? availQty(x) : 0;
+    var info = x ? brl(PRECO_CLONAVEL) + ' un. · estoque: ' + av + (q > av ? ' — só há ' + av + '!' : '') : 'não encontrado no estoque (cadastre: Controle de portão / Controle clonavel)';
+    return '<div class="item-row tile-row' + (q > 0 ? ' on' : '') + '" data-block="c-clonavel"><span class="ico">' + KEY_SVG + '</span>' +
+      '<div class="item-info"><span class="item-label">Controle clonável</span><span class="item-price">' + info + '</span></div>' +
+      '<div class="stepper"><button class="step-btn minus" data-clone="-1" aria-label="Diminuir Controle clonável"' + (q > 0 ? '' : ' disabled') + '>−</button><span class="step-count">' + q + '</span><button class="step-btn plus" data-clone="1" aria-label="Aumentar Controle clonável"' + (x && q < av ? '' : ' disabled') + '>+</button></div></div>';
+  }
+  function changeClone(d) {
+    var x = cloneProd(); if (!x) return;
+    var s = stockItems[x.id];
+    if (d > 0) { if (s) s.qty += 1; else addStockItem(x); }
+    else if (s) { s.qty -= 1; if (s.qty <= 0) delete stockItems[x.id]; }
+    if (!replaceBlock('c-clonavel', cloneRowHtml())) return renderSaleForm();
+    updateTotalsDisplay();
+    var b = document.querySelector('#saleFormWrap [data-block="c-clonavel"] .step-count'); anima(b, 'bump');
+  }
   function stockSelRowHtml(k) {
     var s = stockItems[k]; if (!s) return '';
     var pr = estoqueFind(k), av = availQty(pr), warn = pr && s.qty > av;
@@ -1684,6 +1719,7 @@
   // Coloca um produto do estoque na venda. Sem preço válido no estoque → pede o preço na própria linha (B10).
   function addStockItem(x) {
     if (stockItems[x.id]) { stockItems[x.id].qty += 1; return; }
+    var cp = cloneProd(); if (cp && cp.id === x.id) { stockItems[x.id] = { qty: 1, price: String(PRECO_CLONAVEL), name: 'Controle clonável', needPrice: false }; return; }
     var p = prodPrice(x), ok = p > 0;
     stockItems[x.id] = { qty: 1, price: ok ? String(p).replace('.', ',') : '', name: pname(x), needPrice: !ok };
   }
@@ -1726,6 +1762,7 @@
     wrap.addEventListener('click', function (ev) {
       var b = ev.target.closest('button'); if (!b || !wrap.contains(b)) return;
       var v;
+      if ((v = b.getAttribute('data-clone')) !== null) return changeClone(+v);
       if ((v = b.getAttribute('data-cat')) !== null) return changeCat(v, b.classList.contains('plus') ? 1 : -1);
       if (b.classList.contains('stk-minus') || b.classList.contains('stk-plus')) return changeStock(b.getAttribute('data-pid'), b.classList.contains('stk-plus') ? 1 : -1);
       if ((v = b.getAttribute('data-outro-minus')) !== null) { var o = outrosList[+v]; if (o) o.qty = Math.max(1, o.qty - 1); return refreshOutros(); } // "−" nunca remove (B24)
@@ -1765,7 +1802,7 @@
       if (c.id === 'outros') return outrosBlockHtml();
       var svcHead = '';
       if (c.svc) { if (c.id === SERVICES[0].id) svcHead = svcHeadHtml(); if (groupOpen.svc === false) return svcHead; }
-      return svcHead + catRowHtml(c) + (c.id === 'carro' ? GROUPS.map(groupHtml).join('') : '');
+      return svcHead + (c.id === 'simples' ? cloneRowHtml() : '') + catRowHtml(c) + (c.id === 'carro' ? GROUPS.map(groupHtml).join('') : '');
     }).join('');
 
     var fi = finalInfo();
@@ -2229,7 +2266,7 @@
     var ix = estIndex(); if (ix.niv) return ix.niv;
     var c = { out: 0, low: 0, ok: 0, off: 0 }; ix.src.forEach(function (x) { c[nivelDe(x)]++; }); ix.niv = c; return c;
   }
-  var NIVEIS = [['out', 'Sem unidades'], ['low', 'No mínimo ou abaixo'], ['ok', 'Em dia'], ['off', 'Desativados']];
+  var NIVEIS = [['out', 'Sem unidades'], ['low', 'Abaixo do mínimo'], ['ok', 'Em dia'], ['off', 'Desativados']];
   function nivHtml() {
     var c = nivelCounts(), tot = c.out + c.low + c.ok + c.off || 1;
     return '<div class="niv" role="group" aria-label="Situação do estoque (toque para filtrar a lista)">' + NIVEIS.map(function (n) {
@@ -2270,7 +2307,7 @@
   var STOCK_BOXES = [{ key: 'all', label: 'Do estoque', sub: 'qualquer produto', cat: null, ph: 'nome, marca ou modelo' }, { key: 'Chave simples', label: 'Chave simples', sub: 'R$ 14', cat: 'Chave simples', ph: 'marca ou modelo (ex: HAG 682)' }, { key: 'Chave tetra', label: 'Chave tetra', sub: 'R$ 35', cat: 'Chave tetra', ph: 'marca ou modelo' }];
   var stockLimit = {};
   function stockPickerHtml() {
-    var sel = Object.keys(stockItems).map(stockSelRowHtml).join('');
+    var cp = cloneProd(), sel = Object.keys(stockItems).filter(function (k) { return !cp || k !== cp.id; }).map(stockSelRowHtml).join('');   // o clonável aparece na própria linha rápida
     var boxes = STOCK_BOXES.map(function (b, idx) {
       return '<div class="stk-box"><div class="stk-head"><span class="ico">' + KEY_SVG + '</span><span><b>' + b.label + '</b><small>' + b.sub + '</small></span></div>' +
         '<div class="stk-input"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="text" data-stock-box="' + idx + '" placeholder="' + b.ph + '" value="' + escAttr(stockQueries[b.key] || '') + '"></div>' +
@@ -2287,7 +2324,7 @@
     }
     var lim = stockLimit[box.key] || 8;
     var h = list.slice(0, lim).map(function (x) {
-      var q = availQty(x), cls = q <= 0 ? ' out' : (x.min > 0 && q <= x.min ? ' low' : ''), nm = box.cat ? [x.marca, x.modelo].filter(Boolean).join(' · ') : pname(x);
+      var q = availQty(x), cls = q <= 0 ? ' out' : (x.min > 0 && q < x.min ? ' low' : ''), nm = box.cat ? [x.marca, x.modelo].filter(Boolean).join(' · ') : pname(x);
       return '<button class="stk-res" data-pid="' + escAttr(x.id) + '"><span class="r-name">' + escAttr(nm) + '</span><span class="r-meta"><span class="r-price">' + (prodPrice(x) > 0 ? brl(prodPrice(x)) : 'sem preço') + '</span><span class="r-qty' + cls + '">' + (q <= 0 ? 'sem estoque' : q + ' un.') + '</span><span class="r-add">+</span></span></button>';
     }).join('');
     if (list.length > lim) h += '<div class="stk-more">Mostrando ' + fmtInt(lim) + ' de ' + fmtInt(list.length) + ' resultados · <button type="button" data-more="1">ver mais</button> ou digite mais para refinar</div>';
@@ -2349,7 +2386,7 @@
     bindShowMore(document.getElementById('estoqueContent'));
     document.getElementById('estNew').addEventListener('click', function () { estUi.form = 'new'; estUi.pre = null; renderEstForm(); });
     renderEstForm(); renderEstList();
-    var txt = 'Lista de compras — Chaveiro\n' + low.map(function (x) { return '• ' + pname(x) + ' — repor ' + reporQtd(x) + ' (tenho ' + x.qty + ', aviso quando ≤ ' + x.min + ')'; }).join('\n');
+    var txt = 'Lista de compras — Chaveiro\n' + low.map(function (x) { return '• ' + pname(x) + ' — repor ' + reporQtd(x) + ' (tenho ' + x.qty + ', aviso abaixo de ' + x.min + ')'; }).join('\n');
     var bw = document.getElementById('buyWa'), bc = document.getElementById('buyCopy');
     if (bw) bw.addEventListener('click', function () { window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); });
     if (bc) bc.addEventListener('click', function () {
@@ -2379,7 +2416,7 @@
       : '<button class="clear-btn" id="fDel" style="width:100%;margin-top:8px;color:var(--danger)">Excluir produto</button>';
     box.innerHTML = '<div class="card" style="margin:12px 0 0;border-color:var(--brass)"><div class="card-title">' + (isNew ? 'Novo produto' : 'Editar produto') + (x.inativo ? ' <span class="tag-off">desativado</span>' : '') + '</div>' +
       '<div class="extra-fields"><div class="field-wrap"><label for="fCat">Categoria</label><select class="select-input" id="fCat"' + (isG ? ' disabled' : '') + '>' + opts(catList, x.cat) + '</select></div>' + f('fMarca', 'Marca', x.marca, '', isG) + f('fModelo', 'Modelo / numeração', x.modelo, '', isG) + '</div>' +
-      '<div class="extra-fields" style="padding-top:10px">' + f('fQtd', 'Quantidade', x.qty, 'numeric') + f('fPreco', isG ? 'Preço (fixo na venda)' : 'Preço de venda (R$)', isG ? dec(PRECO_AVULSO) : dec(x.preco), 'decimal', isG) + f('fMin', 'Avisar quando ≤', x.min, 'numeric') + '</div>' +
+      '<div class="extra-fields" style="padding-top:10px">' + f('fQtd', 'Quantidade', x.qty, 'numeric') + f('fPreco', isG ? 'Preço (fixo na venda)' : 'Preço de venda (R$)', isG ? dec(PRECO_AVULSO) : dec(x.preco), 'decimal', isG) + f('fMin', 'Avisar abaixo de', x.min, 'numeric') + '</div>' +
       '<div class="hint" id="fErr" style="display:none;margin-top:8px"></div>' +
       '<button class="registrar-btn" id="fSave">Salvar produto</button>' + (isNew ? '<button class="clear-btn" id="fAgain" style="width:100%;margin-top:8px">Salvar e cadastrar outro da mesma marca</button>' : '') +
       '<button class="clear-btn" id="fCancel" style="width:100%;margin-top:8px">Cancelar</button>' + delBtn + '</div>';
@@ -2393,7 +2430,7 @@
       var nq = g('fQtd') === '' ? 0 : parseMoney(g('fQtd')), np = g('fPreco') === '' ? 0 : parseMoney(g('fPreco')), nm = g('fMin') === '' ? 0 : parseMoney(g('fMin'));
       if (isNaN(nq)) return fail('Quantidade inválida: digite só números (ex: 12).');
       if (!isG && (isNaN(np) || np < 0)) return fail('Preço inválido: digite só o valor (ex: 14 ou 14,50). Pode deixar vazio se ainda não tem preço.');
-      if (isNaN(nm) || nm < 0) return fail('"Avisar quando ≤" inválido: digite um número (ex: 5) ou deixe vazio.');
+      if (isNaN(nm) || nm < 0) return fail('"Avisar abaixo de" inválido: digite um número (ex: 5) ou deixe vazio.');
       var es = loadEstoque().slice(), pos = isNew ? -1 : es.findIndex(function (y) { return y.id === x.id; });
       if (!isNew && pos < 0) { estUi.form = null; renderEstoque(); return; } // produto removido enquanto o formulário estava aberto
       // Aviso de produto repetido (mesma categoria, marca e modelo, sem diferença de maiúsculas/acentos/espaços).
@@ -2469,7 +2506,7 @@
     var head = '<div class="est-count">' + (shown.length < list.length ? 'Mostrando ' + fmtInt(shown.length) + ' de ' + fmtInt(list.length) + palavra : fmtInt(list.length) + palavra) + filtro + '</div>';
     box.innerHTML = head + shown.map(function (x) {
       var isLow = isLowStock(x), id = escAttr(x.id);
-      var row = '<div class="sale-item"><div class="s-left"><span class="s-desc"><b>' + escAttr(pname(x)) + '</b>' + (x.inativo ? ' <span class="tag-off">desativado</span>' : '') + '</span><span class="s-time">venda ' + (prodPrice(x) > 0 ? brl(prodPrice(x)) + (x.g ? ' (avulso)' : '') : 'sem preço') + (x.min > 0 ? ' · avisa com ≤ ' + escAttr(x.min) : '') + '</span></div>' +
+      var row = '<div class="sale-item"><div class="s-left"><span class="s-desc"><b>' + escAttr(pname(x)) + '</b>' + (x.inativo ? ' <span class="tag-off">desativado</span>' : '') + '</span><span class="s-time">venda ' + (prodPrice(x) > 0 ? brl(prodPrice(x)) + (x.g ? ' (avulso)' : '') : 'sem preço') + (x.min > 0 ? ' · avisa abaixo de ' + escAttr(x.min) : '') + '</span></div>' +
         '<div class="s-right"><span class="qty' + (isLow ? ' low' : '') + '" style="--lv:' + nivelFrac(x) + '" title="' + (x.min > 0 ? escAttr(x.qty) + ' de mínimo ' + escAttr(x.min) : 'sem mínimo definido') + '">' + escAttr(x.qty) + '</span><button class="est-btn alt" data-in="' + id + '">Entrada</button><button class="s-edit" data-ed="' + id + '" aria-label="Editar">✎</button></div></div>';
       if (estUi.entrada === x.id) row += '<div class="sale-item" style="flex-wrap:wrap;background:var(--brass-wash);border-radius:10px;padding:10px"><div class="extra-fields" style="padding:0"><div class="field-wrap"><label for="eQtd">Quantidade que chegou</label><div class="money-input"><input class="text-input" inputmode="numeric" id="eQtd"></div><span class="hint" id="eHint" style="display:none">Digite quantas unidades chegaram (número maior que zero).</span></div></div>' +
         '<div style="display:flex;gap:8px;margin-top:8px"><button class="est-btn" id="eSave">Salvar entrada</button><button class="est-btn alt" id="eCancel">Cancelar</button></div></div>';
