@@ -2467,7 +2467,7 @@
     }
     var GRID = { all: 'thin:D9D9D9' }, TOP = { t: 'thin:808080', b: 'thin:808080' };
     add('def');                                   // 0: padrão (precisa ser o primeiro)
-    add('txt'); add('txtw', { wrap: 1 }); add('txtc', { h: 'center' });
+    add('txt'); add('txtw', { wrap: 1 }); add('txti', { ind: 1 }); add('txtwi', { wrap: 1, ind: 1 }); add('txtc', { h: 'center' });
     add('money', { fmt: 'money' }); add('date', { fmt: 'date', h: 'center' }); add('time', { fmt: 'time', h: 'center' });
     add('pct', { fmt: 'pct' }); add('int', { fmt: 'int' }); add('num', { fmt: 'gen', h: 'right' }); add('dt', { fmt: 'dt', h: 'center' });
     add('hdr', { b: 1, fill: 'DCE6F1', bd: { all: 'thin:A6B8CE' }, wrap: 1, v: 'center', h: 'center' });
@@ -2475,7 +2475,7 @@
     add('sub', { sz: 11, b: 1, color: '7A5A1E', v: 'center' }); add('per', { sz: 11, b: 1, v: 'center' });
     add('note', { sz: 9, i: 1, color: '595959', wrap: 1 }); add('empty', { i: 1, color: '595959' });
     add('sec', { b: 1, sz: 10, fill: 'EDEDED', bd: { b: 'thin:808080' }, v: 'center' }); add('secR', { b: 1, sz: 10, fill: 'EDEDED', bd: { b: 'thin:808080' }, v: 'center', h: 'right' });
-    add('lab', { ind: 1 }); add('labB', { b: 1, ind: 1 });
+    add('lab', { ind: 1 }); add('labB', { b: 1, ind: 1 }); add('labBw', { b: 1, ind: 1, wrap: 1 });
     add('moneyB', { fmt: 'money', b: 1 }); add('intB', { fmt: 'int', b: 1 }); add('pctB', { fmt: 'pct', b: 1 }); add('dateL', { fmt: 'date', h: 'left' }); add('dtL', { fmt: 'dt', h: 'left' });
     add('totL', { b: 1, bd: TOP, fill: 'F7F7F7' }); add('totM', { fmt: 'money', b: 1, bd: TOP, fill: 'F7F7F7' }); add('totI', { fmt: 'int', b: 1, bd: TOP, fill: 'F7F7F7' });
     add('totN', { fmt: 'gen', b: 1, bd: TOP, fill: 'F7F7F7', h: 'right' }); add('totP', { fmt: 'pct', b: 1, bd: TOP, fill: 'F7F7F7' }); add('totX', { bd: TOP, fill: 'F7F7F7' });
@@ -2537,7 +2537,7 @@
     out.push('<pageSetup paperSize="9" orientation="' + (aba.paisagem ? 'landscape' : 'portrait') + '" fitToWidth="1" fitToHeight="0"/>');
     var hf = function (s) { return xEsc(String(s).replace(/&/g, '&&')); };
     out.push('<headerFooter><oddHeader>&amp;L&amp;"Arial,Bold"' + hf('Chaveiro') + '&amp;C' + hf(aba.nome) + '&amp;R' + hf(aba.periodo || '') + '</oddHeader>' +
-      '<oddFooter>&amp;L' + hf('Exportado em ' + (aba.exportadoEm || '')) + '&amp;R' + hf('Página ') + '&amp;P' + hf(' de ') + '&amp;N</oddFooter></headerFooter>');
+      '<oddFooter>&amp;L' + hf('Gerado em ' + (aba.exportadoEm || '')) + '&amp;R' + hf('Página ') + '&amp;P' + hf(' de ') + '&amp;N</oddFooter></headerFooter>');
     if (aba.tabelas.length) out.push('<tableParts count="' + aba.tabelas.length + '">' + aba.tabelas.map(function (t, i) { return '<tablePart r:id="rId' + (i + 1) + '"/>'; }).join('') + '</tableParts>');
     out.push('</worksheet>');
     return out.join('');
@@ -2630,16 +2630,18 @@
     return xZip(todos, meta.quando);
   }
   /* ----- 8c. Relatório para a contadora (.xlsx) -----
+     Relatório financeiro mensal, em 7 abas: Resumo, Vendas, Itens das vendas, Gastos, Pagamentos, Fiado e Recebimentos.
      SOMENTE LEITURA: lê as listas do cache (as mesmas que a tela usa), monta as abas em memória e gera o arquivo.
      Nada é gravado; nenhum id, data ou horário é criado ou alterado. Usa os dados estruturados (itens, recebimentos,
-     ids de produto), nunca o texto da tela. Inconsistências são apenas DENUNCIADAS na aba Conferência. */
+     ids de produto), nunca o texto da tela. Os valores saem exatamente como registrados (nada é "corrigido").
+     Estoque e verificações internas do sistema ficam fora: o arquivo é para a contadora. */
   // Monta uma aba de tabela: título (linha 1), nota (linha 2), cabeçalho (linha 4), dados (5…), linha de totais logo
   // abaixo (SUBTOTAL: respeita o filtro). cols: [{h, w, st, tot: 'sum'|'count'}]; linhas: arrays de células
   // (valor, ou {v, f} / função(r) → {v, f} para fórmulas da própria linha, ou {v, s} para outro estilo).
   function xTabela(aba, o) {
     var H = 4, r1 = H + 1, n = o.linhas.length, r2 = H + n, lc = o.cols.length - 1;
     aba.p(1, 0, o.titulo, 'title2'); aba.altura[1] = 22;
-    if (o.nota && o.cols.some(function (c) { return c.tot; }) && n) o.nota += ' A linha "Total" soma só as linhas visíveis quando a tabela está filtrada.';
+    if (o.nota && o.cols.some(function (c) { return c.tot; }) && n) o.nota += ' Com filtro aplicado, a linha "Total" soma só as linhas visíveis.';
     if (o.nota) { aba.p(2, 0, o.nota, 'note'); for (var k = 1; k <= lc; k++) aba.p(2, k, null, 'note'); aba.mescla.push('A2:' + xRef(lc, 2)); aba.altura[2] = xAlturaNota(o.nota, o.cols); }
     o.cols.forEach(function (c, i) { aba.larg[i] = c.w; });
     if (!n) { aba.p(H, 0, o.vazio || 'Nenhum registro no período.', 'empty'); return { vazio: true, H: H }; }
@@ -2675,336 +2677,179 @@
     var cron = function (a, b) { return a.day < b.day ? -1 : a.day > b.day ? 1 : (Number(a.ts) || 0) - (Number(b.ts) || 0); };
     var vendas = vAll.filter(function (v) { return noMes(v.day); }).sort(cron);
     var gastos = gAll.filter(function (e) { return noMes(e.day); }).sort(cron);
-    var estMap = new Map(); eAll.forEach(function (x) { if (!estMap.has(x.id)) estMap.set(x.id, x); });
+    var estMap = new Map(); eAll.forEach(function (x) { if (!estMap.has(x.id)) estMap.set(x.id, x); }); // só para dar nome/categoria ao item vendido
     var y = +mKey.slice(0, 4), m = +mKey.slice(5, 7), nDias = new Date(y, m, 0).getDate(), diaIni = mKey + '-01', diaFim = mKey + '-' + String(nDias).padStart(2, '0'), hoje = dayKey(agora);
     var periodo = capIni(new Date(y, m - 1, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }));
     var expEm = fmtDayShort(hoje) + ' ' + String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0');
-    var dData = function (k) { return k ? fmtDayShort(k) : ''; };
-    var dias = function (a, b) { return Math.round((parseDay(b) - parseDay(a)) / 864e5); };
-    var conf = [], cAdd = function (grav, tipo, dia, id, desc, esp, enc) { conf.push({ grav: grav, tipo: tipo, dia: dia || null, id: id || '', desc: desc, esp: esp, enc: enc }); };
-    var horaDe = function (x) { return x && !x.manual && fin(x.ts) && dayKey(new Date(x.ts)) === x.day ? xHora(x.ts) : null; };
+    var horaDe = function (x) { return x && !x.manual && fin(x.ts) && dayKey(new Date(x.ts)) === x.day ? xHora(x.ts) : null; }; // lançado depois = sem horário
     var payNome = function (p) { return payValid(p) ? PAY[p] : (p ? String(p) : 'Não informado'); };
-    var somaItens = function (v) { return money(v.items.reduce(function (s, i) { return s + (Number(i.qty) || 0) * (Number(i.unitPrice) || 0); }, 0)); };
-    var qtdItens = function (v) { return v.items.reduce(function (s, i) { return s + (Number(i.qty) || 0); }, 0); };
-    var cp = cloneProd();
     var catOf = function (id) { return CATEGORIES.find(function (c) { return c.id === id; }); };
-    // Item → descrição e classificação a partir do registro (e do produto do estoque, pelo id).
+    // Item vendido → nome e categoria, a partir do registro da venda (e do cadastro do produto, pelo id).
     function infoItem(it) {
       var c = catOf(it.cat), pr = it.pid ? estMap.get(it.pid) : null, d = String(it.desc || '').trim();
-      var o = { pid: it.pid || '', cat: pr ? pr.cat || '' : '', marca: pr ? pr.marca || '' : '', modelo: pr ? pr.modelo || '' : '', obs: [] };
-      if (it.cat === 'estoque') {
-        o.tipo = 'Produto do estoque'; o.nome = d || (pr ? pname(pr) : 'Produto ' + it.pid);
-        if (!pr) o.obs.push('produto não existe mais no estoque atual'); else if (cp && pr.id === cp.id) o.obs.push('item rápido "Controle clonável"');
-      } else if (c && c.group) {
-        o.tipo = 'Bateria/pilha (estoque)'; o.nome = c.label + (d ? ' — ' + d : '');
-        if (!pr) { o.cat = c.group === 'bateria' ? 'Bateria' : 'Pilha'; o.marca = c.model; }
-      } else if (c && c.svc) { o.tipo = 'Serviço (mão de obra)'; o.nome = c.label + (d ? ' — ' + d : ''); o.cat = 'Serviço'; }
-      else if (it.cat === 'outros') { o.tipo = 'Outros'; o.nome = d || 'Outros (sem descrição)'; o.cat = 'Outros'; }
-      else if (c) { o.tipo = 'Item genérico (sem baixa no estoque)'; o.nome = c.label + (d ? ' (' + d + ')' : ''); o.cat = c.label; }
-      else { o.tipo = 'Categoria antiga/desconhecida'; o.nome = d || String(it.cat || 'sem categoria'); o.cat = String(it.cat || ''); o.obs.push('categoria "' + it.cat + '" não existe na versão atual'); }
-      return o;
+      if (it.cat === 'estoque') return { nome: d || (pr ? pname(pr) : 'Produto'), cat: pr && pr.cat ? pr.cat : 'Produto' };
+      if (c && c.group) return { nome: c.label + (d ? ' — ' + d : ''), cat: c.group === 'bateria' ? 'Bateria' : 'Pilha' };
+      if (c && c.svc) return { nome: c.label + (d ? ' — ' + d : ''), cat: 'Serviço' };
+      if (it.cat === 'outros') return { nome: d || 'Outros', cat: 'Outros' };
+      if (c) return { nome: c.label + (d ? ' — ' + d : ''), cat: 'Chave' };
+      return { nome: d || String(it.cat || 'Item'), cat: String(it.cat || '') };
     }
-    var itensTexto = function (v) { return v.items.map(function (it) { return it.qty + 'x ' + infoItem(it).nome; }).join(', '); };
-    function statusVenda(v) {
-      if (v.pay === 'fiado') { var rec = recebido(v); return saldoFiado(v) <= 0 && rec > 0 ? 'Fiado quitado' : rec > 0 ? 'Fiado parcial' : 'Fiado em aberto'; }
-      return payValid(v.pay) ? 'Paga' : v.pay ? 'Forma antiga' : 'Pagamento não informado';
-    }
-    var KNOWN = { id: 1, day: 1, ts: 1, manual: 1, items: 1, subtotal: 1, discount: 1, total: 1, pay: 1, cliente: 1, recebimentos: 1, recebidoEm: 1 };
-    var meta = { titulo: 'Relatório financeiro — Chaveiro — ' + periodo, quando: agora };
-
-    /* ---------- conferência das vendas do período (só aponta) ---------- */
-    var marcaConf = new Set();
-    vendas.forEach(function (v) {
-      var esp = money(v.subtotal - v.discount);
-      if (Math.abs(esp - v.total) > 0.004) {
-        marcaConf.add(v.id);
-        cAdd('Divergência', 'Total ≠ subtotal − desconto', v.day, v.id, v.discount === 0 && v.total > v.subtotal
-          ? 'Total maior que o subtotal, sem desconto registrado. Corresponde a um "valor final" digitado acima do subtotal numa versão antiga do sistema (a versão atual não permite). O relatório mantém o total registrado (o valor cobrado).'
-          : 'O total registrado não fecha com subtotal − desconto. O relatório mantém os valores registrados.', esp, v.total);
-      }
-      if (v.items.length) { var si = somaItens(v); if (Math.abs(si - v.subtotal) > 0.004) { marcaConf.add(v.id); cAdd('Divergência', 'Soma dos itens ≠ subtotal', v.day, v.id, 'A soma de quantidade × preço dos itens não é igual ao subtotal registrado na venda.', si, v.subtotal); } }
-      else cAdd('Aviso', 'Venda sem itens detalhados', v.day, v.id, 'Registro sem lista de itens (lançamento antigo/manual). Entra nos totais pelo valor registrado.', null, null);
-      if (v.discount < 0) cAdd('Divergência', 'Desconto negativo', v.day, v.id, 'Desconto registrado com valor negativo.', 0, v.discount);
-      if (!(v.total > 0)) cAdd('Aviso', 'Venda com total zero ou negativo', v.day, v.id, 'Total registrado: ' + brl(v.total) + '.', null, v.total);
-      if (!v.pay) cAdd('Aviso', 'Forma de pagamento não informada', v.day, v.id, 'Venda antiga sem forma de pagamento; aparece como "Não informado" em Pagamentos.', null, null);
-      else if (!payValid(v.pay)) cAdd('Aviso', 'Forma de pagamento desconhecida', v.day, v.id, 'Forma "' + v.pay + '" (registro antigo); aparece com esse nome em Pagamentos.', null, null);
-      if (v.pay === 'fiado' && !String(v.cliente || '').trim()) cAdd('Aviso', 'Fiado sem nome do cliente', v.day, v.id, 'Venda fiada sem nome de cliente.', null, null);
-      if (v.day > hoje) cAdd('Aviso', 'Venda com data futura', v.day, v.id, 'A data da venda é posterior à data da exportação.', null, null);
-      if (v.recebidoEm) cAdd('Informativo', 'Fiado no modelo antigo', v.day, v.id, 'Venda fiada recebida em ' + dData(v.recebidoEm) + ' no modelo antigo do sistema: a forma de pagamento da venda foi trocada para "' + payNome(v.pay) + '". Em Pagamentos ela conta nessa forma, e o recebimento também aparece na aba Recebimentos.', null, null);
-      if (Array.isArray(v.recebimentos) && v.recebimentos.length && v.pay !== 'fiado') cAdd('Aviso', 'Recebimento em venda que não é fiado', v.day, v.id, 'A venda tem recebimentos registrados, mas a forma de pagamento atual é "' + payNome(v.pay) + '".', null, null);
-      v.items.forEach(function (it) {
-        var inf = infoItem(it);
-        if (inf.tipo === 'Categoria antiga/desconhecida') cAdd('Aviso', 'Item de categoria antiga', v.day, v.id, 'Item "' + inf.nome + '" com categoria "' + it.cat + '" que não existe na versão atual. Mantido como registrado.', null, null);
-        if (it.cat === 'estoque' && it.pid && !estMap.has(it.pid)) cAdd('Aviso', 'Produto vendido não existe mais no estoque', v.day, v.id, 'Item "' + inf.nome + '" (ID do produto ' + it.pid + ') não está no estoque atual.', null, null);
-        if (!(Number(it.unitPrice) > 0)) cAdd('Aviso', 'Item com preço zero', v.day, v.id, 'Item "' + inf.nome + '" com preço unitário ' + brl(Number(it.unitPrice) || 0) + '.', null, Number(it.unitPrice) || 0);
-      });
-    });
+    var itensTexto = function (v) { return v.items.map(function (it) { return (Number(it.qty) || 0) + 'x ' + infoItem(it).nome; }).join(', '); };
+    var meta = { titulo: 'Relatório financeiro — ' + periodo, quando: agora };
 
     /* ---------- aba Vendas ---------- */
     var aV = new XAba('Vendas');
-    var tV = xTabela(aV, { titulo: 'Vendas — ' + periodo, tabela: 'tVendas',
-      nota: 'Uma linha por venda, na data em que foi feita. Vendas fiadas aparecem aqui na data da venda, com a forma "Fiado"; o dinheiro recebido depois está na aba Recebimentos, na data do recebimento.',
-      cols: [{ h: 'Data', w: 11, st: 'date' }, { h: 'Hora', w: 6.5, st: 'time' }, { h: 'ID da venda', w: 20, st: 'txt', tot: 'count' }, { h: 'Subtotal', w: 12.5, st: 'money', tot: 'sum' },
-        { h: 'Desconto', w: 11.5, st: 'money', tot: 'sum' }, { h: 'Total', w: 12.5, st: 'money', tot: 'sum' }, { h: 'Forma de pagamento', w: 11.5, st: 'txt' }, { h: 'Cliente', w: 14, st: 'txt' },
-        { h: 'Quantidade de itens', w: 9, st: 'num', tot: 'sum' }, { h: 'Itens', w: 32, st: 'txtw' }, { h: 'Status', w: 14, st: 'txtw' }, { h: 'Observações', w: 28, st: 'txtw' }],
-      linhas: vendas.map(function (v) {
-        var obs = [], extras = Object.keys(v).filter(function (k) { return !KNOWN[k]; });
-        if (v.manual) obs.push('lançada sem horário (registrada em outro dia)'); else if (horaDe(v) === null) obs.push('horário registrado não corresponde ao dia da venda');
-        if (v.recebidoEm) obs.push('fiado do modelo antigo, recebido em ' + dData(v.recebidoEm));
-        if (!v.items.length) obs.push('sem itens detalhados');
-        if (marcaConf.has(v.id)) obs.push('⚠ valores não fecham — ver aba Conferência');
-        if (extras.length) obs.push('outros campos do registro: ' + extras.join(', '));
-        return [xDia(v.day), horaDe(v), v.id, v.subtotal, v.discount, v.total, payNome(v.pay), v.cliente || '', qtdItens(v), itensTexto(v), statusVenda(v), obs.join('; ')];
-      }) });
+    var tV = xTabela(aV, { titulo: 'Vendas — ' + periodo, tabela: 'tVendas', vazio: 'Nenhuma venda no período.',
+      nota: 'Uma linha por venda, na data da venda. Vendas no fiado aparecem com a forma "Fiado"; os pagamentos recebidos depois estão na aba Recebimentos.',
+      cols: [{ h: 'Data', w: 11, st: 'date' }, { h: 'Hora', w: 7, st: 'time' }, { h: 'ID da venda', w: 20, st: 'txt', tot: 'count' }, { h: 'Cliente', w: 16, st: 'txtw' },
+        { h: 'Itens', w: 40, st: 'txtw' }, { h: 'Subtotal', w: 14, st: 'money', tot: 'sum' }, { h: 'Desconto', w: 12, st: 'money', tot: 'sum' }, { h: 'Total', w: 14, st: 'money', tot: 'sum' },
+        { h: 'Forma de pagamento', w: 14, st: 'txti' }],
+      linhas: vendas.map(function (v) { return [xDia(v.day), horaDe(v), v.id, v.cliente || '', itensTexto(v), v.subtotal, v.discount, v.total, payNome(v.pay)]; }) });
 
     /* ---------- aba Itens das vendas ---------- */
     var linhasI = [];
     vendas.forEach(function (v) {
       v.items.forEach(function (it) {
         var inf = infoItem(it), q = Number(it.qty) || 0, u = Number(it.unitPrice) || 0;
-        linhasI.push([xDia(v.day), horaDe(v), v.id, inf.nome, inf.tipo, inf.cat, inf.pid, inf.marca, inf.modelo, q, u,
-          function (r) { return { v: money(q * u), f: 'J' + r + '*K' + r }; }, payNome(v.pay), v.cliente || '', inf.obs.join('; ')]);
+        linhasI.push([xDia(v.day), horaDe(v), v.id, v.cliente || '', inf.nome, inf.cat, q, u, function (r) { return { v: money(q * u), f: 'G' + r + '*H' + r }; }, payNome(v.pay)]);
       });
     });
     var aI = new XAba('Itens das vendas');
-    var tI = xTabela(aI, { titulo: 'Itens das vendas — ' + periodo, tabela: 'tItens',
-      nota: 'Uma linha por item de cada venda (dados registrados na venda). Produtos do estoque trazem o ID, a categoria, a marca e o modelo cadastrados hoje no estoque; "Outros" mantém a descrição digitada.',
-      cols: [{ h: 'Data', w: 11, st: 'date' }, { h: 'Hora', w: 6.5, st: 'time' }, { h: 'ID da venda', w: 20, st: 'txt' }, { h: 'Item', w: 30, st: 'txtw' }, { h: 'Tipo', w: 20, st: 'txtw' },
-        { h: 'Categoria', w: 15, st: 'txt' }, { h: 'ID do produto', w: 17, st: 'txt' }, { h: 'Marca', w: 13, st: 'txt' }, { h: 'Modelo', w: 12, st: 'txt' }, { h: 'Quantidade', w: 9, st: 'num', tot: 'sum' },
-        { h: 'Preço unitário', w: 12, st: 'money' }, { h: 'Total do item', w: 12.5, st: 'money', tot: 'sum' }, { h: 'Forma de pagamento', w: 11.5, st: 'txt' }, { h: 'Cliente', w: 13, st: 'txt' }, { h: 'Observações', w: 22, st: 'txtw' }],
+    xTabela(aI, { titulo: 'Itens das vendas — ' + periodo, tabela: 'tItens', vazio: 'Nenhum item vendido no período.',
+      nota: 'Uma linha por item vendido, com a data, o cliente e a forma de pagamento da venda.',
+      cols: [{ h: 'Data', w: 11, st: 'date' }, { h: 'Hora', w: 7, st: 'time' }, { h: 'ID da venda', w: 20, st: 'txt' }, { h: 'Cliente', w: 14, st: 'txtw' },
+        { h: 'Produto / Serviço', w: 36, st: 'txtw' }, { h: 'Categoria', w: 17, st: 'txtw' }, { h: 'Quantidade', w: 11.5, st: 'num', tot: 'sum' },
+        { h: 'Valor unitário', w: 13, st: 'money' }, { h: 'Total do item', w: 14, st: 'money', tot: 'sum' }, { h: 'Forma de pagamento', w: 14, st: 'txti' }],
       linhas: linhasI });
 
     /* ---------- aba Gastos ---------- */
-    var expKnown = { id: 1, day: 1, ts: 1, manual: 1, desc: 1, cat: 1, valor: 1 };
+    var obsGasto = function (e) { var o = e.obs != null ? e.obs : e.observacao != null ? e.observacao : e.nota; return typeof o === 'string' ? o : ''; }; // só se o registro já tiver
+    var catGasto = function (id) { var c = EXPENSE_CATEGORIES.find(function (x) { return x.id === id; }); return c ? c.label : String(id || ''); };
     var aG = new XAba('Gastos');
-    var tG = xTabela(aG, { titulo: 'Gastos — ' + periodo, tabela: 'tGastos', nota: 'Uma linha por gasto, em ordem cronológica.',
-      cols: [{ h: 'Data', w: 11, st: 'date' }, { h: 'Hora', w: 7, st: 'time' }, { h: 'ID', w: 22, st: 'txt', tot: 'count' }, { h: 'Descrição', w: 44, st: 'txtw' }, { h: 'Categoria', w: 26, st: 'txt' },
-        { h: 'Valor', w: 14, st: 'money', tot: 'sum' }, { h: 'Observações', w: 36, st: 'txtw' }],
-      linhas: gastos.map(function (e) {
-        var obs = [], extras = Object.keys(e).filter(function (k) { return !expKnown[k]; });
-        if (e.manual) obs.push('lançado sem horário (registrado em outro dia)');
-        if (!EXPENSE_CATEGORIES.some(function (c) { return c.id === e.cat; })) obs.push('categoria antiga');
-        if (extras.length) obs.push('outros campos do registro: ' + extras.join(', '));
-        if (!(Number(e.valor) > 0)) cAdd('Aviso', 'Gasto com valor zero ou negativo', e.day, e.id, 'Gasto "' + e.desc + '" com valor ' + brl(Number(e.valor) || 0) + '.', null, Number(e.valor) || 0);
-        if (!EXPENSE_CATEGORIES.some(function (c) { return c.id === e.cat; })) cAdd('Aviso', 'Gasto com categoria antiga', e.day, e.id, 'Categoria "' + e.cat + '" não existe na versão atual; aparece como "' + expCatLabel(e.cat) + '".', null, null);
-        return [xDia(e.day), horaDe(e), e.id, e.desc || '', expCatLabel(e.cat), Number(e.valor) || 0, obs.join('; ')];
-      }) });
+    var tG = xTabela(aG, { titulo: 'Gastos — ' + periodo, tabela: 'tGastos', vazio: 'Nenhum gasto no período.',
+      nota: 'Uma linha por gasto, em ordem de data.',
+      cols: [{ h: 'Data', w: 11, st: 'date' }, { h: 'Hora', w: 7, st: 'time' }, { h: 'Descrição', w: 44, st: 'txtw' }, { h: 'Categoria', w: 24, st: 'txtw' },
+        { h: 'Valor', w: 14, st: 'money', tot: 'sum' }, { h: 'Observação', w: 30, st: 'txtwi' }],
+      linhas: gastos.map(function (e) { return [xDia(e.day), horaDe(e), e.desc || '', catGasto(e.cat), Number(e.valor) || 0, obsGasto(e)]; }) });
 
-    /* ---------- recebimentos de fiado no período ---------- */
+    /* ---------- aba Recebimentos (pagamentos de fiado recebidos no período) ---------- */
     var recs = [];
     vAll.forEach(function (v) {
-      var validos = recList(v), brutos = Array.isArray(v.recebimentos) ? v.recebimentos.length : 0;
-      validos.forEach(function (r) { if (noMes(r.day)) recs.push({ v: v, r: r }); });
-      if (brutos > validos.length && (noMes(v.day) || validos.some(function (r) { return noMes(r.day); }))) cAdd('Aviso', 'Recebimento ilegível', v.day, v.id, (brutos - validos.length) + ' recebimento(s) desta venda estão malformados e não entram nas contas do sistema (nem deste relatório).', null, null);
-      if (v.recebidoEm && v.pay !== 'fiado' && noMes(v.recebidoEm)) recs.push({ v: v, legado: true });
+      var rs = recList(v).slice().sort(cron), acum = 0;
+      rs.forEach(function (r) {
+        var antes = acum; acum = money(acum + Number(r.valor));
+        if (noMes(r.day)) recs.push({ v: v, r: r, obs: antes >= v.total ? '' : acum >= v.total ? 'Quitação' : 'Pagamento parcial' });
+      });
     });
-    recs.sort(function (a, b) { var da = a.legado ? a.v.recebidoEm : a.r.day, db = b.legado ? b.v.recebidoEm : b.r.day; return da < db ? -1 : da > db ? 1 : (Number(a.r && a.r.ts) || 0) - (Number(b.r && b.r.ts) || 0); });
-    recs.forEach(function (x) { if (!x.legado && x.r.day < x.v.day) cAdd('Aviso', 'Recebimento antes da venda', x.r.day, x.v.id, 'Recebimento em ' + dData(x.r.day) + ' é anterior à data da venda (' + dData(x.v.day) + ').', null, null); });
+    recs.sort(function (a, b) { return cron(a.r, b.r); });
     var aR = new XAba('Recebimentos');
-    var tR = xTabela(aR, { titulo: 'Recebimentos de fiado — ' + periodo, tabela: 'tRecebimentos',
-      nota: 'Uma linha por recebimento, na data em que o dinheiro entrou (não na data da venda). Uma venda pode ter vários recebimentos; cada um tem sua linha. A venda fiada original está na aba Vendas, na data da venda.',
-      cols: [{ h: 'Data do recebimento', w: 12, st: 'date' }, { h: 'Hora', w: 7, st: 'time' }, { h: 'ID do recebimento', w: 22, st: 'txt' }, { h: 'ID da venda', w: 22, st: 'txt', tot: 'count' },
-        { h: 'Data da venda', w: 11, st: 'date' }, { h: 'Cliente', w: 18, st: 'txt' }, { h: 'Forma de pagamento', w: 13, st: 'txt' }, { h: 'Valor recebido', w: 14, st: 'money', tot: 'sum' }, { h: 'Observação', w: 46, st: 'txtw' }],
+    var tR = xTabela(aR, { titulo: 'Recebimentos — ' + periodo, tabela: 'tRecebimentos', vazio: 'Nenhum recebimento de fiado no período.',
+      nota: 'Uma linha por pagamento recebido de venda no fiado, na data em que foi recebido. A data da venda original fica na coluna "Data da venda" e não muda.',
+      cols: [{ h: 'Data do recebimento', w: 12, st: 'date' }, { h: 'Hora', w: 7, st: 'time' }, { h: 'ID da venda', w: 20, st: 'txt', tot: 'count' }, { h: 'Data da venda', w: 11, st: 'date' },
+        { h: 'Cliente', w: 16, st: 'txtw' }, { h: 'Forma de pagamento', w: 13, st: 'txt' }, { h: 'Valor recebido', w: 14, st: 'money', tot: 'sum' }, { h: 'Observação', w: 19, st: 'txtwi' }],
       linhas: recs.map(function (x) {
-        if (x.legado) return [xDia(x.v.recebidoEm), null, '', x.v.id, xDia(x.v.day), x.v.cliente || '', payNome(x.v.pay), x.v.total, 'registro antigo: venda fiada marcada como recebida (valor total); no modelo antigo a venda passou a constar com esta forma de pagamento'];
         var r = x.r, hr = fin(r.ts) && dayKey(new Date(r.ts)) === r.day ? xHora(r.ts) : null;
-        return [xDia(r.day), hr, r.id || '', x.v.id, xDia(x.v.day), x.v.cliente || '', payNome(r.pay), money(Number(r.valor)), x.v.pay !== 'fiado' ? 'a venda não está mais como fiado' : (x.v.day < diaIni ? 'venda de período anterior' : '')];
+        return [xDia(r.day), hr, x.v.id, xDia(x.v.day), x.v.cliente || '', payNome(r.pay), money(Number(r.valor)), x.obs];
       }) });
 
-    /* ---------- aba Fiado ---------- */
-    var fiados = vAll.filter(function (v) {
-      if (v.day > diaFim) return false;
-      if (v.pay === 'fiado') return noMes(v.day) || saldoFiado(v) > 0 || recList(v).some(function (r) { return noMes(r.day); });
-      return !!v.recebidoEm && (noMes(v.day) || noMes(v.recebidoEm));
-    }).sort(cron);
-    var aF = new XAba('Fiado');
-    var tF = xTabela(aF, { titulo: 'Fiado — ' + periodo, tabela: 'tFiado',
-      nota: 'Vendas fiadas feitas no período e as de períodos anteriores que ainda estão em aberto ou tiveram recebimento no período. Recebido, saldo e status são a posição na data da exportação (' + expEm + '). Cada venda é identificada pelo ID: nomes iguais não significam a mesma pessoa.',
-      cols: [{ h: 'Data da venda', w: 11, st: 'date' }, { h: 'Hora', w: 7, st: 'time' }, { h: 'ID da venda', w: 22, st: 'txt', tot: 'count' }, { h: 'Cliente', w: 18, st: 'txt' }, { h: 'Itens', w: 36, st: 'txtw' },
-        { h: 'Valor original', w: 13, st: 'money', tot: 'sum' }, { h: 'Total recebido', w: 13, st: 'money', tot: 'sum' }, { h: 'Saldo', w: 13, st: 'money', tot: 'sum' }, { h: 'Último recebimento', w: 12, st: 'date' },
-        { h: 'Status', w: 10, st: 'txt' }, { h: 'Dias em aberto', w: 9, st: 'int' }, { h: 'Observações', w: 40, st: 'txtw' }],
+    /* ---------- aba Fiado (vendas no fiado feitas no período) ---------- */
+    var fiados = vendas.filter(function (v) { return v.pay === 'fiado'; });
+    var stFiado = function (v) { var rec = recebido(v); return rec > 0 && saldoFiado(v) <= 0 ? 'Quitado' : rec > 0 ? 'Parcial' : 'Aberto'; };
+    var aF = new XAba('Fiado'); aF.paisagem = false;
+    var tF = xTabela(aF, { titulo: 'Fiado — ' + periodo, tabela: 'tFiado', vazio: 'Nenhuma venda no fiado no período.',
+      nota: 'Vendas no fiado feitas no período, uma por linha (clientes com o mesmo nome aparecem separados). Valor recebido, saldo e status na data de geração do relatório (' + expEm + ').',
+      cols: [{ h: 'ID da venda', w: 20, st: 'txt' }, { h: 'Data da venda', w: 11, st: 'date' }, { h: 'Cliente', w: 18, st: 'txtw' }, { h: 'Valor original', w: 14, st: 'money', tot: 'sum' },
+        { h: 'Valor recebido', w: 14, st: 'money', tot: 'sum' }, { h: 'Saldo', w: 14, st: 'money', tot: 'sum' }, { h: 'Status', w: 11, st: 'txtc' }],
       linhas: fiados.map(function (v) {
-        var obs = [], legado = v.pay !== 'fiado', rs = recList(v), rec = legado ? v.total : recebido(v), ult = legado ? v.recebidoEm : rs.reduce(function (mx, r) { return r.day > mx ? r.day : mx; }, '');
-        var saldo = legado ? 0 : saldoFiado(v), st = legado || (saldo <= 0 && rec > 0) ? 'Quitado' : rec > 0 ? 'Parcial' : 'Aberto';
-        if (!legado && rec > v.total + 0.004) { cAdd('Divergência', 'Recebido maior que o valor da venda', v.day, v.id, 'Os recebimentos somam mais que o valor da venda fiada; o sistema considera o saldo zero.', v.total, rec); obs.push('⚠ recebido acima do valor da venda — ver Conferência'); }
-        if (legado) obs.push('modelo antigo: recebida em ' + dData(v.recebidoEm) + ' como "' + payNome(v.pay) + '"');
-        if (v.day < diaIni) obs.push('venda de período anterior');
-        var fim = st === 'Quitado' ? (ult || v.day) : hoje;
-        return [xDia(v.day), horaDe(v), v.id, v.cliente || '', itensTexto(v), v.total, money(rec), function (r) { return { v: saldo, f: 'MAX(0,F' + r + '-G' + r + ')' }; },
-          ult ? xDia(ult) : null, st, Math.max(0, dias(v.day, fim)), obs.join('; ')];
+        var saldo = saldoFiado(v);
+        return [v.id, xDia(v.day), v.cliente || '', v.total, recebido(v), function (r) { return { v: saldo, f: 'MAX(0,D' + r + '-E' + r + ')' }; }, stFiado(v)];
       }) });
-
-    /* ---------- aba Estoque (posição atual) ---------- */
-    var est = sortedEst(), stEst = function (x) { return x.inativo ? 'Desativado' : (Number(x.qty) || 0) <= 0 ? 'Sem estoque' : isLowStock(x) ? 'Abaixo do mínimo' : 'Em dia'; };
-    var semPreco = 0, negativos = [];
-    var aE = new XAba('Estoque');
-    var tE = xTabela(aE, { titulo: 'Estoque — posição atual', tabela: 'tEstoque',
-      nota: 'Posição ATUAL do estoque, na data da exportação (' + expEm + '). O sistema não guarda histórico de estoque: esta aba não é o estoque do último dia de ' + periodo.toLowerCase() + '. Regra de alerta: "Abaixo do mínimo" quando a quantidade é menor que o mínimo (igual ao mínimo = em dia).',
-      cols: [{ h: 'ID', w: 20, st: 'txt', tot: 'count' }, { h: 'Produto', w: 40, st: 'txtw' }, { h: 'Categoria', w: 18, st: 'txt' }, { h: 'Marca', w: 16, st: 'txt' }, { h: 'Modelo', w: 14, st: 'txt' },
-        { h: 'Quantidade', w: 10, st: 'num', tot: 'sum' }, { h: 'Mínimo', w: 9, st: 'num' }, { h: 'Preço de venda', w: 13, st: 'money' }, { h: 'Valor a preço de venda', w: 15, st: 'money', tot: 'sum' },
-        { h: 'Status', w: 16, st: 'txt' }, { h: 'Observações', w: 44, st: 'txtw' }],
-      linhas: est.map(function (x) {
-        var obs = [], q = Number(x.qty) || 0, pr = Number(x.preco) || 0;
-        if (x.g) obs.push('bateria/pilha da tela de vendas (preço na venda: avulso ' + brl(PRECO_AVULSO) + ' · troca ' + brl(PRECO_TROCA) + ')');
-        if (cp && x.id === cp.id) obs.push('item rápido "Controle clonável" (vendido a ' + brl(PRECO_CLONAVEL) + ')');
-        if (!x.inativo && !x.g && !(pr > 0)) { obs.push('sem preço cadastrado'); semPreco++; }
-        if (q < 0) { obs.push('⚠ quantidade negativa'); negativos.push(x); }
-        return [x.id, pname(x), x.cat, x.marca || '', x.modelo || '', q, Number(x.min) || 0, pr, function (r) { return { v: money(q * pr), f: 'F' + r + '*H' + r }; }, stEst(x), obs.join('; ')];
-      }) });
-    negativos.forEach(function (x) { cAdd('Divergência', 'Estoque negativo', null, x.id, 'Produto "' + pname(x) + '" com quantidade ' + x.qty + ' (o mínimo possível é 0).', null, null); });
-    if (semPreco) cAdd('Aviso', 'Produtos sem preço cadastrado', null, '', semPreco + ' produto(s) ativo(s) sem preço de venda no estoque (veja a coluna Observações da aba Estoque).', null, null);
-    // ids repetidos (não deveriam existir)
-    [['venda', vAll], ['gasto', gAll], ['produto', eAll]].forEach(function (par) {
-      var vistos = new Map(); par[1].forEach(function (x) { vistos.set(x.id, (vistos.get(x.id) || 0) + 1); });
-      vistos.forEach(function (n, id) { if (n > 1) cAdd('Divergência', 'ID de ' + par[0] + ' repetido', null, id, 'O ID aparece ' + n + ' vezes nos dados (deveria ser único).', null, null); });
-    });
-    var recIds = new Map(); vAll.forEach(function (v) { recList(v).forEach(function (r) { if (r.id) recIds.set(r.id, (recIds.get(r.id) || 0) + 1); }); });
-    recIds.forEach(function (n, id) { if (n > 1) cAdd('Divergência', 'ID de recebimento repetido', null, id, 'O ID aparece ' + n + ' vezes nos dados (deveria ser único).', null, null); });
-    var dupNome = new Map(); eAll.forEach(function (x) { if (!x.inativo) { var k = prodKey(x); dupNome.set(k, (dupNome.get(k) || 0) + 1); } });
-    var nDup = 0; dupNome.forEach(function (n) { if (n > 1) nDup++; });
-    if (nDup) cAdd('Informativo', 'Produtos com o mesmo nome', null, '', nDup + ' nome(s) de produto aparecem mais de uma vez no estoque ativo (podem ser cadastros repetidos).', null, null);
 
     /* ---------- aba Pagamentos ---------- */
     var aP = new XAba('Pagamentos'); aP.paisagem = false;
-    var formas = ['Dinheiro', 'Pix', 'Cartão', 'Fiado']; vendas.forEach(function (v) { var n = payNome(v.pay); if (formas.indexOf(n) < 0) formas.push(n); });
+    var ORD = ['Dinheiro', 'Pix', 'Cartão', 'Fiado'], ordem = function (lista) { return lista.sort(function (a, b) { var ia = ORD.indexOf(a), ib = ORD.indexOf(b); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); }); };
+    var formas = []; vendas.forEach(function (v) { var n = payNome(v.pay); if (formas.indexOf(n) < 0) formas.push(n); }); ordem(formas);
     var vG = tV.vazio ? null : xRng('Vendas', tV.col('Forma de pagamento'), tV.r1, tV.r2), vT = tV.vazio ? null : xRng('Vendas', tV.col('Total'), tV.r1, tV.r2);
     var totLiq = money(vendas.reduce(function (s, v) { return s + v.total; }, 0));
     var porForma = function (n) { var q = 0, t = 0; vendas.forEach(function (v) { if (payNome(v.pay) === n) { q++; t += v.total; } }); return { q: q, t: money(t) }; };
-    var hP = 4, rTotP = hP + formas.length + 1;
-    var tP = xTabela(aP, { titulo: 'Pagamentos — ' + periodo, tabela: 'tPagamentos',
-      nota: 'Vendas do período pela forma de pagamento registrada na venda (data da venda). Vendas fiadas continuam em "Fiado" mesmo depois de recebidas: o dinheiro recebido depois aparece no segundo quadro e na aba Recebimentos.',
-      cols: [{ h: 'Forma de pagamento', w: 30, st: 'txt' }, { h: 'Quantidade de vendas', w: 14, st: 'int', tot: 'sum' }, { h: 'Valor total', w: 16, st: 'money', tot: 'sum' }, { h: 'Percentual do total', w: 14, st: 'pct', tot: 'sum' }],
+    var rTotP = 4 + formas.length + 1;
+    var tP = xTabela(aP, { titulo: 'Pagamentos — ' + periodo, tabela: 'tPagamentos', vazio: 'Nenhuma venda no período.',
+      nota: 'Vendas do período pela forma de pagamento registrada na venda.',
+      cols: [{ h: 'Forma de pagamento', w: 26, st: 'txt' }, { h: 'Quantidade de vendas', w: 14, st: 'int', tot: 'sum' }, { h: 'Valor total', w: 16, st: 'money', tot: 'sum' }, { h: 'Percentual do total', w: 14, st: 'pct', tot: 'sum' }],
       linhas: formas.map(function (n) {
         var x = porForma(n);
-        return [n, vG ? function (r) { return { v: x.q, f: 'COUNTIF(' + vG + ',A' + r + ')' }; } : 0, vG ? function (r) { return { v: x.t, f: 'SUMIF(' + vG + ',A' + r + ',' + vT + ')' }; } : 0,
+        return [n, function (r) { return { v: x.q, f: 'COUNTIF(' + vG + ',A' + r + ')' }; }, function (r) { return { v: x.t, f: 'SUMIF(' + vG + ',A' + r + ',' + vT + ')' }; },
           function (r) { return { v: totLiq ? x.t / totLiq : 0, f: 'IF($C$' + rTotP + '=0,0,C' + r + '/$C$' + rTotP + ')' }; }];
       }) });
-    aP.cel[tP.rt][0].v = 'Total geral'; aP.cel[tP.rt][3].s = 'totP';
-    aP.cel[tP.rt][3].v = totLiq ? 1 : 0;
-    // quadro 2: recebimentos de fiado no período, por forma (entrada de dinheiro na data do recebimento)
-    var rFormas = ['Dinheiro', 'Pix', 'Cartão']; recs.forEach(function (x) { var n = payNome(x.legado ? x.v.pay : x.r.pay); if (rFormas.indexOf(n) < 0) rFormas.push(n); });
+    if (!tP.vazio) { aP.cel[tP.rt][3].v = totLiq ? 1 : 0; }
+    // quadro separado: pagamentos de fiado recebidos no período (não são vendas novas)
+    var rFormas = []; recs.forEach(function (x) { var n = payNome(x.r.pay); if (rFormas.indexOf(n) < 0) rFormas.push(n); }); ordem(rFormas);
     var rG = tR.vazio ? null : xRng('Recebimentos', tR.col('Forma de pagamento'), tR.r1, tR.r2), rV = tR.vazio ? null : xRng('Recebimentos', tR.col('Valor recebido'), tR.r1, tR.r2);
-    var recPor = function (n) { var q = 0, t = 0; recs.forEach(function (x) { if (payNome(x.legado ? x.v.pay : x.r.pay) === n) { q++; t += x.legado ? x.v.total : Number(x.r.valor); } }); return { q: q, t: money(t) }; };
-    var b2 = tP.rt + 3;
-    aP.p(b2 - 1, 0, 'Recebimentos de fiado no período (data do recebimento)', 'per');
-    ['Forma de pagamento', 'Quantidade de recebimentos', 'Valor recebido'].forEach(function (h, i) { aP.p(b2, i, h, 'hdr'); });
-    rFormas.forEach(function (n, j) {
-      var r = b2 + 1 + j, x = recPor(n);
-      aP.p(r, 0, n, 'txt'); aP.p(r, 1, x.q, 'int', rG ? 'COUNTIF(' + rG + ',A' + r + ')' : null); aP.p(r, 2, x.t, 'money', rG ? 'SUMIF(' + rG + ',A' + r + ',' + rV + ')' : null);
-    });
-    var b2e = b2 + rFormas.length, b2t = b2e + 1;
-    aP.p(b2t, 0, 'Total recebido de fiado', 'totL'); aP.p(b2t, 1, recs.length, 'totI', 'SUBTOTAL(109,B' + (b2 + 1) + ':B' + b2e + ')'); aP.p(b2t, 2, money(recs.reduce(function (s, x) { return s + (x.legado ? x.v.total : Number(x.r.valor)); }, 0)), 'totM', 'SUBTOTAL(109,C' + (b2 + 1) + ':C' + b2e + ')');
-    aP.tabelas.push({ nome: 'tRecebPorForma', ref: 'A' + b2 + ':C' + b2e, cols: ['Forma de pagamento', 'Quantidade de recebimentos', 'Valor recebido'] });
-    // quadro 3: entradas efetivas (à vista + fiado recebido), sem fiado em aberto
-    var b3 = b2t + 3, eFormas = rFormas.slice(); formas.forEach(function (n) { if (n !== 'Fiado' && eFormas.indexOf(n) < 0) eFormas.push(n); });
-    aP.p(b3 - 1, 0, 'Entradas efetivas no período (vendas à vista + fiado recebido)', 'per');
-    var h3 = ['Forma de entrada', 'Vendas à vista', 'Fiado recebido', 'Total de entradas'];
-    h3.forEach(function (h, i) { aP.p(b3, i, h, 'hdr'); });
-    eFormas.forEach(function (n, j) {
-      var r = b3 + 1 + j, a = porForma(n).t, b = recPor(n).t;
-      aP.p(r, 0, n, 'txt'); aP.p(r, 1, a, 'money', vG ? 'SUMIF(' + vG + ',A' + r + ',' + vT + ')' : null); aP.p(r, 2, b, 'money', rG ? 'SUMIF(' + rG + ',A' + r + ',' + rV + ')' : null);
-      aP.p(r, 3, money(a + b), 'money', 'B' + r + '+C' + r);
-    });
-    var b3e = b3 + eFormas.length, b3t = b3e + 1, somaE = function (k) { var s = 0; for (var r = b3 + 1; r <= b3e; r++) s += aP.cel[r][k].v; return money(s); };
-    aP.p(b3t, 0, 'Total de entradas', 'totL'); [1, 2, 3].forEach(function (k) { aP.p(b3t, k, somaE(k), 'totM', 'SUBTOTAL(109,' + xCol(k) + (b3 + 1) + ':' + xCol(k) + b3e + ')'); });
-    aP.tabelas.push({ nome: 'tEntradas', ref: 'A' + b3 + ':D' + b3e, cols: h3 });
-    aP.p(b3t + 2, 0, 'As vendas fiadas não entram em "Entradas efetivas" no dia da venda; entram quando são recebidas (quadro do meio e aba Recebimentos).', 'note');
-    for (var k = 1; k <= 3; k++) aP.p(b3t + 2, k, null, 'note');
-    aP.mescla.push('A' + (b3t + 2) + ':D' + (b3t + 2)); aP.altura[b3t + 2] = 27;
+    var recPor = function (n) { var q = 0, t = 0; recs.forEach(function (x) { if (payNome(x.r.pay) === n) { q++; t += Number(x.r.valor); } }); return { q: q, t: money(t) }; };
+    var totRec = money(recs.reduce(function (s, x) { return s + Number(x.r.valor); }, 0));
+    var b2 = (tP.vazio ? tP.H : tP.rt) + 3, b2t = null;
+    aP.p(b2 - 1, 0, 'Recebimentos de fiado no período', 'per');
+    aP.p(b2, 0, 'Pagamentos de vendas no fiado, pela data em que foram recebidos. Não são vendas novas: a venda original está no quadro acima, como "Fiado", na data da venda.', 'note');
+    for (var k = 1; k <= 3; k++) aP.p(b2, k, null, 'note'); aP.mescla.push('A' + b2 + ':D' + b2); aP.altura[b2] = 27;
+    var hR = b2 + 1;
+    if (!recs.length) aP.p(hR, 0, 'Nenhum recebimento de fiado no período.', 'empty');
+    else {
+      ['Forma de pagamento', 'Quantidade de recebimentos', 'Valor recebido'].forEach(function (h, i) { aP.p(hR, i, h, 'hdr'); }); aP.altura[hR] = 30;
+      rFormas.forEach(function (n, j) { var r = hR + 1 + j, x = recPor(n); aP.p(r, 0, n, 'txt'); aP.p(r, 1, x.q, 'int', 'COUNTIF(' + rG + ',A' + r + ')'); aP.p(r, 2, x.t, 'money', 'SUMIF(' + rG + ',A' + r + ',' + rV + ')'); });
+      var b2e = hR + rFormas.length; b2t = b2e + 1;
+      aP.p(b2t, 0, 'Total recebido', 'totL'); aP.p(b2t, 1, recs.length, 'totI', 'SUBTOTAL(109,B' + (hR + 1) + ':B' + b2e + ')'); aP.p(b2t, 2, totRec, 'totM', 'SUBTOTAL(109,C' + (hR + 1) + ':C' + b2e + ')');
+      aP.tabelas.push({ nome: 'tRecebPorForma', ref: 'A' + hR + ':C' + b2e, cols: ['Forma de pagamento', 'Quantidade de recebimentos', 'Valor recebido'] });
+    }
     aP.congela = 0; aP.titulos = 0;
 
-    /* ---------- aba Conferência ---------- */
-    var ordem = { 'Divergência': 0, 'Aviso': 1, 'Informativo': 2 };
-    conf.sort(function (a, b) { return (ordem[a.grav] - ordem[b.grav]) || ((a.dia || '') < (b.dia || '') ? -1 : (a.dia || '') > (b.dia || '') ? 1 : 0); });
-    var aC = new XAba('Conferência');
-    xTabela(aC, { titulo: 'Conferência — ' + periodo, tabela: 'tConferencia', vazio: 'Não foram encontradas inconsistências no período.',
-      nota: 'Esta aba só APONTA problemas encontrados nos dados; nada foi corrigido nem alterado. "Valor esperado" é o que as regras do sistema dariam; "Valor encontrado" é o que está registrado. Divergência = valores que não fecham; Aviso = dado incompleto ou antigo; Informativo = situação conhecida que merece atenção.',
-      cols: [{ h: 'Tipo', w: 34, st: 'txtw' }, { h: 'Gravidade', w: 13, st: 'txt' }, { h: 'Data', w: 11, st: 'date' }, { h: 'ID', w: 22, st: 'txt' }, { h: 'Descrição', w: 70, st: 'txtw' },
-        { h: 'Valor esperado', w: 14, st: 'money' }, { h: 'Valor encontrado', w: 14, st: 'money' }, { h: 'Diferença', w: 13, st: 'money' }],
-      linhas: conf.map(function (c) {
-        var tem = typeof c.esp === 'number' && typeof c.enc === 'number';
-        return [c.tipo, c.grav, c.dia ? xDia(c.dia) : null, c.id, c.desc, typeof c.esp === 'number' ? c.esp : null, typeof c.enc === 'number' ? c.enc : null,
-          tem ? function (r) { return { v: money(c.enc - c.esp), f: 'G' + r + '-F' + r }; } : null];
-      }) });
-
     /* ---------- aba Resumo (primeira) ---------- */
-    var aS = new XAba('Resumo'); aS.paisagem = false; aS.semGrade = true; aS.larg = [50, 18, 18, 18, 16];
-    var nDiv = conf.filter(function (c) { return c.grav === 'Divergência'; }).length, nAv = conf.filter(function (c) { return c.grav === 'Aviso'; }).length, nInf = conf.length - nDiv - nAv;
-    var faixa = function (r, txt, st) { aS.p(r, 0, txt, st); for (var k = 1; k <= 4; k++) aS.p(r, k, null, st); aS.mescla.push('A' + r + ':E' + r); };
-    faixa(1, 'RELATÓRIO FINANCEIRO', 'title'); aS.altura[1] = 26; faixa(2, 'CHAVEIRO', 'sub'); faixa(3, 'Período: ' + periodo, 'per');
-    if (nDiv + nAv) { faixa(4, '⚠ Existem inconsistências para conferência: ' + nDiv + ' divergência(s) de valor e ' + nAv + ' aviso(s)' + (nInf ? ' (+ ' + nInf + ' informativo(s))' : '') + ' — veja a aba Conferência.', 'warn'); aS.altura[4] = 30; }
-    else faixa(4, nInf ? '✓ Nenhuma divergência de valor. Há ' + nInf + ' observação(ões) informativa(s) na aba Conferência.' : '✓ Não foram encontradas inconsistências no período.', 'ok');
-    var r = 6;
-    var sec = function (t, heads) { aS.p(r, 0, t, 'sec'); for (var k = 1; k <= 4; k++) aS.p(r, k, heads && heads[k - 1] || null, heads ? 'secR' : 'sec'); r++; };
+    var aS = new XAba('Resumo'); aS.paisagem = false; aS.semGrade = true; aS.larg = [46, 16, 18, 14];
+    var faixa = function (r, txt, st) { aS.p(r, 0, txt, st); for (var k = 1; k <= 3; k++) aS.p(r, k, null, st); aS.mescla.push('A' + r + ':D' + r); };
+    faixa(1, 'RELATÓRIO FINANCEIRO MENSAL', 'title'); aS.altura[1] = 26; faixa(2, 'Chaveiro', 'sub'); faixa(3, 'Período: ' + periodo, 'per');
+    var r = 5;
+    var sec = function (t, heads) { aS.p(r, 0, t, 'sec'); for (var k = 1; k <= 3; k++) aS.p(r, k, heads && heads[k - 1] || null, heads ? 'secR' : 'sec'); r++; };
     var linha = function (lab, v, st, f, labSt) { aS.p(r, 0, lab, labSt || 'lab'); aS.p(r, 1, v, st, f); return r++; };
     var rangeOu = function (t, aba, h) { return t.vazio ? null : xRng(aba, t.col(h), t.r1, t.r2); };
+    var fx = function (fn, rg) { return rg ? fn + '(' + rg + ')' : null; };
     var subB = money(vendas.reduce(function (s, v) { return s + v.subtotal; }, 0)), desc = money(vendas.reduce(function (s, v) { return s + v.discount; }, 0));
     var totG = money(gastos.reduce(function (s, e) { return s + (Number(e.valor) || 0); }, 0));
-    var fx = function (fn, rg) { return rg ? fn + '(' + rg + ')' : null; };
-    sec('VENDAS');
-    var rQv = linha('Quantidade de vendas', vendas.length, 'int', fx('COUNTA', rangeOu(tV, 'Vendas', 'ID da venda')));
-    var rSub = linha('Subtotal bruto', subB, 'money', fx('SUM', rangeOu(tV, 'Vendas', 'Subtotal')));
-    var rDes = linha('Descontos', desc, 'money', fx('SUM', rangeOu(tV, 'Vendas', 'Desconto')));
-    var rLiq = linha('Total líquido', totLiq, 'moneyB', fx('SUM', rangeOu(tV, 'Vendas', 'Total')), 'labB');
+    sec('PERÍODO');
+    linha('Mês de referência', periodo, 'txt');
+    linha('Data inicial', xDia(diaIni), 'dateL'); linha('Data final', xDia(diaFim), 'dateL'); linha('Relatório gerado em', xDataHora(agora), 'dtL');
+    if (mKey === hoje.slice(0, 7)) { aS.p(r, 0, 'Mês em andamento: os dados vão até a data de geração do relatório.', 'note'); for (var k3 = 1; k3 <= 3; k3++) aS.p(r, k3, null, 'note'); aS.mescla.push('A' + r + ':D' + r); r++; }
+    r++; sec('VENDAS');
+    linha('Total bruto de vendas', subB, 'money', fx('SUM', rangeOu(tV, 'Vendas', 'Subtotal')));
+    linha('Total de descontos', desc, 'money', fx('SUM', rangeOu(tV, 'Vendas', 'Desconto')));
+    var rLiq = linha('Total líquido de vendas', totLiq, 'moneyB', fx('SUM', rangeOu(tV, 'Vendas', 'Total')), 'labB');
+    var rQv = linha('Quantidade de vendas', vendas.length, 'int', fx('ROWS', rangeOu(tV, 'Vendas', 'ID da venda')));
+    linha('Ticket médio', vendas.length ? totLiq / vendas.length : 0, 'money', 'IF(B' + rQv + '=0,0,B' + rLiq + '/B' + rQv + ')');
     r++; sec('GASTOS');
-    linha('Quantidade de gastos', gastos.length, 'int', fx('COUNTA', rangeOu(tG, 'Gastos', 'ID')));
     var rGas = linha('Total de gastos', totG, 'moneyB', fx('SUM', rangeOu(tG, 'Gastos', 'Valor')), 'labB');
-    r++; sec('RESULTADO DO PERÍODO');
+    linha('Quantidade de gastos', gastos.length, 'int', fx('ROWS', rangeOu(tG, 'Gastos', 'Valor')));
+    r++; sec('RESULTADO');
     var rRv = linha('Vendas líquidas', totLiq, 'money', 'B' + rLiq);
     var rRg = linha('(−) Gastos', totG, 'money', 'B' + rGas);
-    var rRes = linha('(=) Resultado', money(totLiq - totG), 'resM', 'B' + rRv + '-B' + rRg, 'resL');
-    r++; sec('FORMAS DE PAGAMENTO', ['Quantidade', 'Valor', '% do total']);
-    formas.forEach(function (n, j) {
-      var pr = tP.r1 + j, x = porForma(n);
-      aS.p(r, 0, n, 'lab'); aS.p(r, 1, x.q, 'int', "Pagamentos!B" + pr); aS.p(r, 2, x.t, 'money', "Pagamentos!C" + pr); aS.p(r, 3, totLiq ? x.t / totLiq : 0, 'pct', "Pagamentos!D" + pr); r++;
-    });
-    aS.p(r, 0, 'Total', 'totL'); aS.p(r, 1, vendas.length, 'totI', 'Pagamentos!B' + tP.rt); aS.p(r, 2, totLiq, 'totM', 'Pagamentos!C' + tP.rt); aS.p(r, 3, totLiq ? 1 : 0, 'totP', 'Pagamentos!D' + tP.rt); var rPagT = r++;
-    aS.p(r, 0, 'Cada venda conta na forma registrada na venda (data da venda). Fiado recebido depois não muda a venda original:', 'note'); for (var k5 = 1; k5 <= 4; k5++) aS.p(r, k5, null, 'note'); aS.mescla.push('A' + r + ':E' + r); r++;
-    aS.p(r, 0, 'Fiado recebido no período (pela data do recebimento)', 'lab'); aS.p(r, 2, money(recs.reduce(function (s, x) { return s + (x.legado ? x.v.total : Number(x.r.valor)); }, 0)), 'money', 'Pagamentos!C' + b2t); r++;
-    r++; sec('FIADO (posição na data da exportação)');
-    var fSt = rangeOu(tF, 'Fiado', 'Status'), fUlt = rangeOu(tF, 'Fiado', 'Último recebimento');
-    var cnt = function (s) { return fiados.filter(function (v) { return (v.pay !== 'fiado' ? 'Quitado' : saldoFiado(v) <= 0 && recebido(v) > 0 ? 'Quitado' : recebido(v) > 0 ? 'Parcial' : 'Aberto') === s; }).length; };
-    var quitNoMes = fiados.filter(function (v) { if (v.pay !== 'fiado') return noMes(v.recebidoEm); var rs = recList(v), ult = rs.reduce(function (mx, x) { return x.day > mx ? x.day : mx; }, ''); return saldoFiado(v) <= 0 && recebido(v) > 0 && noMes(ult); }).length;
-    linha('Total em aberto (saldo a receber)', money(fiados.reduce(function (s, v) { return s + (v.pay === 'fiado' ? saldoFiado(v) : 0); }, 0)), 'moneyB', fx('SUM', rangeOu(tF, 'Fiado', 'Saldo')), 'labB');
-    linha('Vendas fiadas em aberto (nada recebido)', cnt('Aberto'), 'int', fSt ? 'COUNTIF(' + fSt + ',"Aberto")' : null);
-    linha('Vendas fiadas parciais', cnt('Parcial'), 'int', fSt ? 'COUNTIF(' + fSt + ',"Parcial")' : null);
-    linha('Vendas fiadas quitadas no período', quitNoMes, 'int', fSt ? 'COUNTIFS(' + fSt + ',"Quitado",' + fUlt + ',">="&DATE(' + y + ',' + m + ',1),' + fUlt + ',"<="&DATE(' + y + ',' + m + ',' + nDias + '))' : null);
-    linha('Fiado vendido no período (pela data da venda)', porForma('Fiado').t, 'money', 'Pagamentos!C' + (tP.r1 + 3));
-    r++; sec('ESTOQUE (posição atual, na data da exportação)');
-    var eSt = rangeOu(tE, 'Estoque', 'Status'), eCnt = function (s) { return est.filter(function (x) { return stEst(x) === s; }).length; };
-    linha('Produtos ativos', est.length - eCnt('Desativado'), 'int', eSt ? 'COUNTA(' + rangeOu(tE, 'Estoque', 'ID') + ')-COUNTIF(' + eSt + ',"Desativado")' : null);
-    linha('Sem estoque', eCnt('Sem estoque'), 'int', eSt ? 'COUNTIF(' + eSt + ',"Sem estoque")' : null);
-    linha('Abaixo do mínimo', eCnt('Abaixo do mínimo'), 'int', eSt ? 'COUNTIF(' + eSt + ',"Abaixo do mínimo")' : null);
-    linha('Em dia', eCnt('Em dia'), 'int', eSt ? 'COUNTIF(' + eSt + ',"Em dia")' : null);
-    linha('Desativados', eCnt('Desativado'), 'int', eSt ? 'COUNTIF(' + eSt + ',"Desativado")' : null);
-    var valEst = money(est.reduce(function (s, x) { return x.inativo ? s : s + (Number(x.qty) || 0) * (Number(x.preco) || 0); }, 0));
-    linha('Valor dos ativos a preço de venda (não é custo)', valEst, 'money', eSt ? 'SUMIF(' + eSt + ',"<>Desativado",' + rangeOu(tE, 'Estoque', 'Valor a preço de venda') + ')' : null);
-    // fechamentos: cada conferência mostra esperado × encontrado; diferença ≠ 0 fica marcada
-    r++; sec('FECHAMENTOS (conferência automática)', ['Esperado', 'Encontrado', 'Diferença', 'Situação']);
-    var rF0 = r;
-    var fech = function (lab, esp, fe, enc, fen) {
-      aS.p(r, 0, lab, 'lab'); aS.p(r, 1, esp, 'money', fe); aS.p(r, 2, enc, 'money', fen);
-      aS.p(r, 3, money(enc - esp), 'money', 'C' + r + '-B' + r); aS.p(r, 4, Math.abs(enc - esp) < 0.005 ? 'OK' : '⚠ Diferença', 'stat', 'IF(ABS(D' + r + ')<0.005,"OK","⚠ Diferença")'); r++;
-    };
-    fech('Total líquido = subtotal bruto − descontos', money(subB - desc), 'B' + rSub + '-B' + rDes, totLiq, 'B' + rLiq);
-    var somaIt = money(linhasI.reduce(function (s, ln) { return s + money(ln[9] * ln[10]); }, 0));
-    var vendasComItens = money(vendas.filter(function (v) { return v.items.length; }).reduce(function (s, v) { return s + v.subtotal; }, 0));
-    fech('Soma dos itens (aba Itens das vendas) = subtotal das vendas com itens', somaIt, tI.vazio ? null : 'SUM(' + xRng('Itens das vendas', tI.col('Total do item'), tI.r1, tI.r2) + ')', vendasComItens,
-      tV.vazio ? null : 'SUMIF(' + rangeOu(tV, 'Vendas', 'Quantidade de itens') + ',">0",' + rangeOu(tV, 'Vendas', 'Subtotal') + ')');
-    fech('Formas de pagamento (aba Pagamentos) = total líquido', totLiq, 'B' + rLiq, totLiq, 'C' + rPagT);
-    fech('Resultado = vendas líquidas − gastos', money(totLiq - totG), 'B' + rRv + '-B' + rRg, money(totLiq - totG), 'B' + rRes);
-    var fOrig = money(fiados.filter(function (v) { return v.pay === 'fiado'; }).reduce(function (s, v) { return s + v.total; }, 0)), fRec = money(fiados.filter(function (v) { return v.pay === 'fiado'; }).reduce(function (s, v) { return s + recebido(v); }, 0));
-    var fSaldo = money(fiados.reduce(function (s, v) { return s + (v.pay === 'fiado' ? saldoFiado(v) : 0); }, 0)), lgT = money(fiados.filter(function (v) { return v.pay !== 'fiado'; }).reduce(function (s, v) { return s + v.total; }, 0));
-    fech('Fiado: valor original − recebido = saldo (aba Fiado)', money(fOrig + lgT - (fRec + lgT)), tF.vazio ? null : 'SUM(' + rangeOu(tF, 'Fiado', 'Valor original') + ')-SUM(' + rangeOu(tF, 'Fiado', 'Total recebido') + ')', fSaldo, tF.vazio ? null : 'SUM(' + rangeOu(tF, 'Fiado', 'Saldo') + ')');
-    aS.condStatus = 'E' + rF0 + ':E' + (r - 1);
-    aS.p(r, 0, 'Diferença ≠ 0 indica dado histórico que não fecha; o detalhe de cada caso está na aba Conferência. Nenhum dado foi alterado.', 'note'); for (var k2 = 1; k2 <= 4; k2++) aS.p(r, k2, null, 'note'); aS.mescla.push('A' + r + ':E' + r); aS.altura[r] = 26; r++;
-    r++; sec('PERÍODO');
-    linha('Data inicial', xDia(diaIni), 'dateL'); linha('Data final', xDia(diaFim), 'dateL'); linha('Data/hora da exportação', xDataHora(agora), 'dtL');
-    if (mKey === hoje.slice(0, 7)) { aS.p(r, 0, 'Mês em andamento: os dados vão até a data da exportação.', 'note'); for (var k3 = 1; k3 <= 4; k3++) aS.p(r, k3, null, 'note'); aS.mescla.push('A' + r + ':E' + r); r++; }
-    aS.p(r + 1, 0, 'Abas: Vendas · Itens das vendas · Gastos · Pagamentos · Fiado · Recebimentos · Estoque · Conferência. Valores em reais; datas no formato dd/mm/aaaa. Estoque e saldos de fiado são a posição na data da exportação.', 'note');
-    for (var k4 = 1; k4 <= 4; k4++) aS.p(r + 1, k4, null, 'note'); aS.mescla.push('A' + (r + 1) + ':E' + (r + 1)); aS.altura[r + 1] = 26;
+    linha('(=) Resultado do período', money(totLiq - totG), 'resM', 'B' + rRv + '-B' + rRg, 'resL');
+    r++; sec('PAGAMENTOS', ['Quantidade', 'Valor total', '% do total']);
+    if (tP.vazio) { aS.p(r, 0, 'Nenhuma venda no período.', 'empty'); r++; }
+    else {
+      formas.forEach(function (n, j) {
+        var pr = tP.r1 + j, x = porForma(n);
+        aS.p(r, 0, n, 'lab'); aS.p(r, 1, x.q, 'int', 'Pagamentos!B' + pr); aS.p(r, 2, x.t, 'money', 'Pagamentos!C' + pr); aS.p(r, 3, totLiq ? x.t / totLiq : 0, 'pct', 'Pagamentos!D' + pr); r++;
+      });
+      aS.p(r, 0, 'Total', 'totL'); aS.p(r, 1, vendas.length, 'totI', 'Pagamentos!B' + tP.rt); aS.p(r, 2, totLiq, 'totM', 'Pagamentos!C' + tP.rt); aS.p(r, 3, totLiq ? 1 : 0, 'totP', 'Pagamentos!D' + tP.rt); r++;
+    }
+    r++; sec('FIADO');
+    var fTot = money(fiados.reduce(function (s, v) { return s + v.total; }, 0)), fSaldo = money(fiados.reduce(function (s, v) { return s + saldoFiado(v); }, 0));
+    linha('Vendido no fiado no período', fTot, 'money', fx('SUM', rangeOu(tF, 'Fiado', 'Valor original')));
+    linha('Recebido de fiado no período (pela data do recebimento)', totRec, 'money', fx('SUM', rangeOu(tR, 'Recebimentos', 'Valor recebido')));
+    linha('Saldo em aberto das vendas no fiado do período (em ' + fmtDayShort(hoje) + ')', fSaldo, 'moneyB', fx('SUM', rangeOu(tF, 'Fiado', 'Saldo')), 'labB');
+    aS.altura[r - 1] = 27; aS.cel[r - 1][0].s = 'labBw';
+    r++;
+    aS.p(r, 0, 'Valores em reais (R$). O detalhamento está nas abas Vendas, Itens das vendas, Gastos, Pagamentos, Fiado e Recebimentos.', 'note');
+    for (var k4 = 1; k4 <= 3; k4++) aS.p(r, k4, null, 'note'); aS.mescla.push('A' + r + ':D' + r); aS.altura[r] = 26;
 
-    var abas = [aS, aV, aI, aG, aP, aF, aR, aE, aC];
+    var abas = [aS, aV, aI, aG, aP, aF, aR];
     abas.forEach(function (a) { a.periodo = periodo; a.exportadoEm = expEm; });
     return xGerar(abas, meta);
   }
