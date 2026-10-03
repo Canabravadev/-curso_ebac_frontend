@@ -907,6 +907,19 @@
   button:focus-visible, [role="button"]:focus-visible, a:focus-visible, [tabindex]:focus-visible, .picker:focus-visible {
     outline: 2px solid color-mix(in srgb, var(--brass) 65%, transparent); outline-offset: 2px; }
 
+  /* --- resumo (desktop): "Faturamento por dia" ocupa a linha toda — gráfico à esquerda, calendário à direita.
+     Antes o calendário deixava esse cartão muito alto e abria um buraco ao lado. --- */
+  @media (min-width: 861px) {
+    #resumoContent > .card-fat { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); column-gap: 28px; align-items: start; }
+    .card-fat > * { grid-column: 1; }
+    .card-fat > .card-title { grid-column: 1 / -1; }
+    .card-fat > .cal-wrap { grid-column: 2; grid-row: 2 / span 8; border-left: 1px dashed var(--line); padding-left: 24px; }
+    .card-fat > .cal-wrap .cal-t { margin-top: 0; padding-top: 0; border-top: 0; }
+    .card-fat > .chart { height: 186px; }   /* acompanha a altura do calendário ao lado */
+  }
+  /* --- herói: "Últimos 7 dias" numa pílula — a linha do gráfico não passa mais por cima do texto --- */
+  .spark-cap { z-index: 2; pointer-events: none; bottom: 7px; padding: 2px 9px; border-radius: 99px; background: rgba(20,14,6,.42); opacity: .9; }
+
   /* --- fiado: idade da dívida --- */
   .f-age { font-family: 'JetBrains Mono', monospace; font-size: .7rem; color: var(--ink-soft); }
   .f-age.old { color: var(--danger); font-weight: 700; }
@@ -2847,14 +2860,14 @@
     var y = +mKey.slice(0, 4), m = +mKey.slice(5, 7), n = new Date(y, m, 0).getDate(), first = new Date(y, m - 1, 1).getDay(), hoje = todayKey(), tot = salesIndex().dayTot;
     var vals = [], mx = 0; for (var d = 1; d <= n; d++) { var k = mKey + '-' + String(d).padStart(2, '0'), v = money(tot.get(k) || 0); vals.push([k, v]); if (v > mx) mx = v; }
     var curto = function (v) { return v >= 1000 ? (v / 1000).toFixed(1).replace('.', ',') + 'k' : String(Math.round(v)); };
-    var h = '<div class="cal-t">Calendário · toque num dia para abrir as vendas dele</div><div class="cal" role="group" aria-label="Faturamento por dia do mês">' + ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(function (w) { return '<span class="cal-h" aria-hidden="true">' + w + '</span>'; }).join('');
+    var h = '<div class="cal-wrap"><div class="cal-t">Calendário · toque num dia para abrir as vendas dele</div><div class="cal" role="group" aria-label="Faturamento por dia do mês">' + ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(function (w) { return '<span class="cal-h" aria-hidden="true">' + w + '</span>'; }).join('');
     for (var p = 0; p < first; p++) h += '<span class="cal-d pad" aria-hidden="true"></span>';
     vals.forEach(function (e) {
       var k = e[0], v = e[1], fut = k > hoje, hv = mx > 0 ? Math.sqrt(v / mx) : 0, dn = +k.slice(8, 10);
       h += fut ? '<span class="cal-d fut" aria-hidden="true"><span>' + dn + '</span></span>'
         : '<button type="button" class="cal-d' + (k === hoje ? ' today' : '') + (hv > .55 ? ' hot' : '') + '" style="--h:' + hv.toFixed(3) + '" data-goday="' + k + '" aria-label="Abrir ' + escAttr(fmtDayLong(k)) + ': ' + escAttr(brl(v)) + '"><span>' + dn + '</span><small>' + (v > 0 ? curto(v) : '') + '</small></button>';
     });
-    return h + '</div>';
+    return h + '</div></div>';
   }
   function chartsHtml(mKey) {
     var pKey = monthKeyOf(new Date(+mKey.slice(0, 4), +mKey.slice(5, 7) - 2, 1));
@@ -2871,7 +2884,7 @@
     var hs = Object.keys(hr).map(Number), lo = Math.min.apply(null, hs), hi = Math.max.apply(null, hs), hv = [], hl = [];
     if (hs.length) for (var h = lo; h <= hi; h++) { hv.push(hr[h] || 0); hl.push(h + 'h'); }
     var bestD = wd.indexOf(Math.max.apply(null, wd)), bestH = hs.length ? hs.sort(function (a, b) { return hr[b] - hr[a]; })[0] : null;
-    var c1 = '<div class="card"><div class="card-title">Faturamento por dia</div>' + (tc ? '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--brass-hi)"/><stop offset="1" style="stop-color:var(--brass-lo)"/></linearGradient></defs>' + bars + line + '</svg><div class="chart-leg"><span><i class="lg-bar"></i>este mês</span>' + (tp ? '<span><i class="lg-dash"></i>mês passado</span>' : '') + '<span>dia 1 → ' + n + '</span></div>' : '<div class="empty">Nenhuma venda neste mês.</div>') + '<div class="item-price" style="padding-top:8px">' + cmp + '</div>' + calHtml(mKey) + '</div>';
+    var c1 = '<div class="card card-fat"><div class="card-title">Faturamento por dia</div>' + (tc ? '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--brass-hi)"/><stop offset="1" style="stop-color:var(--brass-lo)"/></linearGradient></defs>' + bars + line + '</svg><div class="chart-leg"><span><i class="lg-bar"></i>este mês</span>' + (tp ? '<span><i class="lg-dash"></i>mês passado</span>' : '') + '<span>dia 1 → ' + n + '</span></div>' : '<div class="empty">Nenhuma venda neste mês.</div>') + '<div class="item-price" style="padding-top:8px">' + cmp + '</div>' + calHtml(mKey) + '</div>';
     var c2 = '<div class="card"><div class="card-title">Quando você mais vende</div>' + (tc ? '<div class="insight">🏆 Melhor dia: <b>' + WN[bestD] + '</b>' + (bestH !== null ? ' · melhor horário: <b>' + bestH + 'h</b>' : '') + '</div><div class="item-price">Por dia da semana</div>' + hbars(wd, WN) + (hv.length ? '<div class="item-price" style="margin-top:10px">Por horário</div>' + hbars(hv, hl) : '') : '<div class="empty">Nenhuma venda neste mês.</div>') + '</div>';
     return c1 + c2;
   }
@@ -3360,8 +3373,10 @@
     if (dk) add('Data', '◷', 'Abrir ' + fmtDayLong(dk), brl(dayTotalOf(dk)), function () { currentTab = currentTab === 'despesas' ? 'despesas' : 'vendas'; goToDay(dk); window.scrollTo(0, 0); });
     [['vendas', 'Vendas'], ['estoque', 'Estoque'], ['despesas', 'Gastos'], ['resumo', 'Resumo']].forEach(function (a) { if (has(a[1]) || (nq && has('ir para ' + a[1]))) add('Ir para', '→', a[1], 'Alt+' + (TABS.indexOf(a[0]) + 1), function () { irAba(a[0]); }); });
     if (nq) {
+      var cpk = cloneProd();
+      if (cpk && has('Controle clonável')) add('Pôr na venda', '+', 'Controle clonável', brl(PRECO_CLONAVEL) + ' · ' + availQty(cpk) + ' un.', function () { var s = stockItems[cpk.id]; if ((s ? s.qty : 0) < availQty(cpk)) addStockItem(cpk); else showToast('Controle clonável: sem unidades disponíveis no estoque', false, true); irAba('vendas'); });
       ['simples', 'tetra', 'moto', 'carro'].forEach(function (id) { var c = CATEGORIES.find(function (x) { return x.id === id; }); if (has(c.label)) add('Pôr na venda', '+', c.label, c.price ? brl(c.price) : 'valor a informar', function () { itemState[id].qty += 1; irAba('vendas'); }); });
-      (searchProducts(q, null, true) || []).slice(0, 6).forEach(function (x) { add('Pôr na venda', '+', pname(x), (prodPrice(x) > 0 ? brl(prodPrice(x)) : 'sem preço') + ' · ' + x.qty + ' un.', function () { addStockItem(x); irAba('vendas'); }); });
+      (searchProducts(q, null, true) || []).filter(function (x) { return !cpk || x.id !== cpk.id; }).slice(0, 6).forEach(function (x) { add('Pôr na venda', '+', pname(x), (prodPrice(x) > 0 ? brl(prodPrice(x)) : 'sem preço') + ' · ' + x.qty + ' un.', function () { addStockItem(x); irAba('vendas'); }); });
       var grupos = {}; salesIndex().fiado.forEach(function (v) { var n = (v.cliente || '').trim(); if (!n || norm(n).indexOf(nq) < 0) return; var g = grupos[norm(n)] || (grupos[norm(n)] = { nome: n, n: 0, t: 0 }); g.n++; g.t = money(g.t + saldoFiado(v)); });
       Object.keys(grupos).slice(0, 4).forEach(function (k) { var g = grupos[k]; add('Fiado', '✎', 'Fiado com o nome “' + g.nome + '”', g.n + (g.n === 1 ? ' venda · ' : ' vendas · ') + brl(g.t), function () { irAba('resumo'); var c = document.querySelector('#resumoContent [data-fiado-total]'); if (c) c.scrollIntoView({ block: 'start' }); }); });
       add('Vendas', '⌕', 'Procurar vendas com “' + q.trim() + '”', 'histórico', function () { irAba('vendas'); var h = document.getElementById('histSearch'); h.value = q.trim(); renderHistoryAndTotal(); document.getElementById('histArea').scrollIntoView({ block: 'start' }); });
