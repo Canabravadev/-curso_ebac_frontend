@@ -920,6 +920,82 @@
   /* --- herói: "Últimos 7 dias" numa pílula — a linha do gráfico não passa mais por cima do texto --- */
   .spark-cap { z-index: 2; pointer-events: none; bottom: 7px; padding: 2px 9px; border-radius: 99px; background: rgba(20,14,6,.42); opacity: .9; }
 
+  /* --- herói: comparação com a semana anterior · estoque: valor --- */
+  .day-cmp { font-size: .76rem; opacity: .9; margin-top: 2px; }
+  .day-cmp b { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+  .day-cmp .up { color: #B6E79A; } .day-cmp .down { color: #FFB59E; } .day-cmp .eq { color: var(--heroInk); }
+  .totalbar .t-val { display: block; margin-top: 2px; font-size: .74rem; letter-spacing: 0; text-transform: none; font-weight: 500; color: var(--ink-soft); }
+  .a12-b:first-child .a12-v { left: 0; right: -40px; text-align: left; } .a12-b:last-child .a12-v { left: -40px; right: 0; text-align: right; }
+
+  /* --- resumo: últimos 12 meses --- */
+  #resumoContent > .card-ano { grid-column: 1 / -1; }
+  .a12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; margin-top: 8px; }
+  .a12-b { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding: 20px 0 4px; border: 0; background: none; border-radius: 8px;
+    cursor: pointer; font-family: inherit; color: var(--ink-soft); min-width: 0; transition: background .12s; }
+  .a12-b:hover { background: var(--brass-wash); }
+  .a12-c { position: relative; display: block; height: 118px; }
+  .a12-c i { position: absolute; bottom: 0; left: 0; right: 0; margin: 0 auto; width: min(24px, 70%); height: var(--h); border-radius: 4px 4px 0 0;
+    background: color-mix(in srgb, var(--brass) 45%, var(--line)); }
+  .a12-b.on .a12-c i { background: linear-gradient(var(--brass-hi), var(--brass-lo)); box-shadow: 0 0 10px var(--glow); }
+  .a12-v { position: absolute; left: -22px; right: -22px; bottom: calc(var(--h) + 4px); text-align: center; font-family: 'JetBrains Mono', monospace; font-size: .64rem; font-weight: 700; color: var(--ink); white-space: nowrap; pointer-events: none; }
+  .a12-b small { text-align: center; font-size: .66rem; text-transform: capitalize; }
+  .a12-b.on small { color: var(--ink); font-weight: 700; }
+  .a12-b::after { content: attr(data-tip); position: absolute; left: 50%; bottom: calc(100% + 2px); transform: translateX(-50%); white-space: nowrap; padding: 5px 10px; border-radius: 8px;
+    background: var(--ink); color: var(--bg); font-size: .72rem; font-weight: 600; opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 3; }
+  .a12-b.ini::after { left: 0; transform: none; } .a12-b.fim::after { left: auto; right: 0; transform: none; }
+  .a12-b:hover::after, .a12-b:focus-visible::after { opacity: 1; }
+  .a12-n { padding-top: 8px; }
+  @media (max-width: 640px) { .a12 { gap: 2px; } .a12-c { height: 96px; } .a12-b small { font-size: .58rem; } }
+
+  /* --- WhatsApp: comprovante, lembrete de fiado, resumo do dia --- */
+  .s-wa { border: none; background: none; color: var(--steel); cursor: pointer; border-radius: 8px; width: 32px; height: 32px; display: inline-grid; place-items: center; padding: 0;
+    opacity: .6; transition: opacity .15s, background .15s, color .15s; }
+  .sale-item:hover .s-wa, .s-wa:focus-visible { opacity: 1; }
+  .s-wa:hover, .s-wa:active { background: color-mix(in srgb, #25D366 16%, transparent); color: #128C4A; }
+  .wa-lembra, .hist-share { display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, #25D366 45%, var(--line)); background: var(--paper); color: #127A42;
+    border-radius: 99px; padding: 6px 12px; min-height: 32px; font-family: inherit; font-size: .78rem; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; }
+  .wa-lembra:hover, .hist-share:hover { background: color-mix(in srgb, #25D366 12%, var(--paper)); border-color: #25D366; }
+  .wa-lembra { margin: 4px 0 10px; } .hist-share[hidden] { display: none; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wa-lembra, :root:not([data-theme="light"]) .hist-share { color: #6EE7A0; } :root:not([data-theme="light"]) .s-wa:hover { color: #6EE7A0; } }
+  :root[data-theme="dark"] .wa-lembra, :root[data-theme="dark"] .hist-share { color: #6EE7A0; } :root[data-theme="dark"] .s-wa:hover { color: #6EE7A0; }
+  @media (max-width: 640px) { .sale-item .s-right .s-wa, .sale-item .s-right .s-edit, .sale-item .s-right .s-del { width: 30px; } .hist-share span { display: none; } .hist-share { padding: 6px 9px; }
+    #history .sale-item .s-right { width: 96px; column-gap: 3px; } }
+
+  /* --- recorde e celebração --- */
+  .rec-badge { display: inline-block; margin-left: 8px; padding: 2px 9px; border-radius: 99px; font-size: .68rem; font-weight: 700; letter-spacing: .02em;
+    background: linear-gradient(180deg, #FFE6A8, #E8B652); color: #3A2708; box-shadow: 0 2px 10px rgba(255,200,90,.35); vertical-align: 2px; }
+  .rec-badge[hidden] { display: none; }
+  @media (max-width: 860px) { .rec-badge { display: table; margin: 6px 0 0; } }   /* no celular, em linha própria e alinhado ao rótulo */
+  .celebra { position: fixed; left: 50%; top: calc(var(--stick-top, 64px) + 72px); transform: translateX(-50%); z-index: 81; pointer-events: none;
+    padding: 12px 22px; border-radius: 22px; font-weight: 700; font-size: 1rem; text-align: center; width: max-content; max-width: calc(100vw - 32px);
+    background: linear-gradient(180deg, var(--brass-hi), var(--brass-lo)); color: var(--on-gold); box-shadow: 0 16px 40px -8px rgba(0,0,0,.45), 0 0 0 3px color-mix(in srgb, var(--brass) 30%, transparent); }
+  .confete { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 80; pointer-events: none; }
+  h1 .logo svg { transform-origin: 50% 50%; }
+
+  /* --- pulso do mês (faixa do Resumo) e ritmo da meta (herói) --- */
+  .resumo-strip .pulse { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; gap: 8px; padding-top: 12px; margin-top: 2px; border-top: 1px dashed var(--line); }
+  .pulse-c { display: flex; flex-direction: column; gap: 1px; flex: 1 1 150px; min-width: 0; padding: 8px 12px; border-radius: var(--r-sm); background: var(--brass-wash); }
+  .resumo-strip .pulse-c b { font-size: 1.02rem; }
+  .pulse-c i { font-style: normal; font-size: .7rem; }
+  .resumo-strip .pulse-c small, .pulse-c i { color: color-mix(in srgb, var(--ink) 78%, transparent); }   /* texto secundário legível sobre o fundo dourado (AA) */
+  .pulse-c.meta { background: color-mix(in srgb, var(--brass) 18%, var(--paper)); }
+  .pulse-c.ok b { color: var(--ok); }
+  .g-pace { margin-top: 4px; font-size: .74rem; opacity: .82; }
+
+  /* --- troco (pagamento em dinheiro) --- */
+  .troco { margin-top: 10px; padding: 10px 12px 12px; border-radius: var(--r-md); background: var(--brass-wash); border: 1px dashed color-mix(in srgb, var(--brass) 45%, transparent);
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 14px; align-items: end; }
+  .troco .field-wrap { min-width: 0; } .troco .field-wrap label { color: var(--brass-strong); font-weight: 600; }
+  .troco-r { text-align: right; min-width: 96px; padding-bottom: 4px; }
+  .troco-r span { display: block; font-size: .66rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-soft); }
+  .troco-r b { display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 1.3rem; color: var(--ok); }
+  .troco-r b.vazio { color: var(--ink-soft); opacity: .6; } .troco-r .falta { color: var(--danger); }
+  .troco-q { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; }
+  .troco-q:empty { display: none; }
+  .troco-b { border: 1px solid var(--line); background: var(--paper); color: var(--ink); border-radius: 99px; padding: 6px 12px; min-height: 32px;
+    font-family: 'JetBrains Mono', monospace; font-size: .8rem; cursor: pointer; transition: border-color .12s, transform .1s; }
+  .troco-b:hover { border-color: var(--brass); } .troco-b:active { transform: scale(.95); }
+
   /* --- fiado: idade da dívida --- */
   .f-age { font-family: 'JetBrains Mono', monospace; font-size: .7rem; color: var(--ink-soft); }
   .f-age.old { color: var(--danger); font-weight: 700; }
@@ -964,11 +1040,11 @@
   <div class="day-warn" id="dayWarn" role="status" hidden></div>
 
   <div id="vendasSection">
-    <section class="hero"><div class="hero-main"><small id="heroLbl">Faturamento do dia</small><div class="big" id="dayTotal">R$ 0,00</div></div><div class="pays" id="paySum"></div><div class="goal" id="goalBox"></div><svg class="spark" id="spark" viewBox="0 0 400 84" preserveAspectRatio="none" aria-hidden="true"></svg><div class="spark-days" id="sparkDays" role="group" aria-label="Últimos 7 dias"></div><span class="spark-cap">últimos 7 dias</span></section>
+    <section class="hero"><div class="hero-main"><small id="heroLbl">Faturamento do dia</small><span class="rec-badge" id="recBadge" hidden>🏆 Recorde do mês</span><div class="big" id="dayTotal">R$ 0,00</div><div class="day-cmp" id="dayCmp"></div></div><div class="pays" id="paySum"></div><div class="goal" id="goalBox"></div><svg class="spark" id="spark" viewBox="0 0 400 84" preserveAspectRatio="none" aria-hidden="true"></svg><div class="spark-days" id="sparkDays" role="group" aria-label="Últimos 7 dias"></div><span class="spark-cap">últimos 7 dias</span></section>
     <div class="sale-bar" id="saleBar" role="region" aria-label="Venda em andamento"><button type="button" class="sb-sum" id="sbSum"><small id="sbN"></small><b id="sbTot"></b></button><button type="button" class="sb-reg" id="sbReg">Registrar</button></div>
     <div class="cols sale-cols" id="vendasCols"><div class="col"><div id="saleFormWrap"></div></div><div class="col col-receipt"><div id="saleTotalsWrap"></div></div></div>
     <div class="hist-area" id="histArea">
-      <div class="hist-head"><div class="section-title" id="histTitle">Vendas do dia</div><div class="field-wrap hist-search"><div class="money-input"><input class="text-input" type="search" id="histSearch" placeholder="Buscar no histórico (item, dia, cliente, valor)" aria-label="Buscar no histórico"></div></div></div>
+      <div class="hist-head"><div class="section-title" id="histTitle">Vendas do dia</div><button type="button" class="hist-share" id="shareDay" title="Resumo do dia no WhatsApp" aria-label="Compartilhar o resumo do dia no WhatsApp"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.6-5.4A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span>Compartilhar</span></button><div class="field-wrap hist-search"><div class="money-input"><input class="text-input" type="search" id="histSearch" placeholder="Buscar no histórico (item, dia, cliente, valor)" aria-label="Buscar no histórico"></div></div></div>
       <div class="history" id="history"></div>
       <details class="card caixa" id="caixaBox"><summary>Conferir o caixa do dia</summary>
         <div class="extra-fields caixa-in">
@@ -1090,7 +1166,7 @@
   function saleEditKey(s) { return JSON.stringify([s.day, s.items, s.subtotal, s.discount, s.total, s.pay, s.cliente]); }
   var DEFAULT_PAY = 'cartao';
   function resetItemState() {
-    stockItems = {}; stockQueries = {}; payState = DEFAULT_PAY; clienteState = ''; outrosList = []; legacyItems = [];
+    stockItems = {}; stockQueries = {}; payState = DEFAULT_PAY; clienteState = ''; outrosList = []; legacyItems = []; trocoRaw = '';
     editBase = {}; editingOrigPay = null; editingSaleDay = null;
     CATEGORIES.forEach(function (c) { itemState[c.id] = { qty: 0, price: c.price !== null ? c.price : '', desc: '', over: null, src: null }; });
   }
@@ -1602,7 +1678,7 @@
     var totalEl = document.getElementById('totalDisplay'); if (totalEl) totalEl.textContent = fi.error ? '—' : brl(fi.total);
     var fvi = document.getElementById('finalValueInput'); if (fvi) { fvi.classList.toggle('invalid', !!fi.error); fvi.placeholder = moneyInput(fi.subtotal); }
     var registrarBtn = document.getElementById('registrarBtn'); if (registrarBtn) registrarBtn.disabled = !isFormValid();
-    markSelChanges();
+    markSelChanges(); updateTroco();
     var rh = document.getElementById('regHint'); if (rh) { rh.textContent = regHint(); rh.classList.toggle('err', !!fi.error); }
     document.querySelectorAll('[data-sp-wrap]').forEach(function (w) {
       var s = stockItems[w.getAttribute('data-sp-wrap')]; if (s) w.classList.toggle('invalid', !(num(s.price) > 0));
@@ -1883,6 +1959,7 @@
       all.push(rec);
     }
     applyStock(es, rec, -1);
+    var mes0 = monthTotalOf(rec.day.slice(0, 7)), rec0 = recordeDoMes(rec.day);   // para a celebração (só leitura)
     // Venda e estoque gravados juntos: se falhar, nada muda e o formulário continua preenchido.
     if (!commit(dataMap(all, null, es))) return;
     setUndo([{ before: idx >= 0 ? orig : null, after: rec }]);
@@ -1892,6 +1969,12 @@
     finalValueRaw = '';
     renderApp();
     marcarVenda(rec.id);
+    anima(document.querySelector('h1 .logo svg'), 'gira');
+    if (!wasEdit) {
+      var meta = loadMeta(), mes1 = monthTotalOf(rec.day.slice(0, 7));
+      if (meta && mes0 < meta && mes1 >= meta) celebra('🎯 Meta do mês batida! ' + brl(mes1));
+      else if (!rec0 && recordeDoMes(rec.day)) celebra('🏆 Recorde do mês: ' + brl(dayTotalOf(rec.day)));
+    }
   }
   // Microinterações: curtas, discretas e só para explicar o que mudou. Web Animations API: nenhuma classe fica
   // no DOM; com "reduzir movimento" no sistema nada anima.
@@ -1903,8 +1986,43 @@
     // troca de dia: só opacidade — a lista não se move sob o dedo (um toque logo após trocar de dia acerta a linha certa)
     l: [[{ opacity: .2 }, { opacity: 1 }], 200],
     r: [[{ opacity: .2 }, { opacity: 1 }], 200],
-    fade: [[{ opacity: 0 }, { opacity: 1 }], 150]
+    fade: [[{ opacity: 0 }, { opacity: 1 }], 150],
+    // a chave do logo "tranca" a venda: meia volta e volta
+    gira: [[{ transform: 'rotate(0deg)' }, { transform: 'rotate(-75deg)', offset: .45 }, { transform: 'rotate(0deg)' }], 700]
   };
+  // Recorde: o dia ficou acima de todos os outros dias do mesmo mês que tiveram venda.
+  function recordeDoMes(key) {
+    var tot = salesIndex().dayTot, v = money(tot.get(key) || 0), m = key.slice(0, 7), maior = 0, outro = false;
+    if (!(v > 0)) return false;
+    tot.forEach(function (x, k) { if (k !== key && k.slice(0, 7) === m && x > 0) { outro = true; if (x > maior) maior = x; } });
+    return outro && v > maior;
+  }
+  // Celebração: pílula de destaque + confete de latão (canvas temporário, removido ao terminar). Nada fica no DOM.
+  function celebra(msg) {
+    var el = document.createElement('div'); el.className = 'celebra'; el.setAttribute('role', 'status'); el.textContent = msg;
+    document.body.appendChild(el);
+    if (!reduzMov.matches && el.animate) el.animate([{ opacity: 0, transform: 'translate(-50%, 12px) scale(.9)' }, { opacity: 1, transform: 'translate(-50%, 0) scale(1)' }], { duration: 320, easing: 'cubic-bezier(.2,.9,.3,1.3)' });
+    setTimeout(function () {
+      if (!reduzMov.matches && el.animate) { var a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 400, fill: 'forwards' }); a.onfinish = function () { el.remove(); }; } else el.remove();
+    }, 3200);
+    if (!reduzMov.matches) confete();
+  }
+  function confete() {
+    var cv = document.createElement('canvas'), dpr = Math.min(2, window.devicePixelRatio || 1), W = innerWidth, H = innerHeight;
+    cv.className = 'confete'; cv.width = W * dpr; cv.height = H * dpr; document.body.appendChild(cv);
+    var g = cv.getContext('2d'); if (!g) { cv.remove(); return; } g.scale(dpr, dpr);
+    var cores = ['#F6D88F', '#E3B965', '#B8863B', '#FFF3D1', '#8A6528', '#F0B24B'], ps = [];
+    for (var i = 0; i < 110; i++) ps.push({ x: W / 2 + (Math.random() - .5) * W * .3, y: H * .28, vx: (Math.random() - .5) * 13, vy: -Math.random() * 11 - 4,
+      r: Math.random() * Math.PI, vr: (Math.random() - .5) * .35, w: 6 + Math.random() * 6, h: 3 + Math.random() * 4, c: cores[i % cores.length] });
+    var t0 = performance.now();
+    (function quadro(t) {
+      var dt = Math.min(2, (t - (quadro.t || t)) / 16.7) || 1; quadro.t = t;
+      g.clearRect(0, 0, W, H);
+      ps.forEach(function (p) { p.vy += .32 * dt; p.vx *= .992; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
+        g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.globalAlpha = Math.max(0, 1 - (t - t0) / 2200); g.fillStyle = p.c; g.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); g.restore(); });
+      if (t - t0 < 2200) requestAnimationFrame(quadro); else cv.remove();
+    })(t0);
+  }
   function anima(el, nome) { var a = ANIM[nome]; if (!el || !a || !el.animate || reduzMov.matches) return; try { el.animate(a[0], { duration: a[1], easing: 'cubic-bezier(.2,.8,.2,1)' }); } catch (e) {} }
   function marcarLinha(sel) { anima(document.querySelector(sel), 'marca'); }
   function marcarVenda(id) { if (id) marcarLinha('#history .sale-item[data-id="' + (window.CSS && CSS.escape ? CSS.escape(id) : id) + '"]'); }
@@ -1973,6 +2091,45 @@
     rightEl.querySelector('.yes').addEventListener('click', onYes);
     rightEl.querySelector('.no').addEventListener('click', renderApp);
   }
+  // WhatsApp: textos prontos (comprovante, lembrete de fiado, resumo do dia). Sem telefone guardado (não há
+  // cadastro de clientes): o WhatsApp abre para escolher o contato. O texto também vai para a área de transferência.
+  var WA_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.6-5.4A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg>';
+  function capIni(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  function abreWhats(txt, aviso) {
+    try { if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(function () {}); } catch (e) {}
+    var w = window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener');
+    showToast(aviso || (w === null ? 'Texto copiado — cole no WhatsApp' : 'Abrindo o WhatsApp (o texto também foi copiado)'));
+  }
+  function msgComprovante(v) {
+    var t = ['*Chaveiro* — comprovante', capIni(fmtDayLong(v.day)) + (v.manual ? '' : ' · ' + timeLabel(v))];
+    (v.items || []).forEach(function (it) { t.push('• ' + it.qty + 'x ' + itemName(it) + ' — ' + brl(money((it.unitPrice || 0) * it.qty))); });
+    if (v.discount > 0) t.push('Desconto: − ' + brl(v.discount));
+    t.push('*Total: ' + brl(v.total) + '*');
+    var f = v.pay === 'fiado' ? saldoFiado(v) : 0;
+    t.push('Pagamento: ' + payLabel(v.pay) + (v.pay === 'fiado' ? (f > 0 ? ' (em aberto: ' + brl(f) + ')' : ' (quitado)') : ''));
+    t.push('Obrigado pela preferência! 🔑');
+    return t.join('\n');
+  }
+  function msgFiado(vs) {
+    var nome = (vs[0] && vs[0].cliente || '').trim(), tot = money(vs.reduce(function (s, v) { return s + saldoFiado(v); }, 0));
+    var linhas = vs.map(function (v) { return '• ' + fmtDayShort(v.day) + ': ' + v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', ') + ' — ' + brl(saldoFiado(v)); });
+    return ['Olá' + (nome ? ', ' + nome : '') + '! Tudo bem? 😊', 'Passando para lembrar do valor em aberto aqui no chaveiro:'].concat(linhas)
+      .concat(['*Total: ' + brl(tot) + '*', 'Quando puder, dá para pagar em dinheiro, Pix ou cartão. Obrigado! 🔑']).join('\n');
+  }
+  function msgResumoDia(key) {
+    var vs = salesOfDay(key), por = { dinheiro: 0, pix: 0, cartao: 0, fiado: 0 }, outros = 0;
+    vs.forEach(function (v) { if (por[v.pay] !== undefined) por[v.pay] += v.total; else outros += v.total; });
+    var rec = 0; recOfDay(key).forEach(function (e) { rec += Number(e.r.valor) || 0; });
+    var gastos = money(expIndex().dayTot.get(key) || 0), tot = dayTotalOf(key);
+    var t = ['*Chaveiro — ' + capIni(fmtDayLong(key)) + '*', 'Vendas: ' + vs.length + ' · ' + brl(tot)];
+    ['dinheiro', 'pix', 'cartao', 'fiado'].forEach(function (k) { if (por[k]) t.push('• ' + PAY[k] + ': ' + brl(money(por[k]))); });
+    if (outros) t.push('• Sem forma informada: ' + brl(money(outros)));
+    if (rec) t.push('Fiado recebido hoje: ' + brl(money(rec)));
+    if (gastos) t.push('Gastos: − ' + brl(gastos));
+    t.push('*Saldo do dia: ' + brl(money(tot - gastos)) + '*');
+    if (recordeDoMes(key)) t.push('🏆 Melhor dia do mês até agora!');
+    return t.join('\n');
+  }
   function buildSaleRow(sale, showDay) {
     var time = timeLabel(sale);
     if (showDay) time = sale.day.split('-').reverse().join('/') + ' · ' + time;
@@ -1983,9 +2140,10 @@
     var row = document.createElement('div'); row.className = 'sale-item'; row.setAttribute('data-id', sale.id);
     row.innerHTML = '<div class="s-left"><span class="s-time">' + time + '</span><span class="s-desc">' + summary + '</span>' +
       (sale.discount > 0 ? '<span class="s-discount">desconto ' + brl(sale.discount) + '</span>' : '') + payTag(sale) + '</div>' +
-      '<div class="s-right"><span class="s-total">' + brl(sale.total) + '</span><button class="s-edit" aria-label="Editar">✎</button><button class="s-del" aria-label="Remover">✕</button></div>';
+      '<div class="s-right"><span class="s-total">' + brl(sale.total) + '</span><button class="s-wa" aria-label="Comprovante no WhatsApp" title="Comprovante no WhatsApp">' + WA_SVG + '</button><button class="s-edit" aria-label="Editar">✎</button><button class="s-del" aria-label="Remover">✕</button></div>';
     if (sale.id === editingSaleId) row.classList.add('editing');
     row.querySelector('.s-edit').addEventListener('click', function () { requestEditSale(sale); });
+    row.querySelector('.s-wa').addEventListener('click', function () { abreWhats(msgComprovante(sale), 'Comprovante pronto — escolha o contato no WhatsApp (texto copiado)'); });
     // remover venda pode ser desfeito pelo aviso que aparece em seguida
     row.querySelector('.s-del').addEventListener('click', function () { confirmInline(row, 'Remover?', function () { removerVenda(sale.id); }); });
     return row;
@@ -2068,6 +2226,13 @@
     var sd = document.getElementById('sparkDays'); if (sd) sd.innerHTML = sparkDaysHtml();
     var hl = document.getElementById('heroLbl'); if (hl) hl.textContent = isToday ? 'Faturamento de hoje' : 'Faturamento de ' + fmtDayMed(key);
     var gb = document.getElementById('goalBox'); if (gb) gb.innerHTML = goalHtml(key.slice(0, 7));
+    var rb = document.getElementById('recBadge'); if (rb) rb.hidden = !recordeDoMes(key);
+    var dc = document.getElementById('dayCmp');
+    if (dc) {
+      var k7 = addDays(key, -7), a7 = dayTotalOf(key), b7 = dayTotalOf(k7), df = money(a7 - b7), wd = parseDay(k7).toLocaleDateString('pt-BR', { weekday: 'long' }).replace('-feira', '');
+      dc.innerHTML = !(a7 > 0) && !(b7 > 0) ? '' : '<b class="' + (df > 0 ? 'up">▲ ' : df < 0 ? 'down">▼ ' : 'eq">= ') + brl(Math.abs(df)) + '</b> vs ' + escAttr(wd) + ' anterior (' + (b7 > 0 ? brl(b7) : 'sem vendas') + ')';
+    }
+    var shd = document.getElementById('shareDay'); if (shd) shd.hidden = !daySales.length;
 
     var searchEl = document.getElementById('histSearch');
     var q = norm(searchEl ? searchEl.value : '');
@@ -2371,6 +2536,7 @@
   function renderEstoque() {
     var ix = estIndex(), all = ix.src;
     if (ix.un === undefined) ix.un = all.reduce(function (s, x) { return s + (Number(x.qty) || 0); }, 0);
+    if (ix.val === undefined) ix.val = money(all.reduce(function (s, x) { return x.inativo ? s : s + Math.max(0, Number(x.qty) || 0) * prodPrice(x); }, 0));
     // "Comprar": zerados primeiro, depois quem está mais longe do mínimo (proporcionalmente); empate = mesma ordem
     // da lista de produtos (sortedEst, que a aba já calcula), sem comparar nomes de novo.
     if (!ix.lowU) ix.lowU = sortedEst().filter(isLowStock).map(function (x, i) { var q = Number(x.qty) || 0; return { x: x, z: q > 0 ? 1 : 0, r: q / x.min, i: i }; })
@@ -2387,7 +2553,7 @@
       '<div class="field-wrap est-c"><select class="select-input" id="estCat" aria-label="Categoria">' + opts(STOCK_CATS, estUi.cat, '<option value="">Todas as categorias</option>') + '</select></div>' +
       '<button class="registrar-btn" id="estNew">+ Novo produto</button></div>' +
       nivHtml() + '<div id="estForm"></div><div id="estList"></div></div></div>' +
-      '<aside class="est-side"><div class="totalbar"><span class="t-label">Itens em estoque</span><span class="t-count">' + fmtInt(un) + '</span></div>' + buyCard + '</aside></div>';
+      '<aside class="est-side"><div class="totalbar"><span class="t-label">Itens em estoque' + (ix.val > 0 ? '<small class="t-val">valem ≈ ' + brl(ix.val) + ' a preço de venda</small>' : '') + '</span><span class="t-count">' + fmtInt(un) + '</span></div>' + buyCard + '</aside></div>';
     // Busca com debounce: com milhares de produtos, filtra só quando a pessoa para de digitar.
     document.getElementById('estSearch').addEventListener('input', function (e) { estUi.q = e.target.value; estUi.limit = 0; clearTimeout(estTimer); estTimer = setTimeout(renderEstList, EST_DEBOUNCE); });
     document.getElementById('estCat').addEventListener('change', function (e) { estUi.cat = e.target.value; estUi.limit = 0; clearTimeout(estTimer); renderEstList(); });
@@ -2734,8 +2900,35 @@
     on('dbMerge', function () { resolverConflito('juntar'); }); on('dbUseFile', function () { resolverConflito('arquivo'); }); on('dbUseLocal', function () { resolverConflito('local'); }); on('dbBoth', function () { resolverConflito('copias'); });
   }
 
+  // Troco (só na tela, nada é gravado): pagando em dinheiro, "Recebi R$ …" mostra o troco na hora, com atalhos
+  // das notas mais prováveis (próxima dezena, 20, 50, 100…).
+  var trocoRaw = '';
+  function trocoSugestoes(t) {
+    if (!(t > 0)) return [];
+    var out = [], put = function (v) { if (v > t && out.indexOf(v) < 0) out.push(v); };
+    [10, 20, 50, 100].forEach(function (m) { put(Math.ceil(t / m) * m); }); [50, 100, 200].forEach(put);
+    return out.sort(function (a, b) { return a - b; }).slice(0, 4);
+  }
+  function trocoQHtml(t) { return trocoSugestoes(t).map(function (v) { return '<button type="button" class="troco-b" data-troco="' + v + '">' + brl(v).replace(/,00$/, '') + '</button>'; }).join(''); }
+  function trocoTxt(t) {
+    var r = num(trocoRaw); if (!(r > 0) || !(t > 0)) return '<span>Troco</span><b class="vazio">—</b>';
+    var d = money(r - t);
+    return d >= 0 ? '<span>Troco</span><b>' + brl(d) + '</b>' : '<span class="falta">Falta</span><b class="falta">' + brl(-d) + '</b>';
+  }
+  function trocoHtml() {
+    if (payState !== 'dinheiro') return '';
+    var t = finalInfo().total;
+    return '<div class="troco" id="trocoBox"><div class="field-wrap"><label for="trocoIn">Recebi do cliente</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="trocoIn" placeholder="0,00" autocomplete="off" value="' + escAttr(trocoRaw) + '"></div></div>' +
+      '<div class="troco-r" id="trocoOut" aria-live="polite">' + trocoTxt(t) + '</div><div class="troco-q" id="trocoQ" data-t="' + t + '">' + trocoQHtml(t) + '</div></div>';
+  }
+  function updateTroco() {
+    var o = document.getElementById('trocoOut'); if (!o) return;
+    var t = finalInfo().total, h = trocoTxt(t), b0 = o.textContent; o.innerHTML = h;
+    if (o.textContent !== b0 && num(trocoRaw) > 0) anima(o.querySelector('b'), 'bump');
+    var q = document.getElementById('trocoQ'); if (q && q.getAttribute('data-t') !== String(t)) { q.setAttribute('data-t', t); q.innerHTML = trocoQHtml(t); }
+  }
   function payHtml() {
-    return '<div class="paybox"><div class="pay-l">Como o cliente pagou?</div><div class="pay-opts">' + Object.keys(PAY).map(function (k) { return '<button class="pay-btn' + (payState === k ? ' on' : '') + '" data-pay="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</div>' +
+    return '<div class="paybox"><div class="pay-l">Como o cliente pagou?</div><div class="pay-opts">' + Object.keys(PAY).map(function (k) { return '<button class="pay-btn' + (payState === k ? ' on' : '') + '" data-pay="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</div>' + trocoHtml() +
       (!payValid(payState) && editingSaleId ? '<div class="mini" style="margin-top:6px">' + (payState ? 'Forma de pagamento original desta venda: “' + escAttr(payState) + '” — é mantida se você não escolher outra.' : 'Esta venda antiga não tem forma de pagamento registrada — continua assim se você não escolher uma.') + '</div>' : '') +
       (payState === 'fiado' ? '<div class="field-wrap" style="margin-top:8px"><label for="clienteInput">Nome do cliente (obrigatório no fiado)</label><div class="money-input"><input class="text-input" type="text" id="clienteInput" value="' + escAttr(clienteState) + '"></div></div>' : '') + '</div>';
   }
@@ -2746,6 +2939,12 @@
     }); });
     var ci = document.getElementById('clienteInput');
     if (ci) ci.addEventListener('input', function () { clienteState = ci.value; updateTotalsDisplay(); });
+    var ti = document.getElementById('trocoIn'), tb = document.getElementById('trocoBox');
+    if (ti) ti.addEventListener('input', function () { trocoRaw = ti.value; updateTroco(); });
+    if (tb) tb.addEventListener('click', function (ev) {
+      var b = ev.target.closest('[data-troco]'); if (!b) return;
+      trocoRaw = moneyInput(+b.getAttribute('data-troco')); if (ti) ti.value = trocoRaw; updateTroco();
+    });
   }
   function svcHeadHtml() {
     var open = groupOpen.svc !== false, n = SERVICES.reduce(function (s, c) { return s + itemState[c.id].qty; }, 0);
@@ -2809,11 +3008,19 @@
   }
   function loadMeta() { return Number(lsGet(STORAGE_META)) || 0; }
   function saveMeta(v) { return commit(dataMap(null, null, null, money(v))); }
+  // Ritmo do mês corrente (só com dados reais): média por dia até hoje, dias que faltam (contando hoje) e a
+  // projeção "se continuar assim". Meses passados não têm ritmo — já fecharam.
+  function ritmoMes(mKey, tot) {
+    var hoje = todayKey(); if (mKey !== hoje.slice(0, 7)) return null;
+    var n = new Date(+mKey.slice(0, 4), +mKey.slice(5, 7), 0).getDate(), d = +hoje.slice(8, 10);
+    return { n: n, d: d, resta: n - d + 1, porDia: money(tot / d), proj: Math.round(tot / d * n) };
+  }
   function goalHtml(mKey) {
     var meta = loadMeta(), tot = monthTotalOf(mKey);
     if (!meta) return '<button class="goal-set" data-goal>🎯 Definir meta mensal</button>';
     var pct = Math.min(100, Math.round(tot / meta * 100)), done = tot >= meta;
-    return '<div class="g-top"><span title="A mesma meta vale para todos os meses">Meta mensal (' + escAttr(new Date(+mKey.slice(0, 4), +mKey.slice(5, 7) - 1, 1).toLocaleDateString('pt-BR', { month: 'long' })) + ')</span><b>' + Math.round(tot / meta * 100) + '%</b></div><div class="g-bar"><i class="' + (done ? 'done' : '') + '" style="width:' + pct + '%"></i></div><div class="g-foot">' + brl(tot) + ' de ' + brl(meta) + (done ? ' · meta batida! 🎉' : ' · faltam ' + brl(meta - tot)) + ' <button data-goal aria-label="Editar meta">✎</button></div>';
+    var rt = !done && ritmoMes(mKey, tot), pace = rt ? '<div class="g-pace">≈ ' + brl(Math.ceil((meta - tot) / rt.resta)) + ' por dia nos ' + rt.resta + (rt.resta === 1 ? ' dia que falta' : ' dias que faltam') + '</div>' : '';
+    return '<div class="g-top"><span title="A mesma meta vale para todos os meses">Meta mensal (' + escAttr(new Date(+mKey.slice(0, 4), +mKey.slice(5, 7) - 1, 1).toLocaleDateString('pt-BR', { month: 'long' })) + ')</span><b>' + Math.round(tot / meta * 100) + '%</b></div><div class="g-bar"><i class="' + (done ? 'done' : '') + '" style="width:' + pct + '%"></i></div><div class="g-foot">' + brl(tot) + ' de ' + brl(meta) + (done ? ' · meta batida! 🎉' : ' · faltam ' + brl(meta - tot)) + ' <button data-goal aria-label="Editar meta">✎</button></div>' + pace;
   }
   // Mais vendidos: as contagens são somadas uma vez por versão da lista de vendas; os nomes vêm do Map do
   // estoque (O(1)). O top 6 fica guardado até vendas ou estoque mudarem.
@@ -2843,7 +3050,8 @@
   }
   function favHtml() {
     var f = favItems(); if (!f.length) return '';
-    return '<div class="fav"><div class="fav-t">★ Mais vendidos · toque para adicionar</div><div class="fav-row">' + f.map(function (x) { return '<button class="fav-chip" data-fav="' + escAttr(x.k) + '">' + escAttr(x.name) + '<small>' + x.n + '</small></button>'; }).join('') + '</div></div>';
+    var cp = cloneProd(), cpk = cp ? 'p:' + cp.id : '';
+    return '<div class="fav"><div class="fav-t">★ Mais vendidos · toque para adicionar</div><div class="fav-row">' + f.map(function (x) { return '<button class="fav-chip" data-fav="' + escAttr(x.k) + '">' + escAttr(x.k === cpk ? 'Controle clonável' : x.name) + '<small>' + x.n + '</small></button>'; }).join('') + '</div></div>';
   }
   function sumA(a) { return a.reduce(function (s, x) { return s + x; }, 0); }
   function monthSums(mKey) {
@@ -2886,7 +3094,26 @@
     var bestD = wd.indexOf(Math.max.apply(null, wd)), bestH = hs.length ? hs.sort(function (a, b) { return hr[b] - hr[a]; })[0] : null;
     var c1 = '<div class="card card-fat"><div class="card-title">Faturamento por dia</div>' + (tc ? '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none"><defs><linearGradient id="cg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--brass-hi)"/><stop offset="1" style="stop-color:var(--brass-lo)"/></linearGradient></defs>' + bars + line + '</svg><div class="chart-leg"><span><i class="lg-bar"></i>este mês</span>' + (tp ? '<span><i class="lg-dash"></i>mês passado</span>' : '') + '<span>dia 1 → ' + n + '</span></div>' : '<div class="empty">Nenhuma venda neste mês.</div>') + '<div class="item-price" style="padding-top:8px">' + cmp + '</div>' + calHtml(mKey) + '</div>';
     var c2 = '<div class="card"><div class="card-title">Quando você mais vende</div>' + (tc ? '<div class="insight">🏆 Melhor dia: <b>' + WN[bestD] + '</b>' + (bestH !== null ? ' · melhor horário: <b>' + bestH + 'h</b>' : '') + '</div><div class="item-price">Por dia da semana</div>' + hbars(wd, WN) + (hv.length ? '<div class="item-price" style="margin-top:10px">Por horário</div>' + hbars(hv, hl) : '') : '<div class="empty">Nenhuma venda neste mês.</div>') + '</div>';
-    return c1 + c2;
+    return c1 + ano12Html(mKey) + c2;
+  }
+  // Últimos 12 meses (até o mês atual): uma coluna por mês, o mês em vista destacado. Rótulos só no mês em vista
+  // e no melhor mês (se não forem vizinhos, para não colidir); o resto fica na dica (passar o mouse/foco) e no
+  // nome acessível de cada coluna. Tocar abre o resumo daquele mês.
+  function ano12Html(mKey) {
+    var hoje = todayKey(), y = +hoje.slice(0, 4), m = +hoje.slice(5, 7), mt = salesIndex().monTot, ms = [], mx = 0;
+    for (var i = 11; i >= 0; i--) { var d = new Date(y, m - 1 - i, 1), k = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'), v = money(mt.get(k) || 0); ms.push({ k: k, v: v, d: d }); if (v > mx) mx = v; }
+    if (!(mx > 0)) return '';
+    var bi = 0, vi = -1; ms.forEach(function (e, j) { if (e.v > ms[bi].v) bi = j; if (e.k === mKey) vi = j; });
+    var curto = function (v) { return v >= 1000 ? 'R$ ' + (v / 1000).toFixed(1).replace('.', ',').replace(/,0$/, '') + ' mil' : 'R$ ' + Math.round(v); };
+    var bars = ms.map(function (e, j) {
+      var nome = e.d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }), ab = e.d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '');
+      var h = e.v > 0 ? Math.max(3, e.v / mx * 100).toFixed(1) : 0, best = j === bi;
+      var lbl = (j === vi || (best && (vi < 0 || Math.abs(bi - vi) >= 2))) && e.v > 0 ? '<b class="a12-v">' + curto(e.v) + '</b>' : '';
+      return '<button type="button" class="a12-b' + (j === vi ? ' on' : '') + (best ? ' best' : '') + (j < 3 ? ' ini' : j > 8 ? ' fim' : '') + '" data-mes="' + e.k + '" data-tip="' + escAttr(capIni(nome)) + ': ' + escAttr(brl(e.v)) + '" aria-label="' + escAttr(capIni(nome)) + ': ' + escAttr(brl(e.v)) + (best ? ' — melhor mês' : '') + '">' +
+        '<span class="a12-c" style="--h:' + h + '%">' + (e.v > 0 ? '<i></i>' : '') + lbl + '</span><small>' + escAttr(ab) + '</small></button>';
+    }).join('');
+    return '<div class="card card-ano"><div class="card-title">Últimos 12 meses</div><div class="a12" role="group" aria-label="Faturamento dos últimos 12 meses">' + bars + '</div>' +
+      '<div class="item-price a12-n">Melhor mês: <b>' + escAttr(capIni(ms[bi].d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }))) + '</b> · ' + brl(ms[bi].v) + ' · toque num mês para abrir o resumo dele</div></div>';
   }
   function payChips(sales, dayKeyRec) {
     var t = {}; sales.forEach(function (s) { var k = s.pay || ''; t[k] = (t[k] || 0) + s.total; });
@@ -2945,7 +3172,8 @@
       _fiadoGrupos = lista.map(function (g) { return g.vendas.map(function (v) { return v.id; }); });
       h += capList('fiado-cli', lista, 15, function (g, gi) {
         var multi = g.vendas.length > 1;
-        return '<div class="fiado-cli">' + (multi ? '<div class="fiado-cli-head"><span>Mesmo nome: <b>' + escAttr(g.nome) + '</b> · ' + g.vendas.length + ' vendas</span><b>' + brl(g.saldo) + '</b></div>' +
+        var lembra = '<button type="button" class="wa-lembra" data-wa-fiado="' + gi + '">' + WA_SVG + 'Lembrar no WhatsApp' + (multi ? ' (' + brl(g.saldo) + ')' : '') + '</button>';
+        return '<div class="fiado-cli">' + (multi ? '<div class="fiado-cli-head"><span>Mesmo nome: <b>' + escAttr(g.nome) + '</b> · ' + g.vendas.length + ' vendas</span><b>' + brl(g.saldo) + '</b></div>' + lembra +
           '<div class="fiado-row">Pagou tudo hoje ' + payBtns('data-recall', gi) + '</div>' : '') +
           g.vendas.map(function (v) {
             var resumo = v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', '), rec = recebido(v), falta = saldoFiado(v);
@@ -2953,7 +3181,7 @@
               (rec > 0 ? '<div class="item-price" style="width:100%">Total ' + brl(v.total) + ' · já recebido ' + brl(rec) + '</div>' : '') +
               '<div class="fiado-row"><label for="rv-' + escAttr(v.id) + '">Recebeu hoje R$</label><input class="text-input rec-val" inputmode="decimal" id="rv-' + escAttr(v.id) + '" data-recval="' + escAttr(v.id) + '" value="' + moneyTxt(falta) + '" aria-label="Valor recebido de ' + escAttr(v.cliente || 'sem nome') + '">' + payBtns('data-rec', v.id) + '</div>' +
               '<div class="hint" id="rh-' + escAttr(v.id) + '" data-rechint="' + escAttr(v.id) + '" style="display:none;width:100%"></div></div>';
-          }).join('') + '</div>';
+          }).join('') + (multi ? '' : lembra) + '</div>';
       }, 30);
       h += '</div>';
     }
@@ -3092,6 +3320,30 @@
     f.addEventListener('change', function () { if (f.files[0]) restaurarBackup(f.files[0]); });
   }
 
+  // Pulso do mês: números honestos tirados das vendas (ticket médio, ritmo, projeção rotulada como estimativa e
+  // quanto falta por dia para a meta). Nada é inventado: sem vendas, nada aparece.
+  function pulsoHtml(mKey, vendas, tot) {
+    var nV = vendas.length; if (!nV) return '';
+    var r = ritmoMes(mKey, tot), meta = loadMeta(), ch = [], chip = function (t, v, i, cls) { ch.push('<span class="pulse-c' + (cls ? ' ' + cls : '') + '"><small>' + t + '</small><b>' + v + '</b><i>' + i + '</i></span>'); };
+    chip('Ticket médio', brl(money(tot / nV)), nV + (nV === 1 ? ' venda' : ' vendas'));
+    if (r) {
+      chip('Ritmo', brl(r.porDia) + '/dia', 'média de ' + r.d + (r.d === 1 ? ' dia' : ' dias'));
+      if (r.d >= 7 && r.d < r.n) chip('Se continuar assim', '≈ ' + brl(r.proj), 'estimativa do mês');
+      if (meta && tot < meta) chip('Para a meta', brl(Math.ceil((meta - tot) / r.resta)) + '/dia', r.resta + (r.resta === 1 ? ' dia restante' : ' dias restantes'), 'meta');
+      else if (meta && tot >= meta) chip('Meta', 'batida! 🎉', brl(tot) + ' de ' + brl(meta), 'ok');
+    } else {
+      var nd = new Date(+mKey.slice(0, 4), +mKey.slice(5, 7), 0).getDate();
+      chip('Média por dia', brl(money(tot / nd)), nd + ' dias no mês');
+    }
+    return '<div class="pulse" aria-label="Pulso do mês">' + ch.join('') + '</div>';
+  }
+  document.getElementById('shareDay').addEventListener('click', function () { abreWhats(msgResumoDia(viewDay), 'Resumo do dia pronto — escolha o contato no WhatsApp (texto copiado)'); });
+  document.getElementById('resumoContent').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-wa-fiado]'); if (!b) return;
+    var ids = _fiadoGrupos[+b.getAttribute('data-wa-fiado')] || [], all = loadVendas();
+    var vs = ids.map(function (id) { return all.find(function (v) { return v.id === id; }); }).filter(function (v) { return v && saldoFiado(v) > 0; });
+    if (vs.length) abreWhats(msgFiado(vs), 'Lembrete pronto — escolha o contato no WhatsApp (texto copiado)');
+  });
   function renderResumo() {
     var mKey = viewMonth, monthDate = new Date(+mKey.slice(0, 4), +mKey.slice(5, 7) - 1, 1);
     document.getElementById('monthLabel').textContent = monthDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
@@ -3133,7 +3385,7 @@
     }).join('');
 
     var html = '<div class="card card-wide resumo-strip"><div><small>Vendas do mês (líquido)</small><b>' + brl(totalLiquido) + '</b></div><div><small>Gastos do mês</small><b>' + brl(totalDespesas) + '</b></div>' +
-      '<div class="saldo' + (saldo < 0 ? ' neg' : '') + '"><small>Saldo do mês</small><b>' + brl(saldo) + '</b></div></div>';
+      '<div class="saldo' + (saldo < 0 ? ' neg' : '') + '"><small>Saldo do mês</small><b>' + brl(saldo) + '</b></div>' + pulsoHtml(mKey, vendas, totalLiquido) + '</div>';
     html += chartsHtml(mKey);
     html += '<div class="card"><div class="card-title">Vendas do mês</div>' +
       (vendasRows || '<div class="empty">Nenhuma venda neste mês.</div>') +
@@ -3152,6 +3404,7 @@
     var exportBtn = document.getElementById('exportBtn');
     if (exportBtn) exportBtn.addEventListener('click', function () { exportarMes(mKey, vendas, despesas, totalBruto, totalDesconto, totalLiquido, totalDespesas, saldo); });
     bindBackup(); bindReceber(); bindShowMore();
+    document.querySelectorAll('#resumoContent .a12-b').forEach(function (b) { b.addEventListener('click', function () { if (b.getAttribute('data-mes') !== viewMonth) { viewMonth = b.getAttribute('data-mes'); renderApp(); window.scrollTo(0, 0); } }); });
     document.querySelectorAll('#resumoContent .cal [data-goday]').forEach(function (b) { b.addEventListener('click', function () { currentTab = 'vendas'; goToDay(b.getAttribute('data-goday')); window.scrollTo(0, 0); }); });
   }
 
@@ -3385,6 +3638,7 @@
       ['Novo gasto', function () { irAba('despesas'); var d = document.getElementById('expDesc'); if (d) d.focus(); }],
       ['Novo produto', function () { estUi.form = 'new'; estUi.pre = null; irAba('estoque'); }],
       ['Salvar backup agora', function () { fazerBackup(); }],
+      ['Compartilhar resumo do dia (WhatsApp)', function () { abreWhats(msgResumoDia(viewDay), 'Resumo do dia pronto — escolha o contato no WhatsApp (texto copiado)'); }],
       ['Tema: ' + temaProx().label, function () { trocarTema(); }]];
     acoes.forEach(function (a) { if (has(a[0])) add('Ações', '•', a[0], '', a[1]); });
     return out;
