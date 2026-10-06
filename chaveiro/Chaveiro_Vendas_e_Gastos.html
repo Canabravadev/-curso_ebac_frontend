@@ -1523,7 +1523,7 @@
     keys = keys || [STORAGE_VENDAS, STORAGE_DESPESAS, STORAGE_ESTOQUE, STORAGE_EXTRAS].filter(function (k) { try { return ampMarca(localStorage.getItem(k)); } catch (e) { return false; } });
     return Promise.all(keys.map(function (k) {
       return ampOp('readonly', function (st) { return st.get(k); }).then(function (v) {
-        if (typeof v === 'string') AMP[k] = v;
+        if (typeof v === 'string') { AMP[k] = v; if (k === STORAGE_EXTRAS) exInvalida(); }
         else { corruptKeys[k] = 'read'; loadWarning = 'Parte dos dados do armazenamento ampliado não foi encontrada. Para não apagar nada, a gravação foi bloqueada: faça um backup e restaure.'; }
       }, function () { corruptKeys[k] = 'read'; loadWarning = 'Não foi possível ler o armazenamento ampliado do navegador. Para não apagar nada, a gravação foi bloqueada: feche e abra o navegador de novo.'; });
     }));
@@ -1550,10 +1550,13 @@
       });
     } catch (e) {
       done.forEach(function (k) { try { if (prev[k] == null) lsRemove(k); else lsWrite(k, prev[k]); } catch (e2) {} });
+      exInvalida();
       saveFailed(map, e);
       return false;
     }
     keys.forEach(function (k) { if (isListKey(k)) { setCache(k, map[k]); RAW[k] = str[k]; } }); // cache = o que foi gravado
+    if (Object.prototype.hasOwnProperty.call(map, STORAGE_EXTRAS)) exInvalida();
+    espacoCache = null;
     if (saveError) { saveError = null; unsavedState = null; renderDataBar(); }
     if (!(opt && opt.noTouch)) touch();
     return true;
@@ -1582,7 +1585,10 @@
     return o;
   }
   function extrasVazio(x) { return !x || (!Object.keys(x.cfg || {}).length && EX_LISTS.every(function (k) { return !(x[k] || []).length; })); }
+  // Cache dos extras: vale até a próxima gravação deles (commit) ou mudança vinda de outra aba (evento storage).
+  function exInvalida() { _ex = { raw: undefined, val: null }; }
   function loadExtras() {
+    if (_ex.val && _ex.ok) return _ex.val;
     var raw = lsGet(STORAGE_EXTRAS);
     if (raw !== _ex.raw || !_ex.val) {
       var v = null;
@@ -1595,6 +1601,7 @@
       _ex = { raw: raw, val: normExtras(v) };
       if (window.__chaveiroFreeze) deepFreeze(_ex.val);
     }
+    _ex.ok = true;
     return _ex.val;
   }
   function cfgGet(k, def) { var c = loadExtras().cfg; return c[k] === undefined ? def : c[k]; }
@@ -2022,9 +2029,11 @@
     var src = salesIndex().src;
     if (_om.src !== src) {
       var m = new Map();
-      src.slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (v) { v.items.forEach(function (it) {
-        if (it.cat !== 'outros') return; var d = String(it.desc || '').trim(), k = nomeChave(d); if (!k) return;
-        var o = m.get(k) || { k: k, n: 0 }; o.n++; o.desc = d.replace(/\s+/g, ' '); o.preco = Number(it.unitPrice) || 0; o.ult = v.ts; m.set(k, o);
+      // uma passada só (sem ordenar todas as vendas): a descrição e o preço que valem são os da venda mais recente
+      src.forEach(function (v) { v.items.forEach(function (it) {
+        if (it.cat !== 'outros' || !it.desc) return; var d = String(it.desc).trim(), k = nomeChave(d); if (!k) return;
+        var o = m.get(k); if (!o) m.set(k, o = { k: k, n: 0, ult: -Infinity });
+        o.n++; if (v.ts >= o.ult) { o.desc = d.replace(/\s+/g, ' '); o.preco = Number(it.unitPrice) || 0; o.ult = v.ts; }
       }); });
       _om = { src: src, map: m, lista: Array.from(m.values()).sort(function (a, b) { return (b.n - a.n) || (b.ult - a.ult); }) };
     }
@@ -2234,7 +2243,8 @@
     if (splitOn) { var parts = splitPartes(); fields.pay = parts.slice().sort(function (a, b) { return b.valor - a.valor; })[0].pay; fields.cliente = ''; fields.split = parts; }
     else if (payValid(payState)) { fields.pay = payState; fields.cliente = payState === 'fiado' ? clienteState.trim() : ''; fields.split = undefined; }
     var usaCartao = splitOn ? splitPartes().some(function (x) { return x.pay === 'cartao'; }) : payState === 'cartao';
-    fields.cartao = usaCartao && taxasAtivas() && cartaoTipo ? cartaoTipo : undefined;
+    var origC = editingSaleId ? (loadVendas().find(function (e) { return e.id === editingSaleId; }) || {}).cartao : undefined;
+    fields.cartao = !usaCartao ? undefined : taxasAtivas() && cartaoTipo ? cartaoTipo : origC; // sem taxas configuradas, não apaga o tipo já gravado
     var idx = editingSaleId ? all.findIndex(function (e) { return e.id === editingSaleId; }) : -1;
     if (editingSaleId && idx < 0) { showToast('Esta venda não existe mais (foi removida). Cancele a edição.', false, true); return; }
     if (idx >= 0 && editSnap && saleEditKey(all[idx]) !== editSnap) { showToast('Esta venda foi alterada em outra janela depois que você abriu a edição. Nada foi salvo: cancele a edição e abra a venda de novo para ver a versão atual.', false, true); return; }
@@ -3388,9 +3398,13 @@
     return n;
   }
   function ultimaFresa() { return loadExtras().fresa.reduce(function (m, f) { return !m || f.ts > m.ts ? f : m; }, null); }
+  var _fz = { src: null, ex: null, v: null };
   function fresaStatus() {
+    var src = salesIndex().src, ex = loadExtras();
+    if (_fz.src === src && _fz.ex === ex) return _fz.v;
     var f = ultimaFresa(), n = cortes(f ? f.ts : -Infinity, Infinity), av = Number(cfgGet('fresaAviso', 0)) || 0;
-    return { f: f, n: n, aviso: av, passou: av > 0 && n >= av };
+    _fz = { src: src, ex: ex, v: { f: f, n: n, aviso: av, passou: av > 0 && n >= av } };
+    return _fz.v;
   }
   function maquinaHtml(mKey) {
     var y = +mKey.slice(0, 4), m = +mKey.slice(5, 7), ini = new Date(y, m - 1, 1).getTime() - 1, fim = new Date(y, m, 1).getTime() - 1, nMes = cortes(ini, fim), fs = fresaStatus();
@@ -3813,7 +3827,8 @@
   // esteja no arquivo (navegador vazio, navegador sem mudanças desde a base, ou escolha do usuário).
   function adoptFile(f) {
     var s = sanitizeData(f.data);
-    if (!commit(dataMap(s.vendas, s.despesas, s.estoque, s.meta, s.extras), { noTouch: true })) return false;
+    // Arquivo gravado por uma versão anterior do app (sem "extras"): os controles extras deste navegador ficam como estão.
+    if (!commit(dataMap(s.vendas, s.despesas, s.estoque, s.meta, f.data.extras === undefined ? null : s.extras), { noTouch: true })) return false;
     if (s.bad) addQuarantine([{ tipo: 'aviso', origem: 'arquivo', registro: s.bad + ' registro(s) ilegível(is) no arquivo foram ignorados ao carregar' }]);
     try { localStorage.setItem(STORAGE_SAVEDAT, String(Number(f.data.savedAt) || Date.now())); } catch (e) {}
     setBase(f.hash);
@@ -4469,13 +4484,15 @@
   /* ----- 8f. Gastos fixos (5), encomendas (8), retrabalho/devolução (E), espaço do navegador (P) ----- */
   // 5. Gastos fixos: o gasto lançado guarda "fixoId"; "lançado no mês" = existe gasto do mês com esse fixoId.
   function fixoLancado(f, mKey) { return expIndex().src.find(function (e) { return e.fixoId === f.id && e.day.slice(0, 7) === mKey; }) || null; }
-  function fixosAVencer() { var hoje = todayKey(), d = +hoje.slice(8, 10); return loadExtras().fixos.filter(function (f) { return (Number(f.dia) || 1) <= d && !fixoLancado(f, hoje.slice(0, 7)); }); }
+  // Dia do vencimento no mês: num mês mais curto (ex.: dia 31 em fevereiro), vale o último dia do mês.
+  function diaVenc(f, mKey) { var n = new Date(+mKey.slice(0, 4), +mKey.slice(5, 7), 0).getDate(); return Math.min(Math.max(1, Number(f.dia) || 1), n); }
+  function fixosAVencer() { var hoje = todayKey(), d = +hoje.slice(8, 10), m = hoje.slice(0, 7); return loadExtras().fixos.filter(function (f) { return diaVenc(f, m) <= d && !fixoLancado(f, m); }); }
   function renderFixos() {
     var box = document.getElementById('fixosBox'); if (!box) return;
     var mKey = viewDay.slice(0, 7), mesNome = new Date(+mKey.slice(0, 4), +mKey.slice(5, 7) - 1, 1).toLocaleDateString('pt-BR', { month: 'long' }), fx = loadExtras().fixos.slice().sort(function (a, b) { return (a.dia || 0) - (b.dia || 0); });
     var hojeD = mKey === todayKey().slice(0, 7) ? +todayKey().slice(8, 10) : mKey < todayKey().slice(0, 7) ? 99 : 0;
     box.innerHTML = '<div class="card fixos" style="margin-top:16px"><div class="card-title">Gastos fixos de ' + escAttr(mesNome) + '</div>' + (fx.length ? '<div class="lista">' + fx.map(function (f) {
-      var l = fixoLancado(f, mKey), venc = !l && (Number(f.dia) || 1) <= hojeD;
+      var l = fixoLancado(f, mKey), venc = !l && diaVenc(f, mKey) <= hojeD;
       return '<div class="sale-item' + (venc ? ' atencao' : '') + '"><div class="s-left"><span class="s-desc"><b>' + escAttr(f.desc) + '</b></span><span class="s-discount">' + escAttr(expCatLabel(f.cat)) + ' · vence todo dia ' + (Number(f.dia) || 1) + '</span>' +
         (l ? '<span class="tag ok">✓ lançado em ' + fmtDayShort(l.day) + '</span>' : venc ? '<span class="tag alerta">venceu · ainda não lançado</span>' : '<span class="tag neutra">a vencer</span>') + '</div>' +
         '<div class="s-right"><span class="s-total">' + brl(f.valor) + '</span>' + (l ? '' : '<button type="button" class="est-btn" data-fx-lanca="' + escAttr(f.id) + '">Lançar</button>') +
@@ -4607,7 +4624,8 @@
   }
   // P. Espaço do navegador: quanto os dados do Chaveiro ocupam do limite (≈ 5,2 milhões de caracteres no Chrome).
   var LS_LIMITE = 5242000; // medido no Chrome (chaves + valores, em caracteres)
-  function espacoUsado() { var n = 0; try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); n += k.length + (localStorage.getItem(k) || '').length; } } catch (e) {} return n; }
+  var espacoCache = null;
+  function espacoUsado() { if (espacoCache !== null) return espacoCache; var n = 0; try { for (var i = 0; i < localStorage.length; i++) { var k = localStorage.key(i); n += k.length + (localStorage.getItem(k) || '').length; } } catch (e) {} return (espacoCache = n); }
   function espacoHtml() {
     var u = espacoUsado(), pct = Math.min(100, u / LS_LIMITE * 100), vs = salesIndex().src.length, media = vs ? Math.max(150, (lsGet(STORAGE_VENDAS) || '').length / vs) : 270, cabem = Math.max(0, Math.floor((LS_LIMITE - u) / media));
     if (ampAtivo()) return '<div class="espaco">Os dados maiores já estão no <b>armazenamento ampliado</b> do navegador, que comporta muito mais. Continue fazendo backups.<div class="esp-bar" aria-hidden="true"><i style="width:' + Math.max(1, Math.min(100, pct)).toFixed(1) + '%"></i></div></div>';
@@ -4682,15 +4700,19 @@
   // Taxa estimada de uma parte em cartão: tipo da venda; sem tipo (vendas antigas), usa a taxa de crédito (ou a de débito).
   function taxaCartao(v, valor) { var t = taxas(), pct = v.cartao === 'debito' ? t.debito : v.cartao === 'credito' ? t.credito : (t.credito || t.debito); return money(valor * pct / 100); }
   // J. Fiado: nomes já usados (sugestões) e quanto a pessoa já deve (mesmo agrupamento do cartão "A receber").
-  function nomeChave(n) { return norm(n || '').trim().replace(/\s+/g, ' '); }
+  var _nk = new Map(); // poucos textos distintos (nomes, descrições de Outros): a normalização é feita uma vez por texto
+  function nomeChave(n) { n = n == null ? '' : String(n); var k = _nk.get(n); if (k === undefined) { k = norm(n).trim().replace(/\s+/g, ' '); if (_nk.size > 20000) _nk.clear(); _nk.set(n, k); } return k; }
   // Um nome por pessoa: a grafia da venda mais antiga (a mesma do cartão "A receber"), os usados por último primeiro.
+  var _nc = { src: null, v: null };
   function nomesClientes() {
+    if (_nc.src === salesIndex().src) return _nc.v;
     var m = new Map();
     salesIndex().src.slice().sort(function (a, b) { return a.ts - b.ts; }).forEach(function (v) {
       var n = String(v.cliente || '').trim().replace(/\s+/g, ' '), k = nomeChave(n); if (!n) return;
       var o = m.get(k); if (!o) m.set(k, { n: n, t: v.ts }); else o.t = v.ts;
     });
-    return Array.from(m.values()).sort(function (a, b) { return b.t - a.t; }).slice(0, 300).map(function (o) { return o.n; });
+    _nc = { src: salesIndex().src, v: Array.from(m.values()).sort(function (a, b) { return b.t - a.t; }).slice(0, 300).map(function (o) { return o.n; }) };
+    return _nc.v;
   }
   function dividaDe(nome) {
     var k = nomeChave(nome); if (!k) return null;
@@ -4710,7 +4732,7 @@
     var hoje = todayKey(); if (groupOpen._backupAdiado === hoje) return '';
     var last = groupOpen._backup, days = last ? Math.floor((parseDay(hoje) - parseDay(last)) / 864e5) : null;
     if (days !== null && days < 7) return '';
-    if (days === null) { var first = hoje; vs.concat(gs).forEach(function (x) { if (x.day < first) first = x.day; }); if (first > addDays(hoje, -7)) return ''; }
+    if (days === null) { var first = hoje, lim = addDays(hoje, -7), velho = function (x) { return x.day <= lim; }; if (!vs.some(velho) && !gs.some(velho)) return ''; }
     return '<span class="db-det">💾 ' + (days === null ? 'Você ainda não fez nenhum backup.' : 'Último backup há ' + days + ' dias.') + ' Guarde uma cópia fora deste computador (Google Drive ou pendrive).</span><button id="dbBackup">Salvar backup agora</button><button id="dbAdiar" class="alt">Lembrar amanhã</button>';
   }
   // Cartão "Ajustes" do Resumo: dias de funcionamento, dias fechados, taxas da maquininha e aviso da fresa.
@@ -4870,7 +4892,8 @@
   if (histSearchEl) histSearchEl.addEventListener('input', function () { clearTimeout(histTimer); histTimer = setTimeout(renderHistoryAndTotal, 150); });
   // Outra aba alterou os dados: descarta o cache daquela lista e redesenha.
   window.addEventListener('storage', function (ev) {
-    if (ev.key && ampMarca(ev.newValue)) { ampCarrega([ev.key]).then(function () { invalidateCache(ev.key); if (ev.key === STORAGE_EXTRAS) _ex = { raw: undefined, val: null }; renderApp(); }); return; }
+    exInvalida(); espacoCache = null;
+    if (ev.key && ampMarca(ev.newValue)) { ampCarrega([ev.key]).then(function () { invalidateCache(ev.key); exInvalida(); renderApp(); }); return; }
     if (ev.key && Object.prototype.hasOwnProperty.call(AMP, ev.key)) { if (ev.newValue == null) delete AMP[ev.key]; else AMP[ev.key] = ev.newValue; }
     if (ev.key === null || isListKey(ev.key)) { invalidateCache(ev.key); renderApp(); }
     else if (ev.key === STORAGE_META || ev.key === STORAGE_EXTRAS) renderApp();
