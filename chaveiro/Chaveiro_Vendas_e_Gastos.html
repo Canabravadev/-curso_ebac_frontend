@@ -980,7 +980,10 @@
   /* histórico: botão refazer/devolver e marcas */
   .s-ret { border: none; background: none; color: var(--steel); font-size: 1rem; cursor: pointer; border-radius: 8px; width: 32px; height: 32px; display: inline-grid; place-items: center; padding: 0; opacity: .6; transition: opacity .15s, background .15s, color .15s; }
   .sale-item:hover .s-ret, .s-ret:focus-visible { opacity: 1; } .s-ret:hover { background: var(--brass-wash); color: var(--brass-strong); }
-  .s-discount.ret-tag { background: color-mix(in srgb, var(--steel) 14%, transparent); color: var(--ink-soft); border-radius: 99px; padding: 1px 8px; width: fit-content; }
+  .s-discount.ret-tag { background: color-mix(in srgb, var(--steel) 12%, transparent); color: var(--ink); border-radius: 99px; padding: 1px 8px; width: fit-content; }
+  /* contraste AA (axe) das etiquetas sobre fundo tingido: o texto é escurecido no claro e clareado no escuro */
+  .s-discount.pay-tag.pay-fiado { color: color-mix(in srgb, var(--danger) 80%, var(--ink)); }
+  .r-qty { color: color-mix(in srgb, var(--ok, #4F7A3A) 75%, var(--ink)); } .r-qty.out { color: color-mix(in srgb, var(--danger) 80%, var(--ink)); } .r-qty.low { color: color-mix(in srgb, #A06A00 80%, var(--ink)); }
   /* janela de formulário */
   .fmodal { max-width: 460px; max-height: calc(100vh - 32px); overflow-y: auto; }
   .fmodal p b { font-family: 'Fraunces', serif; font-size: 1.15rem; }
@@ -3316,14 +3319,21 @@
     bg.innerHTML = '<div class="modal fmodal" role="dialog" aria-modal="true" aria-labelledby="fmT"><p id="fmT"><b>' + escAttr(o.titulo) + '</b>' + (o.texto ? '<br><span class="fm-sub">' + escAttr(o.texto) + '</span>' : '') + '</p>' +
       '<div class="fm-campos">' + o.campos.map(campo).join('') + '</div><div class="hint" id="fmErr" style="display:none;margin:-4px 0 12px"></div>' +
       '<div class="modal-btns"><button type="button" class="clear-btn" data-fm-x>Cancelar</button><button type="button" class="registrar-btn" data-fm-ok>' + escAttr(o.ok || 'Salvar') + '</button></div></div>';
-    document.body.appendChild(bg);
-    var fechar = function () { bg.remove(); document.removeEventListener('keydown', tecla); };
+    var antes = document.activeElement; document.body.appendChild(bg);
+    var fechar = function () { bg.remove(); document.removeEventListener('keydown', tecla); if (antes && antes.isConnected && antes.focus) antes.focus(); };
     var enviar = function () {
       var vals = {}; o.campos.forEach(function (c) { vals[c.id] = document.getElementById('fm-' + c.id).value; });
       var err = o.onOk(vals); if (err) { var e = document.getElementById('fmErr'); e.textContent = err; e.style.display = 'block'; return; }
       fechar();
     };
-    function tecla(ev) { if (ev.key === 'Escape') fechar(); else if (ev.key === 'Enter' && ev.target.tagName === 'INPUT') { ev.preventDefault(); enviar(); } }
+    function tecla(ev) {
+      if (ev.key === 'Escape') fechar();
+      else if (ev.key === 'Enter' && ev.target.tagName === 'INPUT') { ev.preventDefault(); enviar(); }
+      else if (ev.key === 'Tab') { // o foco não sai da janela
+        var fs = bg.querySelectorAll('input, select, textarea, button'), a = fs[0], z = fs[fs.length - 1];
+        if (ev.shiftKey && document.activeElement === a) { ev.preventDefault(); z.focus(); } else if (!ev.shiftKey && document.activeElement === z) { ev.preventDefault(); a.focus(); }
+      }
+    }
     document.addEventListener('keydown', tecla);
     bg.querySelector('[data-fm-x]').addEventListener('click', fechar); bg.querySelector('[data-fm-ok]').addEventListener('click', enviar);
     bg.addEventListener('click', function (ev) { if (ev.target === bg) fechar(); });
