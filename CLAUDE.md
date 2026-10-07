@@ -31,13 +31,20 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
 ## Balcão (decisões baseadas nos dados reais)
 - Controle clonável é o produto do estoque (Controle de portão / Controle clonavel): baixa do estoque e trava
   quando acaba. Não mudar (decisão da dona).
+- Miolo, Cadeado e Chaveiro são itens rápidos de valor livre com "Qual?" opcional (eram 8 de 19 "Outros").
+  Em "Outros", uma descrição que já tem item próprio (serviço, miolo, cadeado, chaveiro) sugere trocar; só sugere.
+- Gasto da categoria `pessoal` (Pessoal / da casa) fica fora do saldo e do resultado da loja (app, resumo do dia,
+  retrato do ano, CSV e Excel). A aba Gastos do Excel lista todos; o Resumo mostra loja e pessoal separados.
+  Sem gasto pessoal no mês, o Excel sai idêntico ao de antes. Nenhum gasto muda de categoria sozinho.
+- A categoria do gasto é sugerida pela descrição (memória dos gastos já lançados, depois palavras óbvias).
+- "Conferir o caixa do dia" foi retirado (pedido da dona).
 - Venda nova de hoje pode ter a hora ajustada ("Vendeu mais cedo?") quando é lançada depois; nunca no futuro.
 
 ## Testes
 `./chaveiro/testes/rodar.sh` — abre o app no Chromium com relógio fixo (20/10/2026) e dados de
 exemplo: venda do estoque, pagamento dividido, fiado, gasto, persistência, backup/restauração,
 valores mais cobrados, venda em andamento que volta ao recarregar, apagados recentemente, cópias automáticas, comparação com o mês passado, tamanho do
-texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados).
+texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, itens rápidos e sugestão de item, gasto pessoal e categoria sugerida, contraste do calendário escuro, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados).
 Rode antes de cada commit. `MANTER=1` guarda os arquivos gerados.
 `COMPLETO=1 ./chaveiro/testes/rodar.sh` também roda `caos.js` (robô com ações aleatórias e vendas completas,
 conferindo as regras dos dados a cada ação) e `backup_estragado.js` (restaura backups corrompidos: nada local

@@ -768,14 +768,6 @@
   .fiado-row { width: 100%; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; font-size: .78rem; color: var(--ink-soft); }
   .caixa { margin-top: 10px; padding: 12px 16px; }
   .caixa summary { cursor: pointer; font-weight: 600; color: var(--brass-strong); }
-  .caixa-in { padding-top: 10px; }
-  .caixa-chk { display: flex; gap: 8px; align-items: center; font-size: .85rem; color: var(--ink-soft); padding: 10px 0 6px; cursor: pointer; }
-  .caixa .cx-total { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 8px; }
-  .cx-dif { margin-top: 8px; padding: 8px 12px; border-radius: 10px; font-weight: 600; }
-  .cx-dif.ok { background: color-mix(in srgb, var(--pix) 14%, transparent); color: var(--pix); }
-  .cx-dif.mais { background: var(--brass-wash); color: var(--brass-strong); }
-  .cx-dif.menos { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); }
-  .cx-outros { padding-top: 8px; }
   .fiado-pays { display: inline-flex; gap: 6px; align-items: center; white-space: nowrap; }
   .fiado-row .rec-val { width: 90px; padding: 6px 8px; font-size: .9rem; }
   /* =====================================================================
@@ -889,15 +881,15 @@
   .cal-d small { font-family: 'JetBrains Mono', monospace; font-size: .58rem; color: var(--ink); line-height: 1; white-space: nowrap; overflow: hidden; }
   .cal-d.hot span, .cal-d.hot small { color: var(--on-gold); }
   /* Escuro: dias comuns ficam escuros (texto claro) e os "quentes" bem claros (texto escuro), sem meio-termo ilegível. */
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cal-d:not(.fut):not(.fechado) { background: color-mix(in srgb, var(--brass-hi) calc(var(--h, 0) * 40%), var(--paper)); } :root:not([data-theme="light"]) .cal-d.hot { background: color-mix(in srgb, var(--brass-hi) calc(60% + var(--h, 0) * 40%), var(--paper)); } }
-  :root[data-theme="dark"] .cal-d:not(.fut):not(.fechado) { background: color-mix(in srgb, var(--brass-hi) calc(var(--h, 0) * 40%), var(--paper)); } :root[data-theme="dark"] .cal-d.hot { background: color-mix(in srgb, var(--brass-hi) calc(60% + var(--h, 0) * 40%), var(--paper)); }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cal-d:not(.fut):not(.fechado):not(.hot) { background: color-mix(in srgb, var(--brass-hi) calc(var(--h, 0) * 40%), var(--paper)); } :root:not([data-theme="light"]) .cal-d.hot { background: color-mix(in srgb, var(--brass-hi) calc(60% + var(--h, 0) * 40%), var(--paper)); } }
+  :root[data-theme="dark"] .cal-d:not(.fut):not(.fechado):not(.hot) { background: color-mix(in srgb, var(--brass-hi) calc(var(--h, 0) * 40%), var(--paper)); } :root[data-theme="dark"] .cal-d.hot { background: color-mix(in srgb, var(--brass-hi) calc(60% + var(--h, 0) * 40%), var(--paper)); }
   .cal-d:hover { border-color: var(--brass); } .cal-d:active { transform: scale(.95); }
   .cal-d.today { box-shadow: 0 0 0 1.5px var(--brass); }
   .cal-d.fut { background: transparent; border-style: dashed; cursor: default; color: var(--ink-soft); }
   .cal-d.pad { visibility: hidden; }
   /* ----- Funções novas (balcão, estoque, gastos fixos, encomendas, ajustes): só peças do design do app ----- */
   body.oculto #dayTotal, body.oculto #paySum, body.oculto #dayCmp, body.oculto #goalBox, body.oculto #spark, body.oculto #sparkDays, body.oculto #recBadge,
-  body.oculto #history, body.oculto #caixaBox, body.oculto #encBox, body.oculto #resumoContent, body.oculto #expDayTotal, body.oculto #expHistory, body.oculto #fixosBox, body.oculto .totalbar .t-val { filter: blur(9px); transition: filter .2s; }
+  body.oculto #history, body.oculto #encBox, body.oculto #resumoContent, body.oculto #expDayTotal, body.oculto #expHistory, body.oculto #fixosBox, body.oculto .totalbar .t-val { filter: blur(9px); transition: filter .2s; }
   #hideBtn[aria-pressed="true"] { color: var(--brass-strong); background: var(--brass-wash); border-color: var(--brass); }
   .cal-d.fechado:not(.hot) { background: repeating-linear-gradient(135deg, transparent 0 5px, var(--line) 5px 6px); color: var(--ink-soft); }
   /* títulos de seção (mesmo estilo de "Mais vendidos") e texto de apoio */
@@ -926,6 +918,9 @@
   .card .clear-btn.w100, .clear-btn.w100 { width: 100%; margin-top: 10px; padding: 10px 14px; }
   .mini-t { display: block; font-size: .74rem; color: var(--ink-soft); font-weight: 400; margin-top: 2px; }
   .hora-btn { margin-top: 10px; } .hora-wrap { margin-top: 10px; } .hora-wrap .row-fb { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .hora-wrap .money-input { flex: 1; min-width: 120px; }
+  .strip-pes { text-transform: none; letter-spacing: 0; }
+  #expDesc::-webkit-calendar-picker-indicator { display: none !important; }
+  .outro-vira { grid-column: 1 / -1; } .outro-vira:empty { display: none; } .outro-vira .pill { margin-top: 2px; }
   .preco-sug { flex-basis: 100%; width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: .78rem; color: var(--ink-soft); }
   .preco-sug .pill { font-family: 'JetBrains Mono', monospace; }
   .lix-row { gap: 12px; font-size: .88rem; border-top: 1px dashed var(--line); padding: 9px 0; }
@@ -943,7 +938,7 @@
   .tag.ok { background: color-mix(in srgb, var(--ok) 15%, transparent); color: var(--ok); }
   .tag.alerta { background: color-mix(in srgb, var(--danger) 13%, transparent); color: var(--danger); }
   .tag.neutra { background: var(--brass-wash); color: var(--brass-strong); }
-  /* cartões recolhíveis: mesmo desenho do "Conferir o caixa do dia" */
+  /* cartões recolhíveis (details.card.caixa) */
   .caixa summary .badge { margin-left: 6px; vertical-align: 1px; }
   .caixa > .lista, .caixa > .acts, .caixa > .empty { margin-top: 8px; }
   #resumoContent .caixa { margin-top: 0; padding: 4px 20px 18px; }
@@ -1205,14 +1200,6 @@
       <div class="hist-head"><div class="section-title" id="histTitle">Vendas do dia</div><button type="button" class="hist-share" id="shareDay" title="Resumo do dia no WhatsApp" aria-label="Compartilhar o resumo do dia no WhatsApp"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.6-5.4A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span>Compartilhar</span></button><div class="field-wrap hist-search"><div class="money-input"><input class="text-input" type="search" id="histSearch" placeholder="Buscar no histórico (item, dia, cliente, valor)" aria-label="Buscar no histórico"></div></div></div>
       <div class="history" id="history"></div>
       <div id="encBox"></div>
-      <details class="card caixa" id="caixaBox"><summary>Conferir o caixa do dia</summary>
-        <div class="extra-fields caixa-in">
-          <div class="field-wrap"><label for="cxFundo">Troco no início do dia</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="cxFundo" placeholder="0,00"></div></div>
-          <div class="field-wrap"><label for="cxContado">Dinheiro contado na gaveta</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="cxContado" placeholder="0,00"></div></div>
-        </div>
-        <label class="caixa-chk"><input type="checkbox" id="cxGastos"> <span id="cxGastosLbl">Os gastos do dia foram pagos com o dinheiro da gaveta</span></label>
-        <div id="cxRes"></div>
-      </details>
       <div class="footer-actions" id="footerActions">
         <button class="clear-btn" id="clearBtn">Limpar vendas do dia</button>
       </div>
@@ -1298,13 +1285,29 @@
   })();
   var SERVICES = [['srv-porta', 'Abertura de porta'], ['srv-carro', 'Abertura de carro'], ['srv-copia', 'Cópia de chave codificada'], ['srv-controle', 'Programação de controle'], ['srv-fechadura', 'Instalação / troca de fechadura'], ['srv-outro', 'Outro serviço']].map(function (a) { return { id: a[0], label: a[1], price: null, svc: true }; });
   SERVICES.forEach(function (s) { CATEGORIES.push(s); });
+  // Miolo, cadeado e chaveiro: nos dados reais eram 8 de 19 vendas em "Outros", cada vez escritas de um jeito.
+  // Valor livre e um "qual?" opcional (marca, tamanho), que vai para a descrição do item.
+  (function () {
+    var at = CATEGORIES.findIndex(function (c) { return c.id === 'outros'; });
+    CATEGORIES.splice(at, 0, { id: 'miolo', label: 'Miolo', price: null, qual: 'ex: Pado, 3F, aliança', xcat: 'Miolo' },
+      { id: 'cadeado', label: 'Cadeado', price: null, qual: 'ex: 20 mm, Papaiz', xcat: 'Cadeado' },
+      { id: 'chaveiro', label: 'Chaveiro', price: null, qual: 'ex: chaverinho, argola', xcat: 'Chaveiro' });
+  })();
   var PAY = { dinheiro: 'Dinheiro', pix: 'Pix', cartao: 'Cartão', fiado: 'Fiado' };
   var EXPENSE_CATEGORIES = [
     { id: 'mercadoria', label: 'Chaves e mercadoria' },
     { id: 'aluguel', label: 'Aluguel' },
     { id: 'contas', label: 'Contas (água, luz, internet)' },
-    { id: 'outros', label: 'Outros gastos' }
+    { id: 'ferramentas', label: 'Ferramentas e equipamentos' },
+    { id: 'funcionario', label: 'Funcionários e ajudantes' },
+    { id: 'outros', label: 'Outros gastos' },
+    { id: 'pessoal', label: 'Pessoal / da casa (não é da loja)' }
   ];
+  // Gasto pessoal / da casa: continua registrado (e na aba Gastos do Excel), mas fica fora do saldo e do
+  // resultado da loja. Só a pessoa marca; nenhum gasto muda de categoria sozinho.
+  var CAT_PESSOAL = 'pessoal';
+  function ehPessoal(e) { return !!e && e.cat === CAT_PESSOAL; }
+  function somaGastos(list, pessoal) { return money(list.reduce(function (t, e) { return ehPessoal(e) === !!pessoal ? t + (num(e.valor) || 0) : t; }, 0)); }
   var STORAGE_VENDAS = 'chaveiro_vendas_v2';
   var STORAGE_DESPESAS = 'chaveiro_despesas_v1';
 
@@ -2094,6 +2097,23 @@
     return '<div class="item-row" data-block="g-' + g.id + '">' + head + body + '</div>';
   }
 
+  // Outros que já têm item próprio (nos dados reais: "ABERTURA DE VEICULO", "ABERTURA DE PORTA SIMPLES", miolos,
+  // cadeados, chaveiros em Outros). Só sugere; trocar é um toque e o valor digitado vai junto.
+  var VIRA = [[/\b(abertura|abrir)\b.*\b(carro|veiculo|automovel|moto)\b/, 'srv-carro'], [/\b(abertura|abrir)\b.*\b(porta|portao|casa|apartamento)\b/, 'srv-porta'],
+    [/\bcodificad/, 'srv-copia'], [/\bprograma\w*\b.*\bcontrole\b/, 'srv-controle'], [/\b(instala\w*|troca\w*)\b.*\bfechadura\b/, 'srv-fechadura'],
+    [/^miolos?\b/, 'miolo'], [/^cadeados?\b/, 'cadeado'], [/^(chaveir\w*|chaverinho\w*)$|^chaveiros?\b/, 'chaveiro']];
+  function viraPara(desc) { var k = nomeChave(desc); if (!k) return null; for (var i = 0; i < VIRA.length; i++) if (VIRA[i][0].test(k)) return CATEGORIES.find(function (c) { return c.id === VIRA[i][1]; }) || null; return null; }
+  function viraHtml(i) { var o = outrosList[i], c = o && viraPara(o.desc); return c ? '<button type="button" class="pill" data-vira="' + i + '">Já existe “' + escAttr(c.label) + '” — usar esse item</button>' : ''; }
+  function mostraVira(i) { var b = document.querySelector('#saleFormWrap [data-vira-box="' + i + '"]'); if (b) b.innerHTML = viraHtml(i); }
+  function viraItem(i) {
+    var o = outrosList[i], c = o && viraPara(o.desc); if (!c) return;
+    var st = itemState[c.id]; if (!st) return;
+    if (st.qty > 0 && num(st.price) !== num(o.price)) { showToast('“' + c.label + '” já está na venda com outro valor. Ajuste lá ou mantenha em Outros.', false, true); return; }
+    st.qty += o.qty; if (!(num(st.price) > 0)) st.price = o.price;
+    if (c.qual) { var resto = String(o.desc || '').trim().replace(/^\S+\s*/, ''); if (resto && !st.desc) st.desc = resto; } // "MIOLO 3F" → Miolo, qual: 3F
+    if (c.svc) groupOpen.svc = true; // mostra a lista de serviços
+    outrosList.splice(i, 1); renderSaleForm(); showToast('Agora está como “' + c.label + '”');
+  }
   function outrosBlockHtml() {
     var c = CATEGORIES.find(function (x) { return x.id === 'outros'; });
     var n = outrosList.length;
@@ -2103,7 +2123,7 @@
         '<div class="field-wrap outro-desc"><label>Descrição</label><div class="money-input"><input class="text-input" type="text" placeholder="ex: chaveiro, miolo, gorja" list="outrosSug" autocomplete="off" data-outro-desc="' + i + '" value="' + escAttr(o.desc) + '"></div></div>' +
         '<div class="field-wrap outro-price' + inv + '" data-outro-wrap="' + i + '"><label>Valor un.</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" placeholder="0,00" data-outro-price="' + i + '" value="' + escAttr(o.price) + '"></div></div>' +
         '<div class="stepper"><button class="step-btn minus" data-outro-minus="' + i + '"' + (o.qty <= 1 ? ' disabled title="Quantidade mínima é 1. Para tirar o item, use 🗑."' : '') + ' aria-label="Diminuir">−</button><span class="step-count">' + o.qty + '</span><button class="step-btn plus" data-outro-plus="' + i + '" aria-label="Aumentar">+</button></div>' +
-        '<button class="step-btn outro-del" data-outro-del="' + i + '" aria-label="Remover este item" title="Remover">🗑</button></div>';
+        '<button class="step-btn outro-del" data-outro-del="' + i + '" aria-label="Remover este item" title="Remover">🗑</button><div class="outro-vira" data-vira-box="' + i + '">' + viraHtml(i) + '</div></div>';
     }).join('');
     return '<div class="item-row tile-row outros-row' + (n > 0 ? ' on' : '') + '" data-block="outros"><span class="ico">' + KEY_SVG + '</span>' +
       '<div class="item-info"><span class="item-label">' + c.label + '</span><span class="item-price">' + (n > 0 ? n + (n === 1 ? ' item' : ' itens') + ' personalizados' : 'itens personalizados · valor variável') + '</span></div>' +
@@ -2159,10 +2179,10 @@
       var invalidClass = (!(num(it.price) > 0)) ? ' invalid' : '';
       extra = '<div class="extra-fields">' +
         '<div class="field-wrap' + invalidClass + '" id="fieldwrap-' + c.id + '">' +
-        '<label>' + (c.svc ? 'Valor do serviço' : 'Valor por chave (' + c.label + ')') + '</label>' +
+        '<label>' + (c.svc ? 'Valor do serviço' : c.qual ? 'Valor (' + c.label + ')' : 'Valor por chave (' + c.label + ')') + '</label>' +
         '<div class="money-input"><span>R$</span><input type="text" inputmode="decimal" placeholder="0,00" data-price-cat="' + c.id + '" value="' + escAttr(it.price) + '"></div>' +
         '<span class="hint" id="hint-' + c.id + '" style="display:' + (invalidClass ? 'block' : 'none') + '">Informe o valor</span>' +
-        '</div>' + precoSugHtml(c.id) + '</div>';
+        '</div>' + (c.qual ? '<div class="field-wrap"><label for="qual-' + c.id + '">Qual? (opcional)</label><div class="money-input"><input class="text-input" type="text" id="qual-' + c.id + '" data-qual-cat="' + c.id + '" placeholder="' + escAttr(c.qual) + '" value="' + escAttr(it.desc || '') + '"></div></div>' : '') + precoSugHtml(c.id) + '</div>';
     }
     return '<div class="item-row tile-row' + (it.qty > 0 ? ' on' : '') + '" data-block="c-' + c.id + '"><span class="ico">' + KEY_SVG + '</span>' +
       '<div class="item-info"><span class="item-label">' + c.label + '</span><span class="item-price">' + priceLabel + '</span></div>' +
@@ -2241,6 +2261,7 @@
       var b = ev.target.closest('button'); if (!b || !wrap.contains(b)) return;
       var v;
       if ((v = b.getAttribute('data-clone')) !== null) return changeClone(+v);
+      if ((v = b.getAttribute('data-vira')) !== null) return viraItem(+v);
       if ((v = b.getAttribute('data-preco-sug')) !== null) { if (itemState[v]) itemState[v].price = b.getAttribute('data-v'); refreshCat(v); return updateTotalsDisplay(); }
       if ((v = b.getAttribute('data-cat')) !== null) return changeCat(v, b.classList.contains('plus') ? 1 : -1);
       if (b.classList.contains('stk-minus') || b.classList.contains('stk-plus')) return changeStock(b.getAttribute('data-pid'), b.classList.contains('stk-plus') ? 1 : -1);
@@ -2272,12 +2293,14 @@
       var inp = ev.target, v;
       if ((v = inp.getAttribute('data-outro-desc')) !== null) {
         var ol = outrosList[+v]; if (ol) ol.desc = inp.value;
+        mostraVira(+v);
         var mem = ol && !String(ol.price).trim() ? outrosMemoria().map.get(nomeChave(inp.value)) : null; // escolheu da memória: preenche o último preço
         if (mem && mem.preco > 0) { ol.price = moneyInput(mem.preco); var pi = wrap.querySelector('[data-outro-price="' + v + '"]'); if (pi) pi.value = ol.price; return updateTotalsDisplay(); }
         var e = document.getElementById('selSum'); if (e) e.outerHTML = selSumHtml(); return;
       }
       if ((v = inp.getAttribute('data-outro-price')) !== null) { if (outrosList[+v]) outrosList[+v].price = inp.value; return updateTotalsDisplay(); }
       if ((v = inp.getAttribute('data-price-cat')) !== null) { if (itemState[v]) itemState[v].price = inp.value; return updateTotalsDisplay(); }
+      if ((v = inp.getAttribute('data-qual-cat')) !== null) { if (itemState[v]) itemState[v].desc = inp.value.trim(); var se = document.getElementById('selSum'); if (se) se.outerHTML = selSumHtml(); return; }
       if ((v = inp.getAttribute('data-sp-price')) !== null) { if (stockItems[v]) stockItems[v].price = inp.value; return updateTotalsDisplay(); }
     });
   }
@@ -2537,12 +2560,13 @@
     var vs = salesOfDay(key), por = { dinheiro: 0, pix: 0, cartao: 0, fiado: 0 }, outros = 0;
     vs.forEach(function (v) { partesPag(v).forEach(function (x) { if (por[x.pay] !== undefined) por[x.pay] += x.valor; else outros += x.valor; }); });
     var rec = 0; recOfDay(key).forEach(function (e) { rec += Number(e.r.valor) || 0; });
-    var gastos = money(expIndex().dayTot.get(key) || 0), tot = dayTotalOf(key);
+    var gastos = somaGastos(expOfDay(key), false), pessoal = somaGastos(expOfDay(key), true), tot = dayTotalOf(key);
     var t = ['*Chaveiro — ' + capIni(fmtDayLong(key)) + '*', 'Vendas: ' + vs.length + ' · ' + brl(tot)];
     ['dinheiro', 'pix', 'cartao', 'fiado'].forEach(function (k) { if (por[k]) t.push('• ' + PAY[k] + ': ' + brl(money(por[k]))); });
     if (outros) t.push('• Sem forma informada: ' + brl(money(outros)));
     if (rec) t.push('Fiado recebido hoje: ' + brl(money(rec)));
     if (gastos) t.push('Gastos: − ' + brl(gastos));
+    if (pessoal) t.push('Pessoal / da casa (fora do saldo): ' + brl(pessoal));
     var devD = devolucoesDe(function (d) { return d === key; }).total; if (devD) t.push('Devoluções: − ' + brl(devD));
     t.push('*Saldo do dia: ' + brl(money(tot - gastos - devD)) + '*');
     if (recordeDoMes(key)) t.push('🏆 Melhor dia do mês até agora!');
@@ -2567,43 +2591,6 @@
     row.querySelector('.s-del').addEventListener('click', function () { confirmInline(row, 'Remover?', function () { removerVenda(sale.id); }); });
     return row;
   }
-  // Conferência de caixa: só uma conta na tela, nada é gravado. Usa o que o app já sabe (vendas e fiado
-  // recebido por forma de pagamento); os gastos NÃO têm forma de pagamento, então só entram se a pessoa marcar.
-  // O que foi digitado fica guardado por dia enquanto o app está aberto.
-  var caixaUi = {};
-  function caixaDia() { return caixaUi[viewDay] || (caixaUi[viewDay] = { fundo: '', contado: '', gastos: false }); }
-  function renderCaixa() {
-    var box = document.getElementById('caixaBox'); if (!box) return;
-    var key = viewDay, st = caixaDia();
-    var fi = document.getElementById('cxFundo'), ci = document.getElementById('cxContado'), gi = document.getElementById('cxGastos');
-    if (box.getAttribute('data-day') !== key) { fi.value = st.fundo; ci.value = st.contado; gi.checked = st.gastos; box.setAttribute('data-day', key); }
-    var por = { dinheiro: 0, pix: 0, cartao: 0 }, outros = 0, fiado = 0;
-    salesOfDay(key).forEach(function (v) { partesPag(v).forEach(function (x) { if (por[x.pay] !== undefined) por[x.pay] += x.valor; else if (x.pay === 'fiado') fiado += x.valor; else outros += x.valor; }); });
-    var rec = { dinheiro: 0, pix: 0, cartao: 0 }; recOfDay(key).forEach(function (e) { if (rec[e.r.pay] !== undefined) rec[e.r.pay] += Number(e.r.valor) || 0; });
-    var gastos = money(expIndex().dayTot.get(key) || 0);
-    document.getElementById('cxGastosLbl').textContent = 'Os gastos do dia (' + brl(gastos) + ') foram pagos com o dinheiro da gaveta';
-    var fundo = st.fundo.trim() === '' ? 0 : parseMoney(st.fundo), contado = st.contado.trim() === '' ? NaN : parseMoney(st.contado);
-    var row = function (l, v, cls) { return '<div class="totals-row' + (cls ? ' ' + cls : '') + '"><span>' + l + '</span><span>' + v + '</span></div>'; };
-    var h = row('Vendas em dinheiro', brl(money(por.dinheiro))) + (rec.dinheiro ? row('Fiado recebido em dinheiro', brl(money(rec.dinheiro))) : '');
-    if (isNaN(fundo)) h += '<div class="hint" style="display:block">Troco inválido: digite só o valor (ex: 50 ou 50,00).</div>';
-    else {
-      var devDin = money(devolucoesDe(function (d) { return d === key; }).por.dinheiro || 0);
-      var esperado = money(por.dinheiro + rec.dinheiro + fundo - (st.gastos ? gastos : 0) - devDin);
-      h += (fundo ? row('Troco no início', brl(money(fundo))) : '') + (st.gastos && gastos ? row('Gastos pagos da gaveta', '− ' + brl(gastos)) : '') + (devDin ? row('Devolvido em dinheiro', '− ' + brl(devDin)) : '') + row('<b>Deve ter na gaveta</b>', '<b>' + brl(esperado) + '</b>', 'cx-total');
-      if (st.contado.trim() !== '') {
-        if (isNaN(contado)) h += '<div class="hint" style="display:block">Valor contado inválido: digite só o valor (ex: 320 ou 320,50).</div>';
-        else { var dif = money(contado - esperado); h += '<div class="cx-dif ' + (dif === 0 ? 'ok' : dif > 0 ? 'mais' : 'menos') + '" role="status">' + (dif === 0 ? '✓ Confere: o dinheiro bate.' : dif > 0 ? 'Sobrando ' + brl(dif) + ' na gaveta.' : 'Faltando ' + brl(-dif) + ' na gaveta.') + '</div>'; }
-      }
-    }
-    h += '<div class="item-price cx-outros">Para conferir no app do banco/maquininha: Pix ' + brl(money(por.pix + rec.pix)) + ' · Cartão ' + brl(money(por.cartao + rec.cartao)) +
-      (fiado ? ' · Fiado (não entrou dinheiro): ' + brl(money(fiado)) : '') + (outros ? ' · Sem forma de pagamento: ' + brl(money(outros)) + ' (fora da conta)' : '') + '</div>';
-    document.getElementById('cxRes').innerHTML = h;
-  }
-  (function () {
-    var f = function (id, k) { var el = document.getElementById(id); if (el) el.addEventListener('input', function () { caixaDia()[k] = el.value; renderCaixa(); }); };
-    f('cxFundo', 'fundo'); f('cxContado', 'contado');
-    var g = document.getElementById('cxGastos'); if (g) g.addEventListener('change', function () { caixaDia().gastos = g.checked; renderCaixa(); });
-  })();
   var talaoVisivel = false;
   function updateSaleBar() {
     var bar = document.getElementById('saleBar'); if (!bar) return;
@@ -2682,7 +2669,6 @@
       histEl.insertAdjacentHTML('beforeend', moreHtml(expKey, sorted.length, n, step));
       bindShowMore(histEl);
     }
-    var cb = document.getElementById('caixaBox'); if (cb) { cb.hidden = searching; if (!searching) renderCaixa(); }
     var recs = searching ? NONE : recOfDay(key);
     if (recs.length) {
       histEl.insertAdjacentHTML('beforeend', '<div class="section-title" style="padding:14px 0 4px">Fiado recebido neste dia</div>' + recs.map(function (e) {
@@ -2693,6 +2679,25 @@
     document.getElementById('footerActions').style.display = (!searching && daySales.length > 0) ? 'flex' : 'none';
   }
 
+  // Categoria sugerida ao digitar a descrição: primeiro o que já foi lançado com esse nome (memória), depois
+  // poucas palavras óbvias. Só sugere (a pessoa troca se quiser); nada muda em gastos já registrados.
+  var _gm = { src: null, m: null };
+  function memoriaGastos() {
+    var src = loadDespesas();
+    if (_gm.src !== src) { var m = new Map(); src.slice().sort(function (a, b) { return (a.ts || 0) - (b.ts || 0); }).forEach(function (e) { var k = nomeChave(e.desc); if (k && EXPENSE_CATEGORIES.some(function (c) { return c.id === e.cat; })) m.set(k, e.cat); }); _gm = { src: src, m: m }; }
+    return _gm.m;
+  }
+  var PALAVRAS_GASTO = [[/\bfilh[oa]s?\b|\bmercado da casa\b/, 'pessoal'], [/ferrament|alicate|rebitadeira|furadeira|chave de fenda|maquina de chave|fresa/, 'ferramentas'],
+    [/\bluz\b|\bagua\b|internet|telefone|energia/, 'contas'], [/aluguel/, 'aluguel'], [/mercadoria|chaves? virge|fornecedor/, 'mercadoria'], [/salario|diaria|ajudante|funcionari/, 'funcionario']];
+  function catSugerida(desc) {
+    var k = nomeChave(desc); if (k.length < 3) return null;
+    var m = memoriaGastos(); if (m.has(k)) return m.get(k);
+    var cats = {}; m.forEach(function (c, d) { if (d.indexOf(k) === 0) cats[c] = 1; });
+    var ks = Object.keys(cats); if (ks.length === 1) return ks[0];
+    for (var i = 0; i < PALAVRAS_GASTO.length; i++) if (PALAVRAS_GASTO[i][0].test(k)) return PALAVRAS_GASTO[i][1];
+    return null;
+  }
+  function descsGastos() { var vis = {}, out = []; loadDespesas().slice().sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); }).forEach(function (e) { var k = nomeChave(e.desc); if (k && !vis[k] && out.length < 150) { vis[k] = 1; out.push(String(e.desc).trim()); } }); return out; }
   function renderExpenseForm() {
     var wrap = document.getElementById('expenseFormWrap');
     var dayTxt = isTodayKey(viewDay) ? '' : ' — ' + fmtDayMed(viewDay);
@@ -2706,7 +2711,7 @@
     if (ed && !dr) expBase = { desc: ed.desc, cat: ed.cat, valor: ed.valor }; // o que a pessoa está vendo
     var vDesc = dr ? dr.desc : (ed ? ed.desc : ''), vValor = dr ? dr.valor : (ed ? String(ed.valor).replace('.', ',') : '');
     wrap.innerHTML = '<div class="card"><div class="card-title">' + (ed ? 'Editando gasto de ' + escAttr(fmtDayLong(ed.day)) + (ed.day !== viewDay ? ' <small class="mini">(continua nesse dia)</small>' : '') : 'Novo gasto' + dayTxt) + '</div>' +
-      '<div class="extra-fields" style="padding:10px 0 0;"><div class="field-wrap"><label for="expDesc">Descrição</label><div class="money-input"><input class="text-input" type="text" id="expDesc" placeholder="ex: compra de chaves virgens" value="' + escAttr(vDesc) + '"></div></div></div>' +
+      '<div class="extra-fields" style="padding:10px 0 0;"><div class="field-wrap"><label for="expDesc">Descrição</label><div class="money-input"><input class="text-input" type="text" id="expDesc" list="gastoSug" autocomplete="off" placeholder="ex: compra de chaves virgens" value="' + escAttr(vDesc) + '"></div><datalist id="gastoSug">' + descsGastos().map(function (d) { return '<option value="' + escAttr(d) + '">'; }).join('') + '</datalist></div></div>' +
       '<div class="extra-fields" style="padding:10px 0;">' +
       '<div class="field-wrap"><label for="expCat">Categoria</label><select id="expCat" class="select-input">' + catOptions + '</select></div>' +
       '<div class="field-wrap" id="expValorWrap"><label for="expValor">Valor (R$)</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="expValor" placeholder="0,00" value="' + escAttr(vValor) + '"></div><span class="hint" id="expValorHint" style="display:none">Informe um valor maior que zero, ex: 45 ou 45,90.</span></div>' +
@@ -2714,9 +2719,14 @@
       '<button class="registrar-btn" id="registrarGastoBtn">' + (ed ? 'Salvar alterações' : (isTodayKey(viewDay) ? 'Registrar gasto' : 'Registrar gasto em ' + fmtDM(viewDay))) + '</button>' + (ed ? '<button class="clear-btn" id="cancelEditExpBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') + '</div>';
     var cancelExp = document.getElementById('cancelEditExpBtn');
     if (cancelExp) cancelExp.addEventListener('click', function () { editingExpId = null; expDraft = null; renderApp(); });
-    function keepDraft() { expDraft = { id: editingExpId || null, desc: document.getElementById('expDesc').value, cat: document.getElementById('expCat').value, valor: document.getElementById('expValor').value }; }
-    ['expDesc', 'expValor'].forEach(function (id) { document.getElementById(id).addEventListener('input', keepDraft); });
-    document.getElementById('expCat').addEventListener('change', keepDraft);
+    function keepDraft() { expDraft = { id: editingExpId || null, desc: document.getElementById('expDesc').value, cat: document.getElementById('expCat').value, valor: document.getElementById('expValor').value, catTocada: catTocada }; }
+    var catTocada = !!(ed || (dr && dr.catTocada)); // escolheu a categoria (ou está editando): não sugere por cima
+    document.getElementById('expDesc').addEventListener('input', function () {
+      if (!catTocada) { var c = catSugerida(this.value); if (c) document.getElementById('expCat').value = c; }
+      keepDraft();
+    });
+    document.getElementById('expValor').addEventListener('input', keepDraft);
+    document.getElementById('expCat').addEventListener('change', function () { catTocada = true; keepDraft(); });
     document.getElementById('registrarGastoBtn').addEventListener('click', function () {
       var desc = document.getElementById('expDesc').value.trim();
       var cat = document.getElementById('expCat').value;
@@ -3075,7 +3085,7 @@
       if (c && c.group) return { nome: c.label + (d ? ' — ' + d : ''), cat: c.group === 'bateria' ? 'Bateria' : 'Pilha' };
       if (c && c.svc) return { nome: c.label + (d ? ' — ' + d : ''), cat: 'Serviço' };
       if (it.cat === 'outros') return { nome: d || 'Outros', cat: 'Outros' };
-      if (c) return { nome: c.label + (d ? ' — ' + d : ''), cat: 'Chave' };
+      if (c) return { nome: c.label + (d ? ' — ' + d : ''), cat: c.xcat || 'Chave' };
       return { nome: d || String(it.cat || 'Item'), cat: String(it.cat || '') };
     }
     var itensTexto = function (v) { return v.items.map(function (it) { return (Number(it.qty) || 0) + 'x ' + infoItem(it).nome; }).join(', '); };
@@ -3199,7 +3209,7 @@
     var rangeOu = function (t, aba, h) { return t.vazio ? null : xRng(aba, t.col(h), t.r1, t.r2); };
     var fx = function (fn, rg) { return rg ? fn + '(' + rg + ')' : null; };
     var subB = money(vendas.reduce(function (s, v) { return s + v.subtotal; }, 0)), desc = money(vendas.reduce(function (s, v) { return s + v.discount; }, 0));
-    var totG = money(gastos.reduce(function (s, e) { return s + (Number(e.valor) || 0); }, 0));
+    var totG = somaGastos(gastos, false), totGP = somaGastos(gastos, true), nGP = gastos.filter(ehPessoal).length; // pessoal fica fora do resultado
     sec('PERÍODO');
     linha('Mês de referência', periodo, 'txt');
     linha('Data inicial', xDia(diaIni), 'dateL'); linha('Data final', xDia(diaFim), 'dateL'); linha('Relatório gerado em', xDataHora(agora), 'dtL');
@@ -3211,11 +3221,19 @@
     var rQv = linha('Quantidade de vendas', vendas.length, 'int', fx('ROWS', rangeOu(tV, 'Vendas', 'ID da venda')));
     linha('Ticket médio', vendas.length ? totLiq / vendas.length : 0, 'money', 'IF(B' + rQv + '=0,0,B' + rLiq + '/B' + rQv + ')');
     r++; sec('GASTOS');
-    var rGas = linha('Total de gastos', totG, 'moneyB', fx('SUM', rangeOu(tG, 'Gastos', 'Valor')), 'labB');
-    linha('Quantidade de gastos', gastos.length, 'int', fx('ROWS', rangeOu(tG, 'Gastos', 'Valor')));
+    if (!totGP) {
+      var rGas = linha('Total de gastos', totG, 'moneyB', fx('SUM', rangeOu(tG, 'Gastos', 'Valor')), 'labB');
+      linha('Quantidade de gastos', gastos.length, 'int', fx('ROWS', rangeOu(tG, 'Gastos', 'Valor')));
+    } else { // com gastos pessoais / da casa: a loja e o pessoal em linhas separadas (a aba Gastos lista todos)
+      var lbP = '"' + catGasto(CAT_PESSOAL).replace(/"/g, '""') + '"', rgC = rangeOu(tG, 'Gastos', 'Categoria'), rgV = rangeOu(tG, 'Gastos', 'Valor');
+      rGas = linha('Total de gastos da loja', totG, 'moneyB', 'SUM(' + rgV + ')-SUMIF(' + rgC + ',' + lbP + ',' + rgV + ')', 'labB');
+      linha('Quantidade de gastos da loja', gastos.length - nGP, 'int', 'ROWS(' + rgV + ')-COUNTIF(' + rgC + ',' + lbP + ')');
+      linha('Gastos pessoais / da casa (fora do resultado)', totGP, 'money', 'SUMIF(' + rgC + ',' + lbP + ',' + rgV + ')');
+      aS.p(r, 0, 'A aba Gastos lista todos os gastos. Os da categoria “' + catGasto(CAT_PESSOAL) + '” não entram no resultado da loja.', 'note'); for (var k5 = 1; k5 <= 3; k5++) aS.p(r, k5, null, 'note'); aS.mescla.push('A' + r + ':D' + r); aS.altura[r] = 26; r++;
+    }
     r++; sec('RESULTADO');
     var rRv = linha('Vendas líquidas', totLiq, 'money', 'B' + rLiq);
-    var rRg = linha('(−) Gastos', totG, 'money', 'B' + rGas);
+    var rRg = linha(totGP ? '(−) Gastos da loja' : '(−) Gastos', totG, 'money', 'B' + rGas);
     // Devoluções de dinheiro ao cliente (E), registradas à parte da venda: só aparecem quando existem no mês.
     var devX = devolucoesDe(function (d) { return noMes(d); });
     if (devX.total > 0) { var rRd = linha('(−) Devoluções ao cliente (' + devX.n + ')', devX.total, 'money');
@@ -3291,7 +3309,8 @@
       lines.push([fmtDayShort(e.day), csvEscape(e.desc || ''), csvEscape(expCatLabel(e.cat)), moneyCsv(num(e.valor) || 0)].join(';'));
     });
     lines.push('');
-    lines.push('Total de gastos;' + moneyCsv(totalDespesas));
+    lines.push('Total de gastos da loja;' + moneyCsv(totalDespesas));
+    var pes = somaGastos(despesas, true); if (pes) lines.push('Gastos pessoais / da casa (fora do saldo);' + moneyCsv(pes));
     lines.push('');
     lines.push('Saldo do mes (vendas liquidas - gastos);' + moneyCsv(saldo));
     return lines.join('\r\n');
@@ -4640,7 +4659,7 @@
       v.items.forEach(function (it) { if (it.cat === 'outros') return; var k = it.cat === 'estoque' ? 'p:' + it.pid : 'c:' + it.cat; var p = r.prod[k] || (r.prod[k] = { nome: itemName(it), q: 0 }); p.q += Number(it.qty) || 0; });
     });
     salesIndex().src.forEach(function (v) { recList(v).forEach(function (x) { if (x.day.slice(0, 4) === ano) r.rec += Number(x.valor) || 0; }); });
-    expIndex().src.forEach(function (e) { if (e.day.slice(0, 4) === ano) r.gastos += Number(e.valor) || 0; });
+    expIndex().src.forEach(function (e) { if (e.day.slice(0, 4) === ano && !ehPessoal(e)) r.gastos += Number(e.valor) || 0; });
     r.tot = money(r.tot); r.gastos = money(r.gastos); r.rec = money(r.rec);
     var top = function (o) { return Object.keys(o).sort(function (a, b) { return o[b] - o[a]; })[0]; };
     r.mesTop = top(r.meses); r.diaTop = top(r.dias); r.pagTop = top(r.pag);
@@ -5043,10 +5062,10 @@
       porCategoria[k].qty += it.qty; porCategoria[k].valor = money(porCategoria[k].valor + it.qty * it.unitPrice);
     }); });
 
-    var totalDespesas = money(despesas.reduce(function (s, e) { return s + (num(e.valor) || 0); }, 0));
+    var totalDespesas = somaGastos(despesas, false), totalPessoal = somaGastos(despesas, true); // pessoal fica fora do saldo
     var despesaPorCategoria = {};
-    EXPENSE_CATEGORIES.forEach(function (c) { despesaPorCategoria[c.id] = 0; });
-    despesas.forEach(function (e) { despesaPorCategoria[e.cat] = (despesaPorCategoria[e.cat] || 0) + (num(e.valor) || 0); });
+    EXPENSE_CATEGORIES.forEach(function (c) { if (c.id !== CAT_PESSOAL) despesaPorCategoria[c.id] = 0; });
+    despesas.forEach(function (e) { if (!ehPessoal(e)) despesaPorCategoria[e.cat] = (despesaPorCategoria[e.cat] || 0) + (num(e.valor) || 0); });
 
     var devMes = devolucoesDe(function (d) { return d.slice(0, 7) === mKey; }).total;
     var saldo = money(totalLiquido - totalDespesas - devMes);
@@ -5056,7 +5075,7 @@
       var v = porCategoria[k];
       return '<div class="totals-row"><span>' + escAttr(v.qty) + 'x ' + escAttr(v.label) + '</span><span>' + brl(v.valor) + '</span></div>';
     });
-    var expKeys = EXPENSE_CATEGORIES.map(function (c) { return c.id; });
+    var expKeys = EXPENSE_CATEGORIES.map(function (c) { return c.id; }).filter(function (k) { return k !== CAT_PESSOAL; });
     Object.keys(despesaPorCategoria).forEach(function (k) { if (expKeys.indexOf(k) < 0) expKeys.push(k); });
     var despesasRows = expKeys.map(function (k) {
       var val = despesaPorCategoria[k];
@@ -5064,7 +5083,7 @@
       return '<div class="totals-row"><span>' + escAttr(expCatLabel(k)) + '</span><span>' + brl(money(val)) + '</span></div>';
     }).join('');
 
-    var html = '<div class="card card-wide resumo-strip"><div><small>Vendas do mês (líquido)</small><b>' + brl(totalLiquido) + '</b></div><div><small>Gastos do mês</small><b>' + brl(totalDespesas) + '</b></div>' +
+    var html = '<div class="card card-wide resumo-strip"><div><small>Vendas do mês (líquido)</small><b>' + brl(totalLiquido) + '</b></div><div><small>Gastos ' + (totalPessoal ? 'da loja' : 'do mês') + '</small><b>' + brl(totalDespesas) + '</b>' + (totalPessoal ? '<span class="mini-t strip-pes">+ ' + brl(totalPessoal) + ' pessoal / da casa (fora do saldo)</span>' : '') + '</div>' +
       '<div class="saldo' + (saldo < 0 ? ' neg' : '') + '"><small>Saldo do mês' + (devMes ? ' (− ' + brl(devMes) + ' devolvidos)' : '') + '</small><b>' + brl(saldo) + '</b></div>' + pulsoHtml(mKey, vendas, totalLiquido) + '</div>';
     html += chartsHtml(mKey);
     html += '<div class="card"><div class="card-title">Vendas do mês</div>' +
@@ -5074,7 +5093,7 @@
       '<div class="totals-row" style="font-weight:700;"><span>Total líquido</span><span>' + brl(totalLiquido) + '</span></div></div>';
     html += '<div class="card"><div class="card-title">Gastos do mês</div>' +
       (despesasRows || '<div class="empty">Nenhum gasto neste mês.</div>') +
-      '<div class="totals-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-weight:700;"><span>Total de gastos</span><span>' + brl(totalDespesas) + '</span></div></div>';
+      '<div class="totals-row" style="border-top:1px solid var(--line);margin-top:6px;padding-top:10px;font-weight:700;"><span>' + (totalPessoal ? 'Total de gastos da loja' : 'Total de gastos') + '</span><span>' + brl(totalDespesas) + '</span></div>' + (totalPessoal ? '<div class="totals-row"><span>Pessoal / da casa <small class="mini">(fora do saldo)</small></span><span>' + brl(totalPessoal) + '</span></div>' : '') + '</div>';
     html += resumoExtras(vendas, porCategoria);
     html += retrabalhoMesHtml(mKey);
     html += maquinaHtml(mKey);

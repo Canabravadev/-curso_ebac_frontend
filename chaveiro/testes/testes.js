@@ -277,6 +277,56 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
   await ctx.close();
 
+  console.log('Miolo, cadeado e chaveiro; aviso de item que já existe');
+  ({ ctx, p, errs } = await abre(b, D));
+  await p.click('.step-btn.plus[data-cat="miolo"]'); await p.fill('[data-price-cat="miolo"]', '100'); await p.fill('[data-qual-cat="miolo"]', 'Pado'); await p.waitForTimeout(60);
+  await p.click('.pay-btn[data-pay="dinheiro"]'); await p.click('#registrarBtn'); await p.waitForTimeout(200);
+  let vm = await ultima(p);
+  ok(vm.items.length === 1 && vm.items[0].cat === 'miolo' && vm.items[0].unitPrice === 100 && vm.items[0].desc === 'Pado' && vm.total === 100, 'Miolo com "qual?" registrado: ' + JSON.stringify(vm.items));
+  await p.click('#outroAddBtn'); await p.fill('[data-outro-desc="0"]', 'ABERTURA DE VEICULO'); await p.fill('[data-outro-price="0"]', '150'); await p.waitForTimeout(80);
+  ok(/Abertura de carro/.test(await p.textContent('[data-vira-box="0"]')), 'Outros "ABERTURA DE VEICULO" sugere o serviço Abertura de carro');
+  await p.click('[data-vira="0"]'); await p.waitForTimeout(100);
+  await p.click('#registrarBtn'); await p.waitForTimeout(200);
+  vm = await ultima(p);
+  ok(vm.items.length === 1 && vm.items[0].cat === 'srv-carro' && vm.items[0].unitPrice === 150, 'um toque e vira o serviço, com o mesmo valor: ' + JSON.stringify(vm.items));
+  await p.click('#outroAddBtn'); await p.fill('[data-outro-desc="0"]', 'cadeado 20mm'); await p.fill('[data-outro-price="0"]', '30'); await p.waitForTimeout(80); await p.click('[data-vira="0"]'); await p.waitForTimeout(100);
+  ok(await p.inputValue('[data-qual-cat="cadeado"]') === '20mm' && await p.inputValue('[data-price-cat="cadeado"]') === '30', '"cadeado 20mm" vira Cadeado com "qual?" = 20mm');
+  await p.click('.step-btn.minus[data-cat="cadeado"]'); await p.click('#outroAddBtn'); await p.fill('[data-outro-desc="0"]', 'instalacao de varal'); await p.waitForTimeout(80);
+  ok((await p.textContent('[data-vira-box="0"]')) === '', 'o que não é item conhecido ("instalacao de varal") não sugere nada');
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+
+  console.log('Gasto pessoal / da casa e categoria sugerida');
+  ({ ctx, p, errs } = await abre(b, D));
+  await p.click('[data-tab="despesas"]');
+  await p.fill('#expDesc', 'Mercado da casa'); await p.waitForTimeout(60);
+  ok(await p.inputValue('#expCat') === 'pessoal', 'descrição já usada sugere a mesma categoria (Pessoal / da casa)');
+  await p.fill('#expDesc', 'alicate de corte'); await p.waitForTimeout(60);
+  ok(await p.inputValue('#expCat') === 'ferramentas', '"alicate" sugere Ferramentas');
+  await p.selectOption('#expCat', 'outros'); await p.fill('#expDesc', 'Mercado da casa'); await p.waitForTimeout(60);
+  ok(await p.inputValue('#expCat') === 'outros', 'depois que a pessoa escolhe, a sugestão não troca por cima');
+  await p.fill('#expDesc', ''); await p.fill('#expValor', ''); await ctx.close();
+  ({ ctx, p, errs } = await abre(b, D));
+  await p.click('[data-tab="resumo"]'); await p.waitForTimeout(150);
+  const somaOut = (f) => D.despesas.filter(e => e.day.slice(0, 7) === '2026-10' && f(e)).reduce((t, e) => t + e.valor, 0);
+  const gl = somaOut(e => e.cat !== 'pessoal'), gp = somaOut(e => e.cat === 'pessoal');
+  const strip = norm(await p.textContent('.resumo-strip'));
+  ok(strip.includes('Gastos da loja') && strip.includes(gp.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) + ' pessoal / da casa (fora do saldo)'), 'Resumo mostra os gastos da loja e o pessoal à parte: ' + strip.slice(0, 160));
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+
+  console.log('Calendário legível no modo escuro');
+  ctx = await b.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark' }); await ctx.clock.install({ time: new Date(AGORA) });
+  p = await ctx.newPage(); errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.goto(APP); await p.evaluate(({ d, K }) => { localStorage.clear(); ['vendas', 'despesas', 'estoque'].forEach(k => localStorage.setItem(K[k], JSON.stringify(d[k]))); }, { d: D, K });
+  await p.reload(); await p.waitForSelector('#registrarBtn'); await p.click('[data-tab="resumo"]'); await p.waitForTimeout(200);
+  const piores = await p.evaluate(() => {
+    const rgb = s => { const n = (s.match(/[\d.]+/g) || []).slice(0, 3).map(Number); return /^color\(srgb/.test(s) ? n.map(x => x * 255) : n; }, lum = c => { const v = c.map(x => { x /= 255; return x <= .03928 ? x / 12.92 : Math.pow((x + .055) / 1.055, 2.4); }); return .2126 * v[0] + .7152 * v[1] + .0722 * v[2]; };
+    return [...document.querySelectorAll('.cal-d[data-goday] > span')].map(sp => { const a = lum(rgb(getComputedStyle(sp).color)), b2 = lum(rgb(getComputedStyle(sp.parentElement).backgroundColor)); return [sp.parentElement.getAttribute('data-goday'), (Math.max(a, b2) + .05) / (Math.min(a, b2) + .05)]; }).filter(x => x[1] < 4.5);
+  });
+  ok(piores.length === 0, 'todos os dias do calendário com contraste suficiente no escuro ' + JSON.stringify(piores));
+  await ctx.close();
+
   console.log('Excel da contadora (outubro)');
   ({ ctx, p, errs } = await abre(b, D));
   await p.click('[data-tab="resumo"]');

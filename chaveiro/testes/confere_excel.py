@@ -26,7 +26,10 @@ rec = lambda v: r2(sum(r['valor'] for r in recs(v)))
 saldo = lambda v: r2(max(0, v['total'] - rec(v))) if v.get('pay') == 'fiado' else 0
 FI = [v for v in V if v.get('pay') == 'fiado']
 RC = [(v, r) for v in D['vendas'] for r in recs(v) if r['day'][:7] == mes]
-liq = r2(sum(v['total'] for v in V)); totG = r2(sum(e['valor'] for e in G))
+liq = r2(sum(v['total'] for v in V))
+# gastos marcados como pessoais / da casa ficam fora do resultado da loja (mas continuam na aba Gastos)
+GP = [e for e in G if e.get('cat') == 'pessoal']; GL = [e for e in G if e.get('cat') != 'pessoal']
+totG = r2(sum(e['valor'] for e in GL)); totGP = r2(sum(e['valor'] for e in GP))
 PN = {'dinheiro':'Dinheiro','pix':'Pix','cartao':'Cartão','fiado':'Fiado'}
 pn = lambda p: PN.get(p, p if p else 'Não informado')
 # pagamento dividido: cada parte conta na sua forma, pelo valor pago nela
@@ -112,7 +115,13 @@ def _valores():
     chk(abs(val('Total líquido de vendas') - liq) < .005, 'líquido')
     chk(val('Quantidade de vendas') == len(V), 'qtd vendas')
     chk(abs(val('Ticket médio') - (liq/len(V) if V else 0)) < .005, 'ticket')
-    chk(abs(val('Total de gastos') - totG) < .005 and val('Quantidade de gastos') == len(G), 'gastos')
+    if GP:
+        chk(abs(val('Total de gastos da loja') - totG) < .005 and val('Quantidade de gastos da loja') == len(GL), 'gastos da loja')
+        chk(abs(val('Gastos pessoais / da casa (fora do resultado)') - totGP) < .005, 'gastos pessoais')
+        chk('(−) Gastos da loja' in lab and abs(val('(−) Gastos da loja') - totG) < .005, 'resultado usa só os gastos da loja')
+    else:
+        chk(abs(val('Total de gastos') - totG) < .005 and val('Quantidade de gastos') == len(G), 'gastos')
+        chk(not any('pessoa' in str(k).lower() for k in lab), 'sem linha de pessoal quando não há')
     DV = [r for r in ((D.get('extras') or {}).get('retrabalhos') or []) if r.get('tipo') == 'devolucao' and str(r.get('day', ''))[:7] == mes]
     totD = r2(sum(r.get('valor') or 0 for r in DV))
     kd = [k for k in lab if str(k).startswith('(−) Devoluções')]

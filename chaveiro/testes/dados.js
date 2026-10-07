@@ -42,6 +42,10 @@ function gerar() {
     const ts = new Date(day + 'T17:4' + i + ':00').getTime();
     vendas.push({ id: ts + '-carro', day, ts, manual: false, items: [{ cat: 'carro', qty: 1, unitPrice: pr, desc: '' }], subtotal: pr, discount: 0, total: pr, pay: 'pix', cliente: '' });
   });
+  // um miolo vendido pelo item rápido e um gasto pessoal / da casa (fica fora do resultado da loja)
+  const ts3 = new Date('2026-10-17T16:20:00').getTime();
+  vendas.push({ id: ts3 + '-miolo', day: '2026-10-17', ts: ts3, manual: false, items: [{ cat: 'miolo', qty: 1, unitPrice: 100, desc: '3F' }], subtotal: 100, discount: 0, total: 100, pay: 'pix', cliente: '' });
+  despesas.push({ id: 'gpes1', day: '2026-10-18', ts: new Date('2026-10-18T19:00:00').getTime(), desc: 'Mercado da casa', cat: 'pessoal', valor: 230, manual: false });
   vendas.sort((a, b) => a.ts - b.ts);
   // uma devolução em outubro: entra no resultado do Excel do mês
   const devolvida = vendas.find(v => v.day.slice(0, 7) === '2026-10' && v.pay === 'pix');
