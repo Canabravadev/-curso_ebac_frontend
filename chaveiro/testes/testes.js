@@ -122,7 +122,7 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   const p1 = D.estoque.find(x => x.id === 'p1');
   await p.fill('[data-stock-box="0"]', p1.modelo); await p.waitForTimeout(80); await p.click('#stockResults-0 [data-pid="p1"]');
   await p.click('.pay-btn[data-pay="pix"]'); await p.click('#registrarBtn'); await p.waitForTimeout(200);
-  ok(/chegou ao mínimo \(3\).*lista de Comprar/.test(await p.textContent('#toast')), 'venda que leva o produto ao mínimo avisa: ' + norm(await p.textContent('#toast')));
+  ok(/chegou ao mínimo \(3\)/.test(await p.textContent('#toast')) && !/lista de Comprar/.test(await p.textContent('#toast')), 'no mínimo exato avisa, sem dizer que está na lista (ainda não está): ' + norm(await p.textContent('#toast')));
   const vRem = await ultima(p), est1 = (await lsJ(p, K.estoque)).find(x => x.id === 'p1').qty;
   await p.click(`#history .sale-item[data-id="${vRem.id}"] .s-del`); await p.click('#history .s-confirm-btn.yes'); await p.waitForTimeout(200);
   ok(!(await lsJ(p, K.vendas)).some(v => v.id === vRem.id) && (await lsJ(p, K.estoque)).find(x => x.id === 'p1').qty === est1 + 1, 'venda removida e o estoque volta');
@@ -325,6 +325,16 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
     return [...document.querySelectorAll('.cal-d[data-goday] > span')].map(sp => { const a = lum(rgb(getComputedStyle(sp).color)), b2 = lum(rgb(getComputedStyle(sp.parentElement).backgroundColor)); return [sp.parentElement.getAttribute('data-goday'), (Math.max(a, b2) + .05) / (Math.min(a, b2) + .05)]; }).filter(x => x[1] < 4.5);
   });
   ok(piores.length === 0, 'todos os dias do calendário com contraste suficiente no escuro ' + JSON.stringify(piores));
+  await ctx.close();
+
+  console.log('Aviso de estoque abaixo do mínimo');
+  ({ ctx, p, errs } = await abre(b, D));
+  { const p1b = D.estoque.find(x => x.id === 'p1');
+    for (let k = 0; k < 2; k++) { await p.fill('[data-stock-box="0"]', p1b.modelo); await p.waitForTimeout(80); await p.click('#stockResults-0 [data-pid="p1"]'); await p.click('#registrarBtn'); await p.waitForTimeout(250); }
+    const t = norm(await p.textContent('#toast'));
+    ok(/ficou abaixo do mínimo \(2 de 3\) \(já está na lista de Comprar\)/.test(t), 'abaixo do mínimo: avisa e diz que entrou na lista: ' + t);
+    await p.click('[data-tab="estoque"]'); await p.waitForTimeout(200);
+    ok(/PD · 601|PD 601/.test(await p.textContent('.card-buy').catch(() => '')), 'e o produto está mesmo no cartão Comprar'); }
   await ctx.close();
 
   console.log('Excel da contadora (outubro)');

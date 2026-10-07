@@ -1850,10 +1850,13 @@
     depois.forEach(function (y) {
       if (vis[y.id] || !(sale.items || []).some(function (i) { return i && i.pid === y.id; })) return; vis[y.id] = 1;
       var a = q0[y.id], d = Number(y.qty) || 0, mn = Number(y.min) || 0; if (a === undefined || d >= a) return;
-      if (d <= 0 && a > 0) out.push(pname(y) + ' acabou');
-      else if (mn > 0 && d <= mn && a > mn) out.push(pname(y) + ' chegou ao mínimo (' + fmtInt(d) + ')');
+      // a lista de Comprar só tem o que ficou ABAIXO do mínimo (isLowStock): o aviso só diz isso quando é verdade
+      var lista = isLowStock(y) ? ' (já está na lista de Comprar)' : '';
+      if (d <= 0 && a > 0) out.push(pname(y) + ' acabou' + lista);
+      else if (mn > 0 && d < mn && a >= mn) out.push(pname(y) + ' ficou abaixo do mínimo (' + fmtInt(d) + ' de ' + fmtInt(mn) + ')' + lista);
+      else if (mn > 0 && d === mn && a > mn) out.push(pname(y) + ' chegou ao mínimo (' + fmtInt(d) + ')');
     });
-    return out.length ? ' · ' + out.join('; ') + ' — já está na lista de Comprar' : '';
+    return out.length ? ' · ' + out.join('; ') : '';
   }
   function applyStock(es, sale, sign) {
     var pos = null;
