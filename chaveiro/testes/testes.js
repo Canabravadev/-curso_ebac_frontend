@@ -291,8 +291,8 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   ok(vm.items.length === 1 && vm.items[0].cat === 'srv-carro' && vm.items[0].unitPrice === 150, 'um toque e vira o serviço, com o mesmo valor: ' + JSON.stringify(vm.items));
   await p.click('#outroAddBtn'); await p.fill('[data-outro-desc="0"]', 'cadeado 20mm'); await p.fill('[data-outro-price="0"]', '30'); await p.waitForTimeout(80); await p.click('[data-vira="0"]'); await p.waitForTimeout(100);
   ok(await p.inputValue('[data-qual-cat="cadeado"]') === '20mm' && await p.inputValue('[data-price-cat="cadeado"]') === '30', '"cadeado 20mm" vira Cadeado com "qual?" = 20mm');
-  await p.click('.step-btn.minus[data-cat="cadeado"]'); await p.click('#outroAddBtn'); await p.fill('[data-outro-desc="0"]', 'instalacao de varal'); await p.waitForTimeout(80);
-  ok((await p.textContent('[data-vira-box="0"]')) === '', 'o que não é item conhecido ("instalacao de varal") não sugere nada');
+  await p.click('.step-btn.minus[data-cat="cadeado"]'); await p.click('#outroAddBtn'); await p.fill('[data-outro-desc="0"]', 'placa de carro'); await p.waitForTimeout(80);
+  ok((await p.textContent('[data-vira-box="0"]')) === '', 'o que não é item conhecido ("placa de carro") não sugere nada');
   ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
   await ctx.close();
 
@@ -335,6 +335,44 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
     ok(/ficou abaixo do mínimo \(2 de 3\) \(já está na lista de Comprar\)/.test(t), 'abaixo do mínimo: avisa e diz que entrou na lista: ' + t);
     await p.click('[data-tab="estoque"]'); await p.waitForTimeout(200);
     ok(/PD · 601|PD 601/.test(await p.textContent('.card-buy').catch(() => '')), 'e o produto está mesmo no cartão Comprar'); }
+  await ctx.close();
+
+  console.log('Serviço com "Qual?", Outros detalhado, ordem por valor, conta errada e dividir gasto');
+  ({ ctx, p, errs } = await abre(b, D));
+  await p.click('#outroAddBtn'); await p.fill('[data-outro-desc="0"]', 'instalacao de varal'); await p.fill('[data-outro-price="0"]', '200'); await p.waitForTimeout(80);
+  ok(/Outro serviço/.test(await p.textContent('[data-vira-box="0"]')), '"instalacao de varal" em Outros sugere Outro serviço');
+  await p.click('[data-vira="0"]'); await p.waitForTimeout(120);
+  ok(await p.inputValue('[data-qual-cat="srv-outro"]') === 'instalacao de varal', 'vira Outro serviço levando a descrição inteira no "Qual?"');
+  await p.click('#registrarBtn'); await p.waitForTimeout(200);
+  let vs2 = await ultima(p);
+  ok(vs2.items[0].cat === 'srv-outro' && vs2.items[0].desc === 'instalacao de varal' && vs2.total === 200, 'serviço gravado com a descrição: ' + JSON.stringify(vs2.items));
+  await p.click('[data-tab="resumo"]'); await p.waitForTimeout(200);
+  const linhasV = await p.$$eval('#resumoContent .card', cs => { const c = cs.find(x => /Vendas do mês/.test(x.querySelector('.card-title') && x.querySelector('.card-title').textContent)); return [...c.querySelectorAll(':scope > .totals-row, :scope > details > summary')].slice(0, 5).map(r => r.textContent.replace(/\s+/g, ' ')); });
+  const valsV = linhasV.map(t => Number((t.match(/R\$\s?([\d.]+,\d\d)/) || [, '0'])[1].replace(/\./g, '').replace(',', '.')));
+  ok(valsV.length >= 3 && valsV.every((x, i) => i === 0 || valsV[i - 1] >= x), 'Vendas do mês em ordem do maior valor: ' + valsV.join(' ≥ '));
+  await p.click('.outros-det > summary'); await p.waitForTimeout(80);
+  const det = norm(await p.textContent('.outros-det'));
+  ok(/CHAVEIRO/.test(det) && /CONSERTO/.test(det) && /PLACA/.test(det), 'Outros abre o detalhe por descrição: ' + det.slice(0, 140));
+  ok(!(await p.$('.conta-errada')), 'sem venda com conta errada, nenhum aviso');
+  await ctx.close();
+  const comErro = JSON.parse(JSON.stringify(D)); const vb = comErro.vendas.find(v => v.day === '2026-10-14'); vb.total = vb.subtotal + 15;
+  ({ ctx, p, errs } = await abre(b, comErro));
+  await p.click('[data-tab="resumo"]'); await p.waitForTimeout(200);
+  ok(/Venda com a conta errada/.test(await p.textContent('.conta-errada')) && /14\/10\/2026/.test(await p.textContent('.conta-errada')), 'venda com total acima dos itens aparece no aviso do Resumo');
+  await p.click('[data-conta-fix]'); await p.waitForTimeout(250);
+  ok(/Editando venda de/.test(await p.textContent('#saleFormWrap')), '"Abrir e corrigir" abre a venda para edição');
+  ok(JSON.stringify((await lsJ(p, K.vendas)).find(v => v.id === vb.id)) === JSON.stringify(vb), 'nada é corrigido sozinho (a venda continua igual até a pessoa salvar)');
+  await ctx.close();
+  const comMisto = JSON.parse(JSON.stringify(D)); const gx = { id: 'gmisto', day: '2026-10-20', ts: new Date('2026-10-20T09:00:00').getTime(), desc: 'carro, aluguel e emprestimo', cat: 'outros', valor: 300, manual: false }; comMisto.despesas.push(gx);
+  ({ ctx, p, errs } = await abre(b, comMisto));
+  await p.click('[data-tab="despesas"]'); await p.waitForTimeout(150);
+  await p.click('#expHistory .s-edit'); await p.waitForTimeout(150);
+  await p.click('#dividirExpBtn'); await p.fill('#fm-desc', 'aluguel da loja'); await p.selectOption('#fm-cat', 'aluguel'); await p.fill('#fm-valor', '30'); await p.click('[data-fm-ok]'); await p.waitForTimeout(200);
+  const gs2 = await lsJ(p, K.despesas), o2 = gs2.find(e => e.id === gx.id), parte = gs2.find(e => e.desc === 'aluguel da loja');
+  ok(o2 && parte && o2.valor === gx.valor - 30 && parte.valor === 30 && parte.cat === 'aluguel' && parte.day === gx.day && gs2.length === comMisto.despesas.length + 1, `gasto dividido: ${gx.valor} → ${o2 && o2.valor} + ${parte && parte.valor} (mesmo dia, total igual)`);
+  await p.click('#expHistory .s-edit'); await p.click('#dividirExpBtn'); await p.fill('#fm-desc', 'x'); await p.fill('#fm-valor', '9999'); await p.click('[data-fm-ok]'); await p.waitForTimeout(120);
+  ok(/precisa ser menor/.test(await p.textContent('#fmErr')) && (await lsJ(p, K.despesas)).length === gs2.length, 'parte maior que o gasto é recusada e nada muda');
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
   await ctx.close();
 
   console.log('Excel da contadora (outubro)');

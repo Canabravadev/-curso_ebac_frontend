@@ -919,6 +919,9 @@
   .mini-t { display: block; font-size: .74rem; color: var(--ink-soft); font-weight: 400; margin-top: 2px; }
   .hora-btn { margin-top: 10px; } .hora-wrap { margin-top: 10px; } .hora-wrap .row-fb { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .hora-wrap .money-input { flex: 1; min-width: 120px; }
   .strip-pes { text-transform: none; letter-spacing: 0; }
+  .outros-det > summary { list-style: none; cursor: pointer; } .outros-det > summary::-webkit-details-marker { display: none; }
+  .outros-det > .totals-row { padding-left: 14px; font-size: .86rem; color: var(--ink-soft); }
+  .conta-errada .card-title .tag { margin-right: 6px; }
   #expDesc::-webkit-calendar-picker-indicator { display: none !important; }
   .outro-vira { grid-column: 1 / -1; } .outro-vira:empty { display: none; } .outro-vira .pill { margin-top: 2px; }
   .preco-sug { flex-basis: 100%; width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: .78rem; color: var(--ink-soft); }
@@ -1283,7 +1286,10 @@
     var at = CATEGORIES.findIndex(function (c) { return c.id === 'carro'; }) + 1;
     CATEGORIES.splice.apply(CATEGORIES, [at, 0].concat(extra));
   })();
-  var SERVICES = [['srv-porta', 'Abertura de porta'], ['srv-carro', 'Abertura de carro'], ['srv-copia', 'Cópia de chave codificada'], ['srv-controle', 'Programação de controle'], ['srv-fechadura', 'Instalação / troca de fechadura'], ['srv-outro', 'Outro serviço']].map(function (a) { return { id: a[0], label: a[1], price: null, svc: true }; });
+  // "Qual?" opcional em cada serviço: nos dados reais os serviços vinham sem descrição e os que precisavam de uma
+  // ("instalação de varal", "retirada de chave quebrada") acabavam em Outros.
+  var SERVICES = [['srv-porta', 'Abertura de porta', 'ex: porta da cozinha, portão'], ['srv-carro', 'Abertura de carro', 'ex: Honda Fit'], ['srv-copia', 'Cópia de chave codificada', 'ex: chave do Gol'],
+    ['srv-controle', 'Programação de controle', 'ex: portão eletrônico'], ['srv-fechadura', 'Instalação / troca de fechadura', 'ex: fechadura Pado da porta da frente'], ['srv-outro', 'Outro serviço', 'ex: instalação de varal, retirar chave quebrada']].map(function (a) { return { id: a[0], label: a[1], price: null, svc: true, qual: a[2] }; });
   SERVICES.forEach(function (s) { CATEGORIES.push(s); });
   // Miolo, cadeado e chaveiro: nos dados reais eram 8 de 19 vendas em "Outros", cada vez escritas de um jeito.
   // Valor livre e um "qual?" opcional (marca, tamanho), que vai para a descrição do item.
@@ -1671,6 +1677,34 @@
       ds.push(e.reg); if (!commit(dataMap(null, ds, null, null, x))) return;
       renderApp(); showToast('Gasto de ' + fmtDayShort(e.reg.day) + ' recuperado (' + brl(Number(e.reg.valor) || 0) + ')');
     }
+  }
+  // Venda cuja conta não fecha (itens ≠ subtotal ou subtotal − desconto ≠ total): mostrada no Resumo para a pessoa
+  // corrigir pela edição. Nada é corrigido sozinho. (Nos dados reais: uma venda antiga com total acima dos itens.)
+  function contaErrada(v) {
+    var it = (v.items || []).reduce(function (t, i) { return t + (Number(i.qty) || 0) * (Number(i.unitPrice) || 0); }, 0);
+    return Math.abs(money(it) - v.subtotal) > 0.005 || Math.abs(money(v.subtotal - v.discount) - v.total) > 0.005;
+  }
+  function contaErradaHtml(vendas) {
+    var ruins = vendas.filter(contaErrada); if (!ruins.length) return '';
+    var hm = function (ts) { var d = new Date(Number(ts) || 0); return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+    return '<div class="card card-wide conta-errada"><div class="card-title"><span class="tag alerta">' + ruins.length + '</span> ' + (ruins.length === 1 ? 'Venda com a conta errada' : 'Vendas com a conta errada') + '</div>' +
+      '<p class="sec-p">Os valores dela não fecham (itens, desconto e total), e os totais do mês e o Excel saem com essa diferença. Abra e corrija o valor dos itens ou o valor final.</p>' +
+      ruins.map(function (v) {
+        var it = money((v.items || []).reduce(function (t, i) { return t + (Number(i.qty) || 0) * (Number(i.unitPrice) || 0); }, 0));
+        return '<div class="totals-row lix-row"><span><b>' + fmtDayShort(v.day) + (v.ts && !v.manual ? ' ' + hm(v.ts) : '') + '</b> · ' + escAttr((v.items || []).map(function (i) { return i.qty + 'x ' + itemName(i); }).join(', ')) +
+          '<span class="mini-t">itens ' + brl(it) + ' · desconto ' + brl(v.discount) + ' · total ' + brl(v.total) + '</span></span><button type="button" class="est-btn" data-conta-fix="' + escAttr(v.id) + '">Abrir e corrigir</button></div>';
+      }).join('') + '</div>';
+  }
+  // "Outros" no Resumo: além do total, o que foi vendido (agrupado pelo nome, maiores primeiro).
+  function outrosDetHtml(vendas, tot) {
+    var g = new Map();
+    vendas.forEach(function (v) { (v.items || []).forEach(function (i) {
+      if (i.cat !== 'outros') return; var k = nomeChave(i.desc) || '—', x = g.get(k) || { nome: String(i.desc || '').trim() || 'sem descrição', q: 0, v: 0 };
+      x.q += Number(i.qty) || 0; x.v = money(x.v + (Number(i.qty) || 0) * (Number(i.unitPrice) || 0)); g.set(k, x);
+    }); });
+    var l = Array.from(g.values()).sort(function (a, b) { return b.v - a.v; });
+    return '<details class="outros-det"><summary class="totals-row"><span>' + escAttr(tot.qty) + 'x Outros <small class="mini">ver o que foi ▾</small></span><span>' + brl(tot.valor) + '</span></summary>' +
+      l.map(function (x) { return '<div class="totals-row"><span>' + escAttr(x.q) + 'x ' + escAttr(x.nome) + '</span><span>' + brl(x.v) + '</span></div>'; }).join('') + '</details>';
   }
   function lixeiraHtml() {
     var l = lixItens(); if (!l.length) return '';
@@ -2104,6 +2138,7 @@
   // cadeados, chaveiros em Outros). Só sugere; trocar é um toque e o valor digitado vai junto.
   var VIRA = [[/\b(abertura|abrir)\b.*\b(carro|veiculo|automovel|moto)\b/, 'srv-carro'], [/\b(abertura|abrir)\b.*\b(porta|portao|casa|apartamento)\b/, 'srv-porta'],
     [/\bcodificad/, 'srv-copia'], [/\bprograma\w*\b.*\bcontrole\b/, 'srv-controle'], [/\b(instala\w*|troca\w*)\b.*\bfechadura\b/, 'srv-fechadura'],
+    [/^(instala\w*|retira\w*|busca\w*|buscar|conserto|consert\w*|reparo|regulagem|ajuste|desmont\w*|montagem)\b/, 'srv-outro'],
     [/^miolos?\b/, 'miolo'], [/^cadeados?\b/, 'cadeado'], [/^(chaveir\w*|chaverinho\w*)$|^chaveiros?\b/, 'chaveiro']];
   function viraPara(desc) { var k = nomeChave(desc); if (!k) return null; for (var i = 0; i < VIRA.length; i++) if (VIRA[i][0].test(k)) return CATEGORIES.find(function (c) { return c.id === VIRA[i][1]; }) || null; return null; }
   function viraHtml(i) { var o = outrosList[i], c = o && viraPara(o.desc); return c ? '<button type="button" class="pill" data-vira="' + i + '">Já existe “' + escAttr(c.label) + '” — usar esse item</button>' : ''; }
@@ -2113,7 +2148,7 @@
     var st = itemState[c.id]; if (!st) return;
     if (st.qty > 0 && num(st.price) !== num(o.price)) { showToast('“' + c.label + '” já está na venda com outro valor. Ajuste lá ou mantenha em Outros.', false, true); return; }
     st.qty += o.qty; if (!(num(st.price) > 0)) st.price = o.price;
-    if (c.qual) { var resto = String(o.desc || '').trim().replace(/^\S+\s*/, ''); if (resto && !st.desc) st.desc = resto; } // "MIOLO 3F" → Miolo, qual: 3F
+    if (c.qual && !st.desc) { var dsc = String(o.desc || '').trim(), resto = c.svc ? dsc : dsc.replace(/^\S+\s*/, ''); if (resto) st.desc = resto; } // "MIOLO 3F" → Miolo, qual: 3F; serviço guarda a descrição inteira
     if (c.svc) groupOpen.svc = true; // mostra a lista de serviços
     outrosList.splice(i, 1); renderSaleForm(); showToast('Agora está como “' + c.label + '”');
   }
@@ -2719,7 +2754,9 @@
       '<div class="field-wrap"><label for="expCat">Categoria</label><select id="expCat" class="select-input">' + catOptions + '</select></div>' +
       '<div class="field-wrap" id="expValorWrap"><label for="expValor">Valor (R$)</label><div class="money-input"><span>R$</span><input type="text" inputmode="decimal" id="expValor" placeholder="0,00" value="' + escAttr(vValor) + '"></div><span class="hint" id="expValorHint" style="display:none">Informe um valor maior que zero, ex: 45 ou 45,90.</span></div>' +
       '</div>' +
-      '<button class="registrar-btn" id="registrarGastoBtn">' + (ed ? 'Salvar alterações' : (isTodayKey(viewDay) ? 'Registrar gasto' : 'Registrar gasto em ' + fmtDM(viewDay))) + '</button>' + (ed ? '<button class="clear-btn" id="cancelEditExpBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') + '</div>';
+      '<button class="registrar-btn" id="registrarGastoBtn">' + (ed ? 'Salvar alterações' : (isTodayKey(viewDay) ? 'Registrar gasto' : 'Registrar gasto em ' + fmtDM(viewDay))) + '</button>' + (ed ? '<button class="clear-btn" id="dividirExpBtn" style="width:100%;margin-top:8px">Dividir este gasto (separar uma parte)</button><button class="clear-btn" id="cancelEditExpBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') + '</div>';
+    var divB = document.getElementById('dividirExpBtn');
+    if (divB) divB.addEventListener('click', function () { dividirGasto(ed.id); });
     var cancelExp = document.getElementById('cancelEditExpBtn');
     if (cancelExp) cancelExp.addEventListener('click', function () { editingExpId = null; expDraft = null; renderApp(); });
     function keepDraft() { expDraft = { id: editingExpId || null, desc: document.getElementById('expDesc').value, cat: document.getElementById('expCat').value, valor: document.getElementById('expValor').value, catTocada: catTocada }; }
@@ -2767,6 +2804,27 @@
     editingExpId = null; expDraft = null; expBase = null;
     showToast(wasEdit ? 'Gasto alterado' : 'Gasto registrado');
     renderApp();
+  }
+  // Dividir um gasto (nos dados reais: "carro, aluguel, empréstimo" num gasto só): separa uma parte num gasto novo
+  // do mesmo dia, com categoria própria; o valor dela sai do original. A soma continua igual. Pode repetir.
+  function dividirGasto(id) {
+    var g = loadDespesas().find(function (e) { return e.id === id; }); if (!g) { renderApp(); return; }
+    formModal({ titulo: 'Separar uma parte deste gasto', texto: (g.desc || 'sem descrição') + ' — ' + brl(Number(g.valor) || 0) + '. A parte vira um gasto novo no mesmo dia, e o valor dela sai deste. O total continua o mesmo.', ok: 'Separar',
+      campos: [{ id: 'desc', label: 'Descrição da parte', ph: 'ex: aluguel da loja' },
+        { id: 'cat', label: 'Categoria da parte', tipo: 'select', valor: 'outros', opcoes: EXPENSE_CATEGORIES.map(function (c) { return [c.id, c.label]; }) },
+        { id: 'valor', label: 'Valor da parte', tipo: 'money' }],
+      onOk: function (v) {
+        var val = num(v.valor), atual = loadDespesas(), i = atual.findIndex(function (e) { return e.id === id; });
+        if (i < 0) return 'Esse gasto não existe mais.';
+        var orig = atual[i], tot = Number(orig.valor) || 0;
+        if (!String(v.desc || '').trim()) return 'Escreva a descrição da parte.';
+        if (!(val > 0)) return 'Informe o valor da parte.';
+        if (money(val) >= tot) return 'A parte precisa ser menor que o gasto (' + brl(tot) + ').';
+        var lista = atual.slice(), parte = { id: genId(), day: orig.day, ts: orig.ts, manual: !!orig.manual, desc: String(v.desc).trim(), cat: v.cat, valor: money(val) };
+        lista[i] = Object.assign({}, orig, { valor: money(tot - val) }); lista.splice(i + 1, 0, parte);
+        if (!saveDespesas(lista)) return 'Não foi possível salvar. Nada foi mudado.';
+        editingExpId = null; expDraft = null; renderApp(); showToast('Separado: ' + parte.desc + ' ' + brl(parte.valor) + ' · ficou ' + brl(lista[i].valor) + ' em ' + (orig.desc || 'sem descrição'));
+      } });
   }
   function startEditExp(e) {
     editingExpId = e.id; expDraft = null;
@@ -5073,9 +5131,11 @@
     var devMes = devolucoesDe(function (d) { return d.slice(0, 7) === mKey; }).total;
     var saldo = money(totalLiquido - totalDespesas - devMes);
 
-    var vendasKeys = Object.keys(porCategoria).filter(function (k) { return porCategoria[k].qty > 0; });
+    // Maiores valores primeiro (antes era a ordem do cadastro e os grandes ficavam em "Mostrar mais").
+    var vendasKeys = Object.keys(porCategoria).filter(function (k) { return porCategoria[k].qty > 0; }).sort(function (a, b) { return porCategoria[b].valor - porCategoria[a].valor; });
     var vendasRows = capList('vendasmes-' + mKey, vendasKeys, 5, function (k) {
       var v = porCategoria[k];
+      if (k === 'outros') return outrosDetHtml(vendas, v);
       return '<div class="totals-row"><span>' + escAttr(v.qty) + 'x ' + escAttr(v.label) + '</span><span>' + brl(v.valor) + '</span></div>';
     });
     var expKeys = EXPENSE_CATEGORIES.map(function (c) { return c.id; }).filter(function (k) { return k !== CAT_PESSOAL; });
@@ -5088,6 +5148,7 @@
 
     var html = '<div class="card card-wide resumo-strip"><div><small>Vendas do mês (líquido)</small><b>' + brl(totalLiquido) + '</b></div><div><small>Gastos ' + (totalPessoal ? 'da loja' : 'do mês') + '</small><b>' + brl(totalDespesas) + '</b>' + (totalPessoal ? '<span class="mini-t strip-pes">+ ' + brl(totalPessoal) + ' pessoal / da casa (fora do saldo)</span>' : '') + '</div>' +
       '<div class="saldo' + (saldo < 0 ? ' neg' : '') + '"><small>Saldo do mês' + (devMes ? ' (− ' + brl(devMes) + ' devolvidos)' : '') + '</small><b>' + brl(saldo) + '</b></div>' + pulsoHtml(mKey, vendas, totalLiquido) + '</div>';
+    html += contaErradaHtml(vendas);
     html += chartsHtml(mKey);
     html += '<div class="card"><div class="card-title">Vendas do mês</div>' +
       (vendasRows || '<div class="empty">Nenhuma venda neste mês.</div>') +
@@ -5113,6 +5174,10 @@
     if (exportBtn) exportBtn.addEventListener('click', function () { exportarMes(mKey, vendas, despesas, totalBruto, totalDesconto, totalLiquido, totalDespesas, saldo); });
     var exportXlsx = document.getElementById('exportXlsx'); if (exportXlsx) exportXlsx.addEventListener('click', function () { exportarExcel(mKey); });
     bindBackup(); bindReceber(); bindShowMore(); bindAjustes(); bindMaquina(); bindLixeira(); desenhaCopias();
+    document.querySelectorAll('#resumoContent [data-conta-fix]').forEach(function (b) { b.addEventListener('click', function () {
+      var v = loadVendas().find(function (x) { return x.id === b.getAttribute('data-conta-fix'); }); if (!v) { renderApp(); return; }
+      currentTab = 'vendas'; goToDay(v.day); requestEditSale(v);
+    }); });
     document.querySelectorAll('#resumoContent [data-hor-per],#resumoContent [data-hor-met]').forEach(function (b) { b.addEventListener('click', function () {
       if (b.hasAttribute('data-hor-per')) groupOpen._horPer = +b.getAttribute('data-hor-per'); else groupOpen._horMet = b.getAttribute('data-hor-met'); saveUi(); renderResumo();
     }); });

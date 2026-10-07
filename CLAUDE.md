@@ -38,13 +38,17 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
   Sem gasto pessoal no mês, o Excel sai idêntico ao de antes. Nenhum gasto muda de categoria sozinho.
 - A categoria do gasto é sugerida pela descrição (memória dos gastos já lançados, depois palavras óbvias).
 - "Conferir o caixa do dia" foi retirado (pedido da dona).
+- Serviços têm "Qual?" opcional; em Outros, "instalação/retirada/buscar…" sugere "Outro serviço" (descrição inteira).
+- Resumo: venda com a conta errada (itens/desconto/total não fecham) aparece com "Abrir e corrigir" (nunca corrige
+  sozinho); "Vendas do mês" em ordem de valor; "Outros" abre o detalhe por descrição.
+- Gasto pode ser dividido ("Separar uma parte"): a parte vira gasto novo no mesmo dia e a soma não muda.
 - Venda nova de hoje pode ter a hora ajustada ("Vendeu mais cedo?") quando é lançada depois; nunca no futuro.
 
 ## Testes
 `./chaveiro/testes/rodar.sh` — abre o app no Chromium com relógio fixo (20/10/2026) e dados de
 exemplo: venda do estoque, pagamento dividido, fiado, gasto, persistência, backup/restauração,
 valores mais cobrados, venda em andamento que volta ao recarregar, apagados recentemente, cópias automáticas, comparação com o mês passado, tamanho do
-texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, itens rápidos e sugestão de item, gasto pessoal e categoria sugerida, contraste do calendário escuro, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados).
+texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, itens rápidos e sugestão de item, gasto pessoal e categoria sugerida, serviço com "Qual?", Outros detalhado, ordem por valor, conta errada, dividir gasto, contraste do calendário escuro, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados).
 Rode antes de cada commit. `MANTER=1` guarda os arquivos gerados.
 `COMPLETO=1 ./chaveiro/testes/rodar.sh` também roda `caos.js` (robô com ações aleatórias e vendas completas,
 conferindo as regras dos dados a cada ação) e `backup_estragado.js` (restaura backups corrompidos: nada local
