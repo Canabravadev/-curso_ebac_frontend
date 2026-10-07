@@ -107,6 +107,89 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   ok(errs.length === 0 && await p.evaluate(k => localStorage.getItem(k), K.extras) === null, 'abre sem erro e não cria extras à toa');
   await ctx.close();
 
+  console.log('Aviso de estoque e apagados recentemente');
+  ({ ctx, p, errs } = await abre(b, D));
+  const p1 = D.estoque.find(x => x.id === 'p1');
+  await p.fill('[data-stock-box="0"]', p1.modelo); await p.waitForTimeout(80); await p.click('#stockResults-0 [data-pid="p1"]');
+  await p.click('.pay-btn[data-pay="pix"]'); await p.click('#registrarBtn'); await p.waitForTimeout(200);
+  ok(/chegou ao mínimo \(3\).*lista de Comprar/.test(await p.textContent('#toast')), 'venda que leva o produto ao mínimo avisa: ' + norm(await p.textContent('#toast')));
+  const vRem = await ultima(p), est1 = (await lsJ(p, K.estoque)).find(x => x.id === 'p1').qty;
+  await p.click(`#history .sale-item[data-id="${vRem.id}"] .s-del`); await p.click('#history .s-confirm-btn.yes'); await p.waitForTimeout(200);
+  ok(!(await lsJ(p, K.vendas)).some(v => v.id === vRem.id) && (await lsJ(p, K.estoque)).find(x => x.id === 'p1').qty === est1 + 1, 'venda removida e o estoque volta');
+  ok((await lsJ(p, K.extras)).lixeira.some(r => r.tipo === 'venda' && r.reg.id === vRem.id), 'a venda removida fica guardada nos apagados');
+  await p.click('#toast .t-undo'); await p.waitForTimeout(200);
+  await p.click('[data-tab="resumo"]'); await p.waitForTimeout(150);
+  ok(!(await p.$('#lixCard')), 'depois do Desfazer ela não aparece em Apagados');
+  await p.click('[data-tab="vendas"]');
+  await p.click(`#history .sale-item[data-id="${vRem.id}"] .s-del`); await p.click('#history .s-confirm-btn.yes'); await p.waitForTimeout(200);
+  await p.click('[data-tab="despesas"]'); await p.fill('#expDesc', 'teste lixeira'); await p.selectOption('#expCat', 'outros'); await p.fill('#expValor', '9'); await p.click('#registrarGastoBtn'); await p.waitForTimeout(200);
+  const gId = (await lsJ(p, K.despesas)).find(e => e.desc === 'teste lixeira').id;
+  await p.click('#expHistory .s-del'); await p.click('#expHistory .s-confirm-btn.yes'); await p.waitForTimeout(200);
+  await p.click('[data-tab="resumo"]'); await p.waitForTimeout(150);
+  ok(norm(await p.textContent('#lixCard summary')) === '🗑 Apagados recentemente (2)', 'Resumo mostra 2 apagados (venda e gasto)');
+  await p.click('#lixCard summary');
+  const linhas = await p.$$eval('#lixCard .lix-row', rs => rs.map(r => r.textContent.replace(/\s+/g, ' ')));
+  ok(linhas.length === 2 && linhas.some(t => /Venda de 20\/10/.test(t) && /Pix/.test(t)) && linhas.some(t => /Gasto de 20\/10/.test(t) && /teste lixeira/.test(t)), 'lista diz o que foi apagado: ' + linhas.join(' | '));
+  const nV = (await lsJ(p, K.vendas)).length;
+  await p.click('#lixCard .lix-row:has-text("Venda") [data-lix]'); await p.waitForTimeout(200);
+  ok((await lsJ(p, K.vendas)).length === nV + 1 && (await lsJ(p, K.vendas)).some(v => v.id === vRem.id && v.total === vRem.total), 'Recuperar devolve a venda igual, com o mesmo ID');
+  ok((await lsJ(p, K.estoque)).find(x => x.id === 'p1').qty === est1, 'e desconta o estoque de novo');
+  await p.click('#lixCard .lix-row [data-lix]'); await p.waitForTimeout(200);
+  ok((await lsJ(p, K.despesas)).some(e => e.id === gId) && !(await p.$('#lixCard')), 'gasto recuperado; sem apagados, o cartão some');
+  await p.click('[data-tab="vendas"]'); await p.click('#history .sale-item .s-del'); await p.click('#history .s-confirm-btn.yes'); await p.waitForTimeout(150);
+  await p.click('[data-tab="resumo"]'); await p.waitForTimeout(150);
+  const [bk2] = await Promise.all([p.waitForEvent('download'), p.click('#backupBtn')]); const bk2Path = path.join(TMP, 'backup2.json'); await bk2.saveAs(bk2Path);
+  ok(JSON.parse(fs.readFileSync(bk2Path, 'utf8')).extras.lixeira.length >= 1, 'os apagados vão junto no backup');
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+
+  console.log('Cópias automáticas');
+  ctx = await b.newContext({ viewport: { width: 1366, height: 900 }, acceptDownloads: true });
+  await ctx.clock.install({ time: new Date('2026-10-05T09:00:00') });
+  p = await ctx.newPage(); errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
+  await p.goto(APP); await p.evaluate(({ d, K }) => { ['vendas', 'despesas', 'estoque'].forEach(k => localStorage.setItem(K[k], JSON.stringify(d[k]))); }, { d: D, K });
+  for (let dia = 5; dia <= 14; dia++) {
+    await ctx.clock.setSystemTime(new Date(`2026-10-${String(dia).padStart(2, '0')}T09:00:00`));
+    await p.reload(); await p.waitForSelector('#registrarBtn'); await p.waitForTimeout(250);
+  }
+  const chaves = await p.evaluate(() => new Promise(r => { const q = indexedDB.open('chaveiro_copias'); q.onsuccess = () => { const g = q.result.transaction('c').objectStore('c').getAllKeys(); g.onsuccess = () => r(g.result); }; }));
+  ok(chaves.length === 7 && chaves[0] === '2026-10-08' && chaves[6] === '2026-10-14', 'uma cópia por dia, ficam as 7 mais recentes: ' + chaves.join(', '));
+  await p.click('[data-tab="resumo"]'); await p.waitForTimeout(300);
+  ok((await p.$$('#copiasAuto [data-copia]')).length === 7, 'Backup mostra as 7 cópias para baixar');
+  const nAntes = (await lsJ(p, K.vendas)).length;
+  const [cp] = await Promise.all([p.waitForEvent('download'), p.click('#copiasAuto [data-copia="2026-10-14"]')]);
+  const cpPath = path.join(TMP, cp.suggestedFilename()); await cp.saveAs(cpPath);
+  const cj = JSON.parse(fs.readFileSync(cpPath, 'utf8'));
+  ok(cj.app === 'chaveiro' && cj.vendas.length === nAntes && cj.copiaAutomatica === '2026-10-14', 'a cópia baixada é um backup completo do dia');
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+
+  console.log('Comparação com o mês passado e tamanho do texto');
+  ({ ctx, p, errs } = await abre(b, D));
+  await p.click('[data-tab="resumo"]'); await p.waitForTimeout(150);
+  const sum = (m, ate) => D.vendas.filter(v => v.day.slice(0, 7) === m && +v.day.slice(8) <= ate).reduce((t, v) => t + v.total, 0);
+  const tc = sum('2026-10', 31), tpp = sum('2026-09', 20), esp = Math.abs(Math.round((tc - tpp) / tpp * 100));
+  const txt = norm(await p.textContent('#resumoContent'));
+  ok(txt.includes(esp + '% em relação aos mesmos dias do mês passado (dia 1 a 20'), `outubro (até dia 20) comparado com 1 a 20 de setembro: ${esp}%`);
+  const exAntes = await p.evaluate(k => localStorage.getItem(k), K.extras);
+  await p.click('#ajustesCard summary'); await p.click('[data-zoom="1.25"]'); await p.waitForTimeout(150);
+  ok(await p.evaluate(() => document.documentElement.style.zoom) === '1.25', 'texto "Maior" aumenta a tela na hora');
+  await p.reload(); await p.waitForSelector('#registrarBtn');
+  ok(await p.evaluate(() => document.documentElement.style.zoom) === '1.25' && await p.evaluate(k => localStorage.getItem(k), K.extras) === exAntes, 'continua depois de recarregar e não mexe nos dados');
+  await p.setViewportSize({ width: 390, height: 844 });
+  let larg = 0; for (const t of ['vendas', 'estoque', 'despesas', 'resumo']) { await p.click(`[data-tab="${t}"]`); await p.waitForTimeout(120); larg = Math.max(larg, await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)); }
+  ok(larg <= 1, 'no celular com texto Maior nada passa da largura da tela');
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+
+  console.log('Venda pela metade');
+  ({ ctx, p, errs } = await abre(b, D));
+  let perguntou = false; p.removeAllListeners('dialog'); p.on('dialog', d => { if (d.type() === 'beforeunload') perguntou = true; d.accept(); });
+  await p.reload(); await p.waitForSelector('#registrarBtn'); ok(!perguntou, 'sem venda em andamento recarrega sem perguntar');
+  await p.click('.step-btn.plus[data-cat="carro"]');
+  await p.reload(); await p.waitForSelector('#registrarBtn'); ok(perguntou, 'com item na venda, o navegador pergunta antes de sair');
+  await ctx.close();
+
   console.log('Excel da contadora (outubro)');
   ({ ctx, p, errs } = await abre(b, D));
   await p.click('[data-tab="resumo"]');
