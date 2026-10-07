@@ -34,3 +34,6 @@ exemplo: venda do estoque, pagamento dividido, fiado, gasto, persistência, back
 valores mais cobrados, venda em andamento que volta ao recarregar, apagados recentemente, cópias automáticas, comparação com o mês passado, tamanho do
 texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados).
 Rode antes de cada commit. `MANTER=1` guarda os arquivos gerados.
+`COMPLETO=1 ./chaveiro/testes/rodar.sh` também roda `caos.js` (robô com ações aleatórias e vendas completas,
+conferindo as regras dos dados a cada ação) e `backup_estragado.js` (restaura backups corrompidos: nada local
+pode sumir, mudar ou duplicar). Rode o completo antes de mexer em gravação, backup ou restauração.

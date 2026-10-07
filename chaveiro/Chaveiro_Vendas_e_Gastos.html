@@ -2845,7 +2845,7 @@
       xfs.push('<xf numFmtId="' + (FMT[o.fmt] != null ? FMT[o.fmt] : 0) + '" fontId="' + font(o) + '" fillId="' + fill(o.fill) + '" borderId="' + border(o.bd) + '" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1">' + al + '</xf>');
       map[name] = xfs.length - 1;
     }
-    var GRID = { all: 'thin:D9D9D9' }, TOP = { t: 'thin:808080', b: 'thin:808080' };
+    var TOP = { t: 'thin:808080', b: 'thin:808080' };
     add('def');                                   // 0: padrão (precisa ser o primeiro)
     add('txt'); add('txtw', { wrap: 1 }); add('txti', { ind: 1 }); add('txtwi', { wrap: 1, ind: 1 }); add('txtc', { h: 'center' });
     add('money', { fmt: 'money' }); add('date', { fmt: 'date', h: 'center' }); add('time', { fmt: 'time', h: 'center' });
@@ -3451,7 +3451,6 @@
     var f = bg.querySelector('input, select, textarea'); if (f) f.focus();
     return fechar;
   }
-  function addMesAtras(k, n) { return addDays(k, -n); }
   // Vendas por produto: última venda e quantidade vendida nos últimos 60 dias (recalcula quando vendas ou dia mudam).
   var _pv = { src: null, dia: '' };
   function prodVendas() {
@@ -4929,7 +4928,7 @@
     var hoje = todayKey(); if (groupOpen._backupAdiado === hoje) return '';
     var last = groupOpen._backup, days = last ? Math.floor((parseDay(hoje) - parseDay(last)) / 864e5) : null;
     if (days !== null && days < 7) return '';
-    if (days === null) { var first = hoje, lim = addDays(hoje, -7), velho = function (x) { return x.day <= lim; }; if (!vs.some(velho) && !gs.some(velho)) return ''; }
+    if (days === null) { var lim = addDays(hoje, -7), velho = function (x) { return x.day <= lim; }; if (!vs.some(velho) && !gs.some(velho)) return ''; }
     return '<span class="db-det">💾 ' + (days === null ? 'Você ainda não fez nenhum backup.' : 'Último backup há ' + days + ' dias.') + ' Guarde uma cópia fora deste computador (Google Drive ou pendrive).</span><button id="dbBackup">Salvar backup agora</button><button id="dbAdiar" class="alt">Lembrar amanhã</button>';
   }
   // Cartão "Ajustes" do Resumo: dias de funcionamento, dias fechados, taxas da maquininha e aviso da fresa.
