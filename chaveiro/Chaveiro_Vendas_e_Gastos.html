@@ -2169,23 +2169,17 @@
       '<div class="stepper"><button class="step-btn minus" data-cat="' + c.id + '" aria-label="Diminuir ' + escAttr(c.label) + '">−</button><span class="step-count">' + it.qty + '</span><button class="step-btn plus" data-cat="' + c.id + '" aria-label="Aumentar ' + escAttr(c.label) + '">+</button></div>' +
       extra + '</div>';
   }
-  // Sem controle no estoque (não cadastrado ou acabou), o clonável entra como "Outros: Controle clonável" sem baixa,
-  // em vez de travar o botão (nos dados reais ele acabou digitado à mão em Outros, com erro de digitação).
-  var CLONE_DESC = 'Controle clonável';
-  function cloneSemBaixa() { return outrosList.filter(function (o) { return nomeChave(o.desc) === nomeChave(CLONE_DESC) && num(o.price) === PRECO_CLONAVEL; })[0] || null; }
   function cloneRowHtml() {
-    var x = cloneProd(), s = x && stockItems[x.id], sb = cloneSemBaixa(), q = (s ? s.qty : 0) + (sb ? sb.qty : 0), av = x ? availQty(x) : 0;
-    var info = brl(PRECO_CLONAVEL) + ' un. · ' + (x && av > 0 ? 'estoque: ' + av + (sb ? ' · ' + sb.qty + ' sem baixa' : '') : (x ? 'estoque acabou' : 'sem controle no estoque') + ': entra sem baixa');
+    var x = cloneProd(), s = x && stockItems[x.id], q = s ? s.qty : 0, av = x ? availQty(x) : 0;
+    var info = x ? brl(PRECO_CLONAVEL) + ' un. · estoque: ' + av + (q > av ? ' — só há ' + av + '!' : '') : 'não encontrado no estoque (cadastre: Controle de portão / Controle clonavel)';
     return '<div class="item-row tile-row' + (q > 0 ? ' on' : '') + '" data-block="c-clonavel"><span class="ico">' + KEY_SVG + '</span>' +
       '<div class="item-info"><span class="item-label">Controle clonável</span><span class="item-price">' + info + '</span></div>' +
-      '<div class="stepper"><button class="step-btn minus" data-clone="-1" aria-label="Diminuir Controle clonável"' + (q > 0 ? '' : ' disabled') + '>−</button><span class="step-count">' + q + '</span><button class="step-btn plus" data-clone="1" aria-label="Aumentar Controle clonável">+</button></div></div>';
+      '<div class="stepper"><button class="step-btn minus" data-clone="-1" aria-label="Diminuir Controle clonável"' + (q > 0 ? '' : ' disabled') + '>−</button><span class="step-count">' + q + '</span><button class="step-btn plus" data-clone="1" aria-label="Aumentar Controle clonável"' + (x && q < av ? '' : ' disabled') + '>+</button></div></div>';
   }
   function changeClone(d) {
-    var x = cloneProd(), s = x && stockItems[x.id], sb = cloneSemBaixa();
-    if (d > 0) {
-      if (x && (s ? s.qty : 0) < availQty(x)) { if (s) s.qty += 1; else addStockItem(x); }
-      else { if (sb) sb.qty += 1; else outrosList.push({ desc: CLONE_DESC, price: moneyInput(PRECO_CLONAVEL), qty: 1 }); return renderSaleForm(); }
-    } else if (sb) { sb.qty -= 1; if (sb.qty <= 0) outrosList.splice(outrosList.indexOf(sb), 1); return renderSaleForm(); }
+    var x = cloneProd(); if (!x) return;
+    var s = stockItems[x.id];
+    if (d > 0) { if (s) s.qty += 1; else addStockItem(x); }
     else if (s) { s.qty -= 1; if (s.qty <= 0) delete stockItems[x.id]; }
     if (!replaceBlock('c-clonavel', cloneRowHtml())) return renderSaleForm();
     updateTotalsDisplay();
@@ -2230,7 +2224,6 @@
   function refreshStock(pid) { if (!replaceBlock('sp-' + pid, stockSelRowHtml(pid))) return renderSaleForm(); updateTotalsDisplay(); }
   function refreshOutros() {
     if (!replaceBlock('outros', outrosBlockHtml())) return renderSaleForm();
-    replaceBlock('c-clonavel', cloneRowHtml()); // a linha do clonável conta também o que entrou sem baixa
     if (outrosFocus) { outrosFocus = false; var ds = document.querySelectorAll('#saleFormWrap [data-outro-desc]'); if (ds.length) ds[ds.length - 1].focus(); }
     updateTotalsDisplay();
   }

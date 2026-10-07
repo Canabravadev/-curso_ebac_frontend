@@ -253,23 +253,17 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   ok(!(await p.$('#backupEnviar')) && (await p.$$('#ajAcesa')).length === (await p.evaluate(() => 'wakeLock' in navigator) ? 1 : 0), 'onde o navegador não envia arquivos, o botão não aparece');
   await ctx.close();
 
-  console.log('Controle clonável sem estoque e hora da venda');
-  ({ ctx, p, errs } = await abre(b, D));
-  ok(await p.isEnabled('[data-clone="1"]') && /sem controle no estoque: entra sem baixa/.test(await p.textContent('[data-block="c-clonavel"]')), 'sem controle cadastrado, o botão funciona e avisa que entra sem baixa');
-  await p.click('[data-clone="1"]'); await p.click('[data-clone="1"]'); await p.waitForTimeout(80);
-  ok(norm(await p.textContent('[data-block="c-clonavel"] .step-count')) === '2' && /160,00/.test(await p.textContent('#totalDisplay')), 'dois toques: 2 controles, total R$ 160');
-  await p.click('[data-clone="-1"]'); await p.waitForTimeout(60);
+  console.log('Controle clonável (produto do estoque) e hora da venda');
+  const comCtrl = JSON.parse(JSON.stringify(D)); comCtrl.estoque.push({ id: 'ctl', cat: 'Controle de portão', marca: 'Controle clonavel', modelo: '', qty: 2, preco: 80, min: 1 });
+  ({ ctx, p, errs } = await abre(b, comCtrl));
+  await p.click('[data-clone="1"]'); await p.waitForTimeout(80);
   await p.click('#registrarBtn'); await p.waitForTimeout(200);
   let vc = await ultima(p);
-  ok(vc.total === 80 && vc.items.length === 1 && vc.items[0].cat === 'outros' && vc.items[0].desc === 'Controle clonável' && vc.items[0].unitPrice === 80, 'gravado como Outros "Controle clonável" R$ 80 (sem baixa): ' + JSON.stringify(vc.items));
-  await ctx.close();
-  const comCtrl = JSON.parse(JSON.stringify(D)); comCtrl.estoque.push({ id: 'ctl', cat: 'Controle de portão', marca: 'Controle clonavel', modelo: '', qty: 1, preco: 80, min: 0 });
-  ({ ctx, p, errs } = await abre(b, comCtrl));
-  await p.click('[data-clone="1"]'); await p.click('[data-clone="1"]'); await p.waitForTimeout(80);
+  ok(vc.total === 80 && vc.items.length === 1 && vc.items[0].pid === 'ctl' && (await lsJ(p, K.estoque)).find(x => x.id === 'ctl').qty === 1, 'clonável vende pelo estoque (R$ 80) e baixa 1');
+  await p.click('[data-clone="1"]'); await p.waitForTimeout(80);
+  ok(await p.isDisabled('[data-clone="1"]'), 'com a última unidade na venda, o + trava (não vende além do estoque)');
   await p.click('#registrarBtn'); await p.waitForTimeout(200);
-  vc = await ultima(p); const ctl = (await lsJ(p, K.estoque)).find(x => x.id === 'ctl');
-  ok(vc.total === 160 && vc.items.some(i => i.pid === 'ctl' && i.qty === 1) && vc.items.some(i => i.cat === 'outros' && i.desc === 'Controle clonável' && i.qty === 1) && ctl.qty === 0, 'com 1 no estoque: o 1º baixa do estoque, o 2º entra sem baixa');
-  ok(/estoque acabou: entra sem baixa/.test(await p.textContent('[data-block="c-clonavel"]')), 'estoque zerado: avisa e continua vendendo');
+  ok((await lsJ(p, K.estoque)).find(x => x.id === 'ctl').qty === 0 && await p.isDisabled('[data-clone="1"]'), 'estoque zerado: o botão continua travado, como sempre foi');
   // hora da venda lançada depois
   await p.click('.step-btn.plus[data-cat="simples"]'); await p.click('#horaAjustar'); await p.fill('#horaVenda', '23:30'); await p.dispatchEvent('#horaVenda', 'change'); await p.waitForTimeout(80);
   ok(await p.isDisabled('#registrarBtn') && /ainda não chegou/.test(await p.textContent('#saleTotalsWrap')), 'hora no futuro (23:30, agora 15:00) não registra');

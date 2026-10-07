@@ -29,8 +29,8 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
 `chaveiro_rascunho_v1` (apagada ao registrar; nunca vira venda sozinha).
 
 ## Balcão (decisões baseadas nos dados reais)
-- Controle clonável sem estoque (não cadastrado ou zerado) entra como Outros "Controle clonável" R$ 80, sem baixa,
-  em vez de travar (nos dados reais acabou digitado à mão com erro).
+- Controle clonável é o produto do estoque (Controle de portão / Controle clonavel): baixa do estoque e trava
+  quando acaba. Não mudar (decisão da dona).
 - Venda nova de hoje pode ter a hora ajustada ("Vendeu mais cedo?") quando é lançada depois; nunca no futuro.
 
 ## Testes
