@@ -925,6 +925,7 @@
   .acts { display: grid; gap: 8px; margin-top: 12px; } .acts > * { width: 100%; margin: 0 !important; }
   .card .clear-btn.w100, .clear-btn.w100 { width: 100%; margin-top: 10px; padding: 10px 14px; }
   .mini-t { display: block; font-size: .74rem; color: var(--ink-soft); font-weight: 400; margin-top: 2px; }
+  .hora-btn { margin-top: 10px; } .hora-wrap { margin-top: 10px; } .hora-wrap .row-fb { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .hora-wrap .money-input { flex: 1; min-width: 120px; }
   .preco-sug { flex-basis: 100%; width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: .78rem; color: var(--ink-soft); }
   .preco-sug .pill { font-family: 'JetBrains Mono', monospace; }
   .lix-row { gap: 12px; font-size: .88rem; border-top: 1px dashed var(--line); padding: 9px 0; }
@@ -1326,13 +1327,13 @@
   var splitOn = false, splitVals = { dinheiro: '', pix: '', cartao: '' }, cartaoTipo = '';
   var DEFAULT_PAY = 'cartao';
   function resetItemState() {
-    stockItems = {}; stockQueries = {}; payState = DEFAULT_PAY; clienteState = ''; outrosList = []; legacyItems = []; trocoRaw = '';
+    stockItems = {}; stockQueries = {}; horaVenda = ''; payState = DEFAULT_PAY; clienteState = ''; outrosList = []; legacyItems = []; trocoRaw = '';
     splitOn = false; splitVals = { dinheiro: '', pix: '', cartao: '' }; cartaoTipo = groupOpen && groupOpen._cartaoTipo || '';
     editBase = {}; editingOrigPay = null; editingSaleDay = null;
     CATEGORIES.forEach(function (c) { itemState[c.id] = { qty: 0, price: c.price !== null ? c.price : '', desc: '', over: null, src: null }; });
   }
   resetItemState();
-  var finalValueRaw = '';
+  var finalValueRaw = '', horaVenda = ''; // horaVenda: "HH:MM" quando a venda de hoje aconteceu mais cedo (lançada depois)
   var editingSaleId = null, editingExpId = null;
   var expDraft = null; // {id, desc, cat, valor}: o que está digitado no formulário de gasto (novo: id null)
   var expBase = null;  // {desc, cat, valor} do gasto como estava quando o formulário de edição foi mostrado
@@ -1953,6 +1954,7 @@
     if (subtotal <= 0) return false;
     if (finalInfo().error) return false;
     if (payProblem()) return false;
+    if (horaVenda && !editingSaleId && isTodayKey(viewDay) && horaVenda > agoraHM()) return false; // hora que ainda não chegou
     var ok = Object.keys(stockItems).every(function (k) { return num(stockItems[k].price) > 0; }) && !(payState === 'fiado' && !clienteState.trim());
     if (!outrosList.every(function (o) { return num(o.price) > 0 && o.qty > 0; })) ok = false;
     CATEGORIES.forEach(function (c) {
@@ -2167,17 +2169,23 @@
       '<div class="stepper"><button class="step-btn minus" data-cat="' + c.id + '" aria-label="Diminuir ' + escAttr(c.label) + '">−</button><span class="step-count">' + it.qty + '</span><button class="step-btn plus" data-cat="' + c.id + '" aria-label="Aumentar ' + escAttr(c.label) + '">+</button></div>' +
       extra + '</div>';
   }
+  // Sem controle no estoque (não cadastrado ou acabou), o clonável entra como "Outros: Controle clonável" sem baixa,
+  // em vez de travar o botão (nos dados reais ele acabou digitado à mão em Outros, com erro de digitação).
+  var CLONE_DESC = 'Controle clonável';
+  function cloneSemBaixa() { return outrosList.filter(function (o) { return nomeChave(o.desc) === nomeChave(CLONE_DESC) && num(o.price) === PRECO_CLONAVEL; })[0] || null; }
   function cloneRowHtml() {
-    var x = cloneProd(), s = x && stockItems[x.id], q = s ? s.qty : 0, av = x ? availQty(x) : 0;
-    var info = x ? brl(PRECO_CLONAVEL) + ' un. · estoque: ' + av + (q > av ? ' — só há ' + av + '!' : '') : 'não encontrado no estoque (cadastre: Controle de portão / Controle clonavel)';
+    var x = cloneProd(), s = x && stockItems[x.id], sb = cloneSemBaixa(), q = (s ? s.qty : 0) + (sb ? sb.qty : 0), av = x ? availQty(x) : 0;
+    var info = brl(PRECO_CLONAVEL) + ' un. · ' + (x && av > 0 ? 'estoque: ' + av + (sb ? ' · ' + sb.qty + ' sem baixa' : '') : (x ? 'estoque acabou' : 'sem controle no estoque') + ': entra sem baixa');
     return '<div class="item-row tile-row' + (q > 0 ? ' on' : '') + '" data-block="c-clonavel"><span class="ico">' + KEY_SVG + '</span>' +
       '<div class="item-info"><span class="item-label">Controle clonável</span><span class="item-price">' + info + '</span></div>' +
-      '<div class="stepper"><button class="step-btn minus" data-clone="-1" aria-label="Diminuir Controle clonável"' + (q > 0 ? '' : ' disabled') + '>−</button><span class="step-count">' + q + '</span><button class="step-btn plus" data-clone="1" aria-label="Aumentar Controle clonável"' + (x && q < av ? '' : ' disabled') + '>+</button></div></div>';
+      '<div class="stepper"><button class="step-btn minus" data-clone="-1" aria-label="Diminuir Controle clonável"' + (q > 0 ? '' : ' disabled') + '>−</button><span class="step-count">' + q + '</span><button class="step-btn plus" data-clone="1" aria-label="Aumentar Controle clonável">+</button></div></div>';
   }
   function changeClone(d) {
-    var x = cloneProd(); if (!x) return;
-    var s = stockItems[x.id];
-    if (d > 0) { if (s) s.qty += 1; else addStockItem(x); }
+    var x = cloneProd(), s = x && stockItems[x.id], sb = cloneSemBaixa();
+    if (d > 0) {
+      if (x && (s ? s.qty : 0) < availQty(x)) { if (s) s.qty += 1; else addStockItem(x); }
+      else { if (sb) sb.qty += 1; else outrosList.push({ desc: CLONE_DESC, price: moneyInput(PRECO_CLONAVEL), qty: 1 }); return renderSaleForm(); }
+    } else if (sb) { sb.qty -= 1; if (sb.qty <= 0) outrosList.splice(outrosList.indexOf(sb), 1); return renderSaleForm(); }
     else if (s) { s.qty -= 1; if (s.qty <= 0) delete stockItems[x.id]; }
     if (!replaceBlock('c-clonavel', cloneRowHtml())) return renderSaleForm();
     updateTotalsDisplay();
@@ -2222,6 +2230,7 @@
   function refreshStock(pid) { if (!replaceBlock('sp-' + pid, stockSelRowHtml(pid))) return renderSaleForm(); updateTotalsDisplay(); }
   function refreshOutros() {
     if (!replaceBlock('outros', outrosBlockHtml())) return renderSaleForm();
+    replaceBlock('c-clonavel', cloneRowHtml()); // a linha do clonável conta também o que entrou sem baixa
     if (outrosFocus) { outrosFocus = false; var ds = document.querySelectorAll('#saleFormWrap [data-outro-desc]'); if (ds.length) ds[ds.length - 1].focus(); }
     updateTotalsDisplay();
   }
@@ -2306,7 +2315,7 @@
       '<div class="totals-row discount-row"><span>Valor final <small class=\"mini\">(só se deu desconto)</small></span><input type="text" inputmode="decimal" placeholder="' + moneyInput(fi.subtotal) + '" id="finalValueInput"' + (fi.error ? ' class="invalid"' : '') + ' value="' + escAttr(finalValueRaw) + '"></div>' +
       '<div class="totals-row" id="discountRow" style="display:' + (fi.discount > 0 ? 'flex' : 'none') + '"><span>Desconto aplicado</span><span id="discountDisplay">' + brl(fi.discount) + '</span></div>' +
       '<div class="totals-row total-row"><span>Total</span><span class="val" id="totalDisplay">' + (fi.error ? '—' : brl(fi.total)) + '</span></div>' +
-      payHtml() + '<button class="registrar-btn" id="registrarBtn" ' + (valid ? '' : 'disabled') + '>' + (editingSaleId ? 'Salvar alterações' : (isTodayKey(viewDay) ? 'Registrar venda' : 'Registrar venda em ' + fmtDM(viewDay))) + '</button><div class="reg-hint' + (fi.error ? ' err' : '') + '" id="regHint">' + escAttr(regHint()) + '</div>' + (editingSaleId ? '<button class="clear-btn" id="cancelEditBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') +
+      payHtml() + horaHtml() + '<button class="registrar-btn" id="registrarBtn" ' + (valid ? '' : 'disabled') + '>' + (editingSaleId ? 'Salvar alterações' : (isTodayKey(viewDay) ? 'Registrar venda' : 'Registrar venda em ' + fmtDM(viewDay))) + '</button><div class="reg-hint' + (fi.error ? ' err' : '') + '" id="regHint">' + escAttr(regHint()) + '</div>' + (editingSaleId ? '<button class="clear-btn" id="cancelEditBtn" style="width:100%;margin-top:8px">Cancelar edição</button>' : '') +
       '</div>';
 
     markSelChanges();
@@ -2316,7 +2325,7 @@
     if (finalValueInput) { finalValueInput.addEventListener('input', function () { finalValueRaw = finalValueInput.value; updateTotalsDisplay(); }); }
     var registrarBtn = document.getElementById('registrarBtn');
     if (registrarBtn) { registrarBtn.addEventListener('click', function () { if (!isFormValid()) return; registrarVenda(); }); }
-    bindStockPicker(wrap); bindPay();
+    bindStockPicker(wrap); bindPay(); bindHora();
     var cancelBtn = document.getElementById('cancelEditBtn');
     if (cancelBtn) cancelBtn.addEventListener('click', function () { cancelSaleEdit(); renderApp(); });
   }
@@ -2364,6 +2373,7 @@
       all[idx] = rec;
     } else {
       var st = stampFor(key);
+      if (horaVenda && isTodayKey(key)) { var hm = horaVenda.split(':'), dh = new Date(); dh.setHours(+hm[0], +hm[1], 0, 0); if (dh.getTime() <= Date.now()) st = { ts: dh.getTime(), manual: false }; }
       rec = Object.assign({ id: genId(), day: key, ts: st.ts, manual: st.manual }, fields);
       if (rec.split === undefined) delete rec.split; if (rec.cartao === undefined) delete rec.cartao;
       all.push(rec);
@@ -4103,6 +4113,22 @@
     var t = finalInfo().total, h = trocoTxt(t), b0 = o.textContent; o.innerHTML = h;
     if (o.textContent !== b0 && num(trocoRaw) > 0) anima(o.querySelector('b'), 'bump');
     var q = document.getElementById('trocoQ'); if (q && q.getAttribute('data-t') !== String(t)) { q.setAttribute('data-t', t); q.innerHTML = trocoQHtml(t); }
+  }
+  // Venda lançada depois (no fim do dia, por exemplo): guarda a hora em que aconteceu, para o horário de
+  // movimento e a coluna Hora do Excel ficarem certos. Só para venda nova de hoje; nunca no futuro.
+  function agoraHM() { var n = new Date(); return String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); }
+  function horaHtml() {
+    if (editingSaleId || !isTodayKey(viewDay)) return '';
+    if (!horaVenda) return '<button type="button" class="pill hora-btn" id="horaAjustar">🕑 Vendeu mais cedo? Ajustar a hora</button>';
+    var fut = horaVenda > agoraHM();
+    return '<div class="field-wrap hora-wrap' + (fut ? ' invalid' : '') + '"><label for="horaVenda">Hora em que a venda aconteceu</label><div class="row-fb"><div class="money-input"><input class="text-input" type="time" id="horaVenda" value="' + escAttr(horaVenda) + '" max="' + agoraHM() + '"></div>' +
+      '<button type="button" class="pill" id="horaAgora">Usar a hora de agora</button></div>' + (fut ? '<span class="hint" style="display:block">Essa hora ainda não chegou.</span>' : '') + '</div>';
+  }
+  function bindHora() {
+    var a = document.getElementById('horaAjustar'), i = document.getElementById('horaVenda'), z = document.getElementById('horaAgora');
+    if (a) a.addEventListener('click', function () { horaVenda = agoraHM(); renderSaleForm(); var n = document.getElementById('horaVenda'); if (n) n.focus(); });
+    if (i) i.addEventListener('change', function () { horaVenda = i.value; renderSaleForm(); });
+    if (z) z.addEventListener('click', function () { horaVenda = ''; renderSaleForm(); });
   }
   function payHtml() {
     var orig = editingSaleId ? loadVendas().find(function (v) { return v.id === editingSaleId; }) : null, podeDividir = !(orig && recList(orig).length);

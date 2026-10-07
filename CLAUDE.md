@@ -28,6 +28,11 @@ Venda ou gasto apagado vai para `lixeira` (60 dias) no mesmo commit. Cópias aut
 IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex.: tamanho do texto) ficam em `chaveiro_ui_v1`; a venda em andamento em
 `chaveiro_rascunho_v1` (apagada ao registrar; nunca vira venda sozinha).
 
+## Balcão (decisões baseadas nos dados reais)
+- Controle clonável sem estoque (não cadastrado ou zerado) entra como Outros "Controle clonável" R$ 80, sem baixa,
+  em vez de travar (nos dados reais acabou digitado à mão com erro).
+- Venda nova de hoje pode ter a hora ajustada ("Vendeu mais cedo?") quando é lançada depois; nunca no futuro.
+
 ## Testes
 `./chaveiro/testes/rodar.sh` — abre o app no Chromium com relógio fixo (20/10/2026) e dados de
 exemplo: venda do estoque, pagamento dividido, fiado, gasto, persistência, backup/restauração,
