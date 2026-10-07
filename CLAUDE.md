@@ -13,7 +13,9 @@ direto do arquivo, no celular e no PC. A dona usa todo dia: estabilidade vem ant
   sem conferências internas, sem contabilidade inventada.
 - Não redesenhar o visual existente. Componentes novos usam as peças que já existem
   (`.field-wrap`, `.money-input`, `.registrar-btn`, `.est-btn`, `.pay-btn`, `.pill`, `.tag`, `details.card`...).
-- JavaScript ES5 dentro de uma IIFE, sem bibliotecas externas e sem rede.
+- JavaScript ES5 dentro de uma IIFE, sem bibliotecas externas e sem rede. Nada é carregado da internet:
+  as fontes (Fraunces, IBM Plex Sans, JetBrains Mono, só latim) e o ícone estão embutidos no arquivo.
+- Alvo: Chrome no Android e no PC (iPhone não é usado).
 - Textos para o usuário em português simples, sem termos técnicos.
 - Dados reais da loja nunca entram no repositório. Testes usam só `chaveiro/testes/dados.js`.
 
@@ -30,5 +32,5 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
 `./chaveiro/testes/rodar.sh` — abre o app no Chromium com relógio fixo (20/10/2026) e dados de
 exemplo: venda do estoque, pagamento dividido, fiado, gasto, persistência, backup/restauração,
 valores mais cobrados, venda em andamento que volta ao recarregar, apagados recentemente, cópias automáticas, comparação com o mês passado, tamanho do
-texto, aviso ao sair com venda pela metade, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados).
+texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados).
 Rode antes de cada commit. `MANTER=1` guarda os arquivos gerados.

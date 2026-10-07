@@ -37,6 +37,16 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   const b = await pw.chromium.launch({ executablePath: CHROMIUM });
   const D = gerar();
 
+  console.log('Funciona sem internet');
+  const html = fs.readFileSync(path.resolve(__dirname, '..', 'Chaveiro_Vendas_e_Gastos.html'), 'utf8');
+  const externos = [...html.matchAll(/<(?:link|script|img|iframe)\b[^>]*\b(?:href|src)=["']?(https?:)?\/\/[^"'\s>]+/gi), ...html.matchAll(/url\(\s*["']?https?:\/\/[^)]+\)/gi), ...html.matchAll(/@import\s+["']?https?:/gi)].map(m => m[0].slice(0, 90));
+  ok(externos.length === 0, 'nenhum arquivo carregado da internet (fontes e ícone estão dentro do arquivo) ' + externos.join(' | '));
+  ok(/@font-face\{font-family:'Fraunces'/.test(html) && /@font-face\{font-family:'IBM Plex Sans'/.test(html) && /@font-face\{font-family:'JetBrains Mono'/.test(html), 'as três fontes estão embutidas');
+  { const c = await b.newContext(); const pg = await c.newPage(); const fora = []; await c.route('**/*', r => { if (!r.request().url().startsWith('file:') && !r.request().url().startsWith('data:')) { fora.push(r.request().url()); return r.abort(); } return r.continue(); });
+    await pg.goto(APP); await pg.waitForSelector('#registrarBtn'); await pg.evaluate(() => document.fonts.ready);
+    const fontes = await pg.evaluate(() => ['Fraunces', 'IBM Plex Sans', 'JetBrains Mono'].map(f => document.fonts.check('600 16px "' + f + '"')));
+    ok(fora.length === 0 && fontes.every(Boolean), 'abre sem pedir nada à internet e com as fontes certas ' + fora.join(' ') + ' ' + fontes); await c.close(); }
+
   console.log('Abertura');
   let { ctx, p, errs } = await abre(b, D);
   for (const t of ['vendas', 'estoque', 'despesas', 'resumo']) { await p.click(`[data-tab="${t}"]`); await p.waitForTimeout(120); }
@@ -210,6 +220,37 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   await p.reload(); await p.waitForSelector('#registrarBtn'); await p.waitForTimeout(200);
   ok(!(await p.$('[data-price-cat="carro"]')) && (await lsJ(p, K.vendas)).length === nV0 + 1, 'recarregar de novo não traz a venda de volta (sem duplicar)');
   ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+
+  console.log('Android: enviar arquivos e tela acesa');
+  ctx = await b.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true });
+  await ctx.clock.install({ time: new Date(AGORA) });
+  await ctx.addInitScript(() => { // simula o Chrome do Android: compartilhar arquivos e trava de tela
+    window.__enviados = []; window.__trava = 0;
+    navigator.canShare = d => !!(d && d.files && d.files.length);
+    navigator.share = d => { window.__enviados.push(d.files.map(f => f.name + ':' + f.type + ':' + f.size)); return Promise.resolve(); };
+    Object.defineProperty(navigator, 'wakeLock', { value: { request: () => { window.__trava++; return Promise.resolve({ released: false, release: () => { window.__trava--; return Promise.resolve(); } }); } } });
+  });
+  p = await ctx.newPage(); errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('dialog', d => d.accept());
+  await p.goto(APP); await p.evaluate(({ d, K }) => { localStorage.clear(); ['vendas', 'despesas', 'estoque'].forEach(k => localStorage.setItem(K[k], JSON.stringify(d[k]))); }, { d: D, K });
+  await p.reload(); await p.waitForSelector('#registrarBtn'); await p.click('[data-tab="resumo"]'); await p.waitForTimeout(150);
+  await p.click('#backupEnviar'); await p.waitForTimeout(150);
+  let env = await p.evaluate(() => window.__enviados);
+  ok(env.length === 1 && /^chaveiro-backup-2026-10-20\.json:application\/json:\d+$/.test(env[0][0]) && +env[0][0].split(':')[2] > 10000, 'backup enviado pelo menu do aparelho: ' + env[0]);
+  await p.click('#exportXlsx'); await p.waitForSelector('#exportEnviar'); await p.click('#exportEnviar'); await p.waitForTimeout(150);
+  env = await p.evaluate(() => window.__enviados);
+  ok(env.length === 2 && /^Chaveiro_Relatorio_2026-10\.xlsx:application\/vnd\.openxmlformats/.test(env[1][0]), 'Excel enviado direto para a contadora: ' + env[1]);
+  await p.click('#ajustesCard summary'); await p.click('#ajAcesa'); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => window.__trava) === 1, '"Manter a tela acesa" liga a trava da tela');
+  await p.reload(); await p.waitForSelector('#registrarBtn'); await p.waitForTimeout(150);
+  ok(await p.evaluate(() => window.__trava) === 1, 'continua ligada ao abrir de novo');
+  await p.click('[data-tab="resumo"]'); await p.evaluate(() => { document.getElementById('ajustesCard').open = true; }); await p.click('#ajAcesa'); await p.waitForTimeout(100);
+  ok(await p.evaluate(() => window.__trava) === 0, 'desligar solta a trava');
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+  ({ ctx, p, errs } = await abre(b, D));
+  await p.click('[data-tab="resumo"]');
+  ok(!(await p.$('#backupEnviar')) && (await p.$$('#ajAcesa')).length === (await p.evaluate(() => 'wakeLock' in navigator) ? 1 : 0), 'onde o navegador não envia arquivos, o botão não aparece');
   await ctx.close();
 
   console.log('Excel da contadora (outubro)');
