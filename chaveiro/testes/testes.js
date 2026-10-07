@@ -190,6 +190,28 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   await p.reload(); await p.waitForSelector('#registrarBtn'); ok(perguntou, 'com item na venda, o navegador pergunta antes de sair');
   await ctx.close();
 
+  console.log('Valores mais cobrados e venda em andamento');
+  ({ ctx, p, errs } = await abre(b, D));
+  await p.click('.step-btn.plus[data-cat="carro"]'); await p.waitForTimeout(80);
+  const sug = await p.$$eval('[data-preco-sug="carro"]', bs => bs.map(x => x.textContent.replace(/\s/g, ' ')));
+  ok(sug.length === 2 && /120,00/.test(sug[0]) && /90,00/.test(sug[1]), 'Carro mostra os valores cobrados 2+ vezes, o mais comum primeiro: ' + sug.join(' | '));
+  await p.click('[data-preco-sug="carro"][data-v="120,00"]'); await p.waitForTimeout(80);
+  ok(await p.inputValue('[data-price-cat="carro"]') === '120,00' && /120,00/.test(await p.textContent('#totalDisplay')), 'um toque preenche o valor e o total');
+  await p.fill('[data-stock-box="0"]', D.estoque[5].modelo); await p.waitForTimeout(80); await p.click(`#stockResults-0 [data-pid="${D.estoque[5].id}"]`);
+  await p.click('.pay-btn[data-pay="fiado"]'); await p.fill('#clienteInput', 'Cliente Teste B'); await p.waitForTimeout(300);
+  p.removeAllListeners('dialog'); p.on('dialog', d => d.accept());
+  const nV0 = (await lsJ(p, K.vendas)).length;
+  await p.reload(); await p.waitForSelector('#registrarBtn'); await p.waitForTimeout(200);
+  ok(await p.inputValue('[data-price-cat="carro"]') === '120,00' && await p.$(`#saleFormWrap [data-pid="${D.estoque[5].id}"]`) !== null, 'depois de recarregar, a venda em andamento volta (carro e produto)');
+  ok(await p.inputValue('#clienteInput') === 'Cliente Teste B' && (await p.getAttribute('.pay-btn[data-pay="fiado"]', 'class')).includes('on'), 'com a forma de pagamento e o nome do fiado');
+  ok((await lsJ(p, K.vendas)).length === nV0, 'recuperar não registra nada sozinho');
+  await p.click('#registrarBtn'); await p.waitForTimeout(250);
+  ok((await lsJ(p, K.vendas)).length === nV0 + 1 && await p.evaluate(() => localStorage.getItem('chaveiro_rascunho_v1')) === null, 'registrada, o rascunho é apagado');
+  await p.reload(); await p.waitForSelector('#registrarBtn'); await p.waitForTimeout(200);
+  ok(!(await p.$('[data-price-cat="carro"]')) && (await lsJ(p, K.vendas)).length === nV0 + 1, 'recarregar de novo não traz a venda de volta (sem duplicar)');
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+
   console.log('Excel da contadora (outubro)');
   ({ ctx, p, errs } = await abre(b, D));
   await p.click('[data-tab="resumo"]');

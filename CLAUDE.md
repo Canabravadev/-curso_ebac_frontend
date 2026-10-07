@@ -23,11 +23,12 @@ direto do arquivo, no celular e no PC. A dona usa todo dia: estabilidade vem ant
 Valores grandes podem ir para o IndexedDB `chaveiro_dados` (marcador `@idb:` no localStorage).
 Toda gravação passa por `commit()`. Os extras entram no backup, na restauração e no arquivo sincronizado.
 Venda ou gasto apagado vai para `lixeira` (60 dias) no mesmo commit. Cópias automáticas diárias (7) ficam no
-IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex.: tamanho do texto) ficam em `chaveiro_ui_v1`.
+IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex.: tamanho do texto) ficam em `chaveiro_ui_v1`; a venda em andamento em
+`chaveiro_rascunho_v1` (apagada ao registrar; nunca vira venda sozinha).
 
 ## Testes
 `./chaveiro/testes/rodar.sh` — abre o app no Chromium com relógio fixo (20/10/2026) e dados de
 exemplo: venda do estoque, pagamento dividido, fiado, gasto, persistência, backup/restauração,
-apagados recentemente, cópias automáticas, comparação com o mês passado, tamanho do
+valores mais cobrados, venda em andamento que volta ao recarregar, apagados recentemente, cópias automáticas, comparação com o mês passado, tamanho do
 texto, aviso ao sair com venda pela metade, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados).
 Rode antes de cada commit. `MANTER=1` guarda os arquivos gerados.

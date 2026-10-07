@@ -37,6 +37,11 @@ function gerar() {
   vendas.push({ id: ts1 + '-split', day: '2026-10-15', ts: ts1, manual: false, items: [{ cat: 'outros', qty: 1, unitPrice: 100, desc: 'CONSERTO' }], subtotal: 100, discount: 0, total: 100, pay: 'dinheiro', split: [{ pay: 'dinheiro', valor: 70 }, { pay: 'pix', valor: 30 }], cliente: '' });
   const ts2 = new Date('2026-10-16T10:00:00').getTime();
   vendas.push({ id: ts2 + '-desc', day: '2026-10-16', ts: ts2, manual: false, items: [{ cat: 'simples', qty: 3, unitPrice: 14, desc: '' }], subtotal: 42, discount: 2, total: 40, pay: 'pix', cliente: '' });
+  // cópias de chave de carro com valores que se repetem (para as sugestões de valor)
+  [['2026-09-08', 120], ['2026-09-15', 120], ['2026-09-22', 120], ['2026-10-06', 90], ['2026-10-13', 90], ['2026-10-14', 150]].forEach(([day, pr], i) => {
+    const ts = new Date(day + 'T17:4' + i + ':00').getTime();
+    vendas.push({ id: ts + '-carro', day, ts, manual: false, items: [{ cat: 'carro', qty: 1, unitPrice: pr, desc: '' }], subtotal: pr, discount: 0, total: pr, pay: 'pix', cliente: '' });
+  });
   vendas.sort((a, b) => a.ts - b.ts);
   // uma devolução em outubro: entra no resultado do Excel do mês
   const devolvida = vendas.find(v => v.day.slice(0, 7) === '2026-10' && v.pay === 'pix');

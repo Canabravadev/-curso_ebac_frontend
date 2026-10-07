@@ -914,6 +914,8 @@
   .acts { display: grid; gap: 8px; margin-top: 12px; } .acts > * { width: 100%; margin: 0 !important; }
   .card .clear-btn.w100, .clear-btn.w100 { width: 100%; margin-top: 10px; padding: 10px 14px; }
   .mini-t { display: block; font-size: .74rem; color: var(--ink-soft); font-weight: 400; margin-top: 2px; }
+  .preco-sug { flex-basis: 100%; width: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; font-size: .78rem; color: var(--ink-soft); }
+  .preco-sug .pill { font-family: 'JetBrains Mono', monospace; }
   .lix-row { gap: 12px; font-size: .88rem; border-top: 1px dashed var(--line); padding: 9px 0; }
   .lix-row > span { min-width: 0; overflow-wrap: anywhere; }
   .lix-row .est-btn { flex: none; }
@@ -2116,6 +2118,25 @@
     return (top.length ? '<div class="fav"><div class="fav-t">Mais usados em Outros · toque para adicionar</div><div class="fav-row">' + top.map(function (o) { return '<button type="button" class="fav-chip" data-outro-sug="' + escAttr(o.k) + '" title="Adicionar ' + escAttr(o.desc) + ' por ' + escAttr(brl(o.preco)) + ' (vendido ' + o.n + ' vezes)">' + escAttr(o.desc) + '<small>' + brl(o.preco).replace(/,00$/, '') + '</small></button>'; }).join('') + '</div></div>' : '') +
       '<datalist id="outrosSug">' + om.lista.slice(0, 200).map(function (o) { return '<option value="' + escAttr(o.desc) + '" label="' + escAttr(brl(o.preco) + ' da última vez') + '">'; }).join('') + '</datalist>';
   }
+  // Valores mais cobrados (últimos 180 dias, 2 vezes ou mais) num item de preço livre: um toque preenche.
+  var _pu = { src: null, m: null };
+  function precosUsados(cat) {
+    var src = loadVendas();
+    if (_pu.src !== src) {
+      var m = {}, lim = addDays(todayKey(), -180);
+      src.forEach(function (v) { if (v.day < lim) return; (v.items || []).forEach(function (it) {
+        if (!it || it.cat === 'estoque' || it.cat === 'outros') return; var pr = money(Number(it.unitPrice) || 0); if (!(pr > 0)) return;
+        var c = m[it.cat] || (m[it.cat] = {}); c[pr] = (c[pr] || 0) + 1;
+      }); });
+      _pu = { src: src, m: m };
+    }
+    var c = _pu.m[cat] || {};
+    return Object.keys(c).map(Number).filter(function (pr) { return c[pr] >= 2; }).sort(function (a, b) { return c[b] - c[a] || a - b; }).slice(0, 4);
+  }
+  function precoSugHtml(cat) {
+    var ps = precosUsados(cat); if (!ps.length) return '';
+    return '<div class="preco-sug"><span>Mais cobrados:</span>' + ps.map(function (pr) { return '<button type="button" class="pill" data-preco-sug="' + cat + '" data-v="' + moneyInput(pr) + '">' + brl(pr) + '</button>'; }).join('') + '</div>';
+  }
   // Linha de uma categoria simples (chave, carro, serviço...). data-block permite trocar só esta linha.
   function catRowHtml(c) {
     var it = itemState[c.id];
@@ -2128,7 +2149,7 @@
         '<label>' + (c.svc ? 'Valor do serviço' : 'Valor por chave (' + c.label + ')') + '</label>' +
         '<div class="money-input"><span>R$</span><input type="text" inputmode="decimal" placeholder="0,00" data-price-cat="' + c.id + '" value="' + escAttr(it.price) + '"></div>' +
         '<span class="hint" id="hint-' + c.id + '" style="display:' + (invalidClass ? 'block' : 'none') + '">Informe o valor</span>' +
-        '</div></div>';
+        '</div>' + precoSugHtml(c.id) + '</div>';
     }
     return '<div class="item-row tile-row' + (it.qty > 0 ? ' on' : '') + '" data-block="c-' + c.id + '"><span class="ico">' + KEY_SVG + '</span>' +
       '<div class="item-info"><span class="item-label">' + c.label + '</span><span class="item-price">' + priceLabel + '</span></div>' +
@@ -2207,6 +2228,7 @@
       var b = ev.target.closest('button'); if (!b || !wrap.contains(b)) return;
       var v;
       if ((v = b.getAttribute('data-clone')) !== null) return changeClone(+v);
+      if ((v = b.getAttribute('data-preco-sug')) !== null) { if (itemState[v]) itemState[v].price = b.getAttribute('data-v'); refreshCat(v); return updateTotalsDisplay(); }
       if ((v = b.getAttribute('data-cat')) !== null) return changeCat(v, b.classList.contains('plus') ? 1 : -1);
       if (b.classList.contains('stk-minus') || b.classList.contains('stk-plus')) return changeStock(b.getAttribute('data-pid'), b.classList.contains('stk-plus') ? 1 : -1);
       if ((v = b.getAttribute('data-outro-minus')) !== null) { var o = outrosList[+v]; if (o) o.qty = Math.max(1, o.qty - 1); return refreshOutros(); } // "−" nunca remove (B24)
@@ -2340,6 +2362,7 @@
     var mes0 = monthTotalOf(rec.day.slice(0, 7)), rec0 = recordeDoMes(rec.day);   // para a celebração (só leitura)
     // Venda e estoque gravados juntos: se falhar, nada muda e o formulário continua preenchido.
     if (!commit(dataMap(all, null, es))) return;
+    try { localStorage.removeItem(RASCUNHO); } catch (e) {} // registrada: o rascunho não pode voltar como venda nova
     setUndo([{ before: idx >= 0 ? orig : null, after: rec }]);
     var wasEdit = idx >= 0; editingSaleId = null;
     showToast((wasEdit ? 'Alterações salvas' : 'Venda registrada') + aviso, true);
@@ -5069,6 +5092,37 @@
     return !!editingSaleId || CATEGORIES.some(function (c) { return itemState[c.id] && itemState[c.id].qty > 0; }) || Object.keys(stockItems).length > 0 ||
       outrosList.some(function (o) { return o.qty > 0 && (num(o.price) > 0 || (o.desc || '').trim()); });
   }
+  /* Rascunho da venda: o formulário de venda nova é guardado (só neste aparelho, fora dos dados e do backup) a cada
+     toque; se a página recarregar ou o celular fechar o navegador, ele volta no mesmo dia. Edição de venda não entra. */
+  var RASCUNHO = 'chaveiro_rascunho_v1', rascT = null;
+  function salvaRascunho() {
+    if (editingSaleId) return;
+    try {
+      if (!vendaEmAndamento() || viewDay !== todayKey()) { localStorage.removeItem(RASCUNHO); return; }
+      var it = {}; CATEGORIES.forEach(function (c) { var x = itemState[c.id]; if (x && x.qty > 0) it[c.id] = { qty: x.qty, price: String(x.price == null ? '' : x.price), desc: x.desc || '' }; });
+      var st = {}; Object.keys(stockItems).forEach(function (k) { st[k] = { qty: stockItems[k].qty, price: stockItems[k].price }; });
+      localStorage.setItem(RASCUNHO, JSON.stringify({ em: Date.now(), day: viewDay, itens: it, estoque: st, outros: outrosList.map(function (o) { return { desc: o.desc, price: o.price, qty: o.qty }; }),
+        pay: payState, cliente: clienteState, split: splitOn ? splitVals : null, cartao: cartaoTipo, final: finalValueRaw }));
+    } catch (e) {}
+  }
+  function agendaRascunho() { clearTimeout(rascT); rascT = setTimeout(salvaRascunho, 150); }
+  ['click', 'input', 'change'].forEach(function (t) { document.addEventListener(t, function (ev) { if (ev.target && ev.target.closest && ev.target.closest('#saleFormWrap, #saleTotalsWrap')) agendaRascunho(); }); });
+  function recuperaRascunho() {
+    var r; try { r = JSON.parse(localStorage.getItem(RASCUNHO) || 'null'); } catch (e) { r = null; }
+    if (!isObj(r)) return;
+    try { localStorage.removeItem(RASCUNHO); } catch (e) {}
+    if (r.day !== todayKey() || viewDay !== todayKey() || editingSaleId || hasDraft() || !(Date.now() - (Number(r.em) || 0) < 12 * 36e5)) return;
+    var n = 0;
+    if (isObj(r.itens)) Object.keys(r.itens).forEach(function (k) { var x = r.itens[k], c = itemState[k]; if (!c || !isObj(x) || !(x.qty > 0)) return; c.qty = Math.floor(x.qty); c.price = c.price !== '' && CATEGORIES.some(function (y) { return y.id === k && y.price !== null; }) ? c.price : String(x.price || ''); c.desc = String(x.desc || ''); n++; });
+    if (isObj(r.estoque)) Object.keys(r.estoque).forEach(function (k) { var x = r.estoque[k], pr = estoqueFind(k); if (!pr || !isObj(x) || !(x.qty > 0)) return; addStockItem(pr); stockItems[k].qty = Math.floor(x.qty); if (x.price != null) stockItems[k].price = String(x.price); n++; });
+    if (Array.isArray(r.outros)) r.outros.forEach(function (o) { if (isObj(o) && o.qty > 0) { outrosList.push({ desc: String(o.desc || ''), price: String(o.price || ''), qty: Math.floor(o.qty) }); n++; } });
+    if (!n) return;
+    if (typeof r.pay === 'string' && (r.pay === '' || PAY[r.pay])) payState = r.pay;
+    clienteState = String(r.cliente || ''); finalValueRaw = String(r.final || ''); cartaoTipo = r.cartao === 'debito' || r.cartao === 'credito' ? r.cartao : cartaoTipo;
+    if (isObj(r.split)) { splitOn = true; ['dinheiro', 'pix', 'cartao'].forEach(function (k) { splitVals[k] = String(r.split[k] || ''); }); }
+    renderApp(); showToast('A venda que estava em andamento voltou para a tela');
+    salvaRascunho();
+  }
   window.addEventListener('beforeunload', function (ev) { if (vendaEmAndamento()) { ev.preventDefault(); ev.returnValue = ''; } });
   function checkDayChange() {
     var t = todayKey(); if (t === lastToday) return;
@@ -5243,6 +5297,8 @@
       ['Novo gasto', function () { irAba('despesas'); var d = document.getElementById('expDesc'); if (d) d.focus(); }],
       ['Novo produto', function () { estUi.form = 'new'; estUi.pre = null; irAba('estoque'); }],
       ['Salvar backup agora', function () { fazerBackup(); }],
+      ['Apagados recentemente (recuperar venda ou gasto)', function () { groupOpen._lix = true; saveUi(); irAba('resumo'); var c = document.getElementById('lixCard'); if (c) c.scrollIntoView({ block: 'start' }); else showToast('Nada foi apagado nos últimos ' + LIX_DIAS + ' dias'); }],
+      ['Ajustes (dias da loja, maquininha, tamanho do texto)', function () { groupOpen._ajustes = true; saveUi(); irAba('resumo'); var c = document.getElementById('ajustesCard'); if (c) c.scrollIntoView({ block: 'start' }); }],
       ['Compartilhar resumo do dia (WhatsApp)', function () { abreWhats(msgResumoDia(viewDay), 'Resumo do dia pronto — escolha o contato no WhatsApp (texto copiado)'); }],
       ['Tema: ' + temaProx().label, function () { trocarTema(); }]];
     acoes.forEach(function (a) { if (has(a[0])) add('Ações', '•', a[0], '', a[1]); });
@@ -5315,7 +5371,7 @@
     aplicaZoom();
     if (cfgGet('ocultoInicio', false)) { try { localStorage.setItem('chaveiro_oculto_v1', '1'); } catch (e) {} aplicaOculto(); } // ajuste "abrir com os valores escondidos"
     renderApp(); syncStickyOffsets(); initFile();
-    copiaAutomatica();
+    recuperaRascunho(); copiaAutomatica();
   }
   if (ampPrecisaCarregar()) ampCarrega().then(iniciar, iniciar); else iniciar();
 })();
