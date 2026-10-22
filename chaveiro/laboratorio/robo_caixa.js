@@ -4,7 +4,9 @@
 // Uso: node chaveiro/laboratorio/robo_caixa.js dados.json [app.html]
 // Dados reais ficam fora do repositório (numa pasta temporária); o robô não grava nada fora do navegador.
 // Não refaz desconto nem pagamento dividido: essas vendas aparecem como PULADA.
-// DIFERENTE = a venda gravada não ficou igual à original (total, forma de pagamento ou número de itens).
+// DIFERENTE = a venda gravada não ficou igual à original (dia, total, forma de pagamento ou número de itens).
+// A cada dia novo o app é aberto de novo, como de manhã: aberto de um dia para o outro, ele continua no dia
+// anterior (com o aviso "O dia virou") e as vendas iriam para o dia errado.
 'use strict';
 const fs = require('fs'), path = require('path');
 let pw; try { pw = require('playwright'); } catch (e) { pw = require('/opt/node-tools/node_modules/playwright'); }
@@ -38,10 +40,12 @@ const CHROMIUM = process.env.CHROMIUM || (fs.existsSync('/opt/pw-browsers/chromi
     return false;
   };
 
+  let dia = null;
   for (const v of vendas) {
     const quando = `${v.day.slice(5)} ${new Date(v.ts).toTimeString().slice(0, 5)} R$${v.total} ${v.pay}`;
     if (v.discount || v.split) { puladas++; linhas.push(quando + ': PULADA (desconto ou pagamento dividido)'); continue; }
     await ctx.clock.setSystemTime(new Date(v.ts));
+    if (dia !== v.day) { if (dia !== null) { await p.reload(); await p.waitForSelector('#registrarBtn'); } dia = v.day; }
     const t0 = toques, l0 = letras, como = [];
     try {
       for (const it of v.items) {
@@ -86,7 +90,7 @@ const CHROMIUM = process.env.CHROMIUM || (fs.existsSync('/opt/pw-browsers/chromi
       const y = p.locator('#modal:not([hidden]) #modalYes'); if (await y.count()) { await y.click(); toques++; }
       await p.waitForTimeout(80);
       const g = await p.evaluate(() => { const a = JSON.parse(localStorage.getItem('chaveiro_vendas_v2')); return a[a.length - 1]; });
-      const igual = g && g.total === v.total && g.pay === v.pay && g.items.length === v.items.length;
+      const igual = g && g.day === v.day && g.total === v.total && g.pay === v.pay && g.items.length === v.items.length;
       if (!igual) falhas++;
       linhas.push(`${quando}: ${toques - t0} toques + ${letras - l0} letras ${igual ? '' : '⚠ DIFERENTE ' + JSON.stringify(g && g.items)} [${como.join(', ')}]`);
     } catch (e) {
