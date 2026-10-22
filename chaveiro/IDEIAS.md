@@ -7,10 +7,12 @@ arrisca algum dado salvo? já foi recusada ou já existe? dá para testar?
 Nenhuma ideia entra no app sem aprovação de quem usa. Os números de cada prova ficam na conversa,
 nunca aqui (dados reais da loja não entram no repositório).
 
-## Guardada (não fazer até pedirem)
+## Guardadas (não fazer até pedirem)
 
 - **Comparação justa no topo de Vendas.** Hoje o dia é comparado com o mesmo dia da semana anterior
   inteiro. De manhã a comparação quase sempre aparece em baixa. A ideia é comparar só até a mesma hora.
+- **Tirar as opções de WhatsApp** (comprovante da venda, lembrar fiado, resumo do dia, retrato do ano e
+  lista de compras). Ninguém usa. Aprovada para tirar, mas só quando pedirem.
 
 ## Descartadas por serem de celular
 

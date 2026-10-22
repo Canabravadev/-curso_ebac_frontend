@@ -3,8 +3,8 @@
 App de um arquivo só (`chaveiro/Chaveiro_Vendas_e_Gastos.html`) usado no balcão de uma loja de chaves:
 registra vendas (estoque, chaves, serviços, "Outros"), estoque, gastos, fiado, encomendas e
 retrabalhos, mostra o resumo do mês e gera o Excel mensal da contadora. Funciona offline,
-direto do arquivo, no Chrome. É usado todo dia, no notebook, por duas pessoas (quem pede as mudanças e o pai):
-estabilidade vem antes de novidade.
+direto do arquivo, no Chrome. É usado todo dia, no notebook, por duas pessoas (quem pede as mudanças e o pai),
+no mesmo usuário e no mesmo Chrome, então os dados são os mesmos: estabilidade vem antes de novidade.
 
 ## Regras
 - Nunca perder, alterar ou duplicar dados salvos. Manter compatível com dados e backups antigos
@@ -16,12 +16,14 @@ estabilidade vem antes de novidade.
   (`.field-wrap`, `.money-input`, `.registrar-btn`, `.est-btn`, `.pay-btn`, `.pill`, `.tag`, `details.card`...).
 - JavaScript ES5 dentro de uma IIFE, sem bibliotecas externas e sem rede. Nada é carregado da internet:
   as fontes (Fraunces, IBM Plex Sans, JetBrains Mono, só latim) e o ícone estão embutidos no arquivo.
-- Alvo: Chrome atualizado no notebook (Linux Mint), usado com touchpad. Não propor ideias focadas em celular
-  (iPhone não é usado).
+- Alvo: Chrome atualizado no notebook (Linux Mint, tela 1366×768, tema escuro), usado com touchpad. Não propor
+  ideias focadas em celular (iPhone não é usado).
 - Ideia nova só entra depois de aprovada: apresentar antes de fazer. As que passaram no filtro, as que esperam
   mais dados e as recusadas ficam em `chaveiro/IDEIAS.md` (sem números reais da loja).
 - Erro encontrado pode ser corrigido sem perguntar, com teste que o pegue; depois, contar qual era o erro e por
   que acontecia.
+- Depois que os testes passam, o trabalho é juntado na `main` (pull request e merge; quem usa o app deixou essa
+  decisão comigo). Trabalho novo recomeça a branch de trabalho a partir da `main`.
 - Textos para o usuário em português simples, sem termos técnicos.
 - Dados reais da loja nunca entram no repositório. Testes usam só `chaveiro/testes/dados.js`.
 
