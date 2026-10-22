@@ -425,6 +425,111 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
   await ctx.close();
 
+  console.log('Cursor na busca, tecla "+", "Que horas foi?" e atalho na área de trabalho');
+  ({ ctx, p, errs } = await abre(b, D));
+  {
+    const naBusca = () => p.evaluate(() => !!document.activeElement && document.activeElement.getAttribute('data-stock-box') === '0');
+    const busca = '[data-stock-box="0"]', dica = () => p.getAttribute(busca, 'placeholder');
+    const p2 = D.estoque.find(x => x.id === 'p2');
+    ok(await naBusca(), 'ao abrir, o cursor já está na busca do estoque');
+    await p.keyboard.press('+'); await p.waitForTimeout(80);
+    ok(await p.inputValue(busca) === '' && !(await p.$('#saleFormWrap [data-block^="sp-"]')), '"+" sem produto na venda não faz nada (nem escreve "+")');
+    await p.keyboard.type('60'); await p.keyboard.press('+');
+    ok(await p.inputValue(busca) === '60+', 'com algo digitado, "+" é só uma letra da busca');
+    await p.fill(busca, ''); await p.keyboard.type(p2.modelo); await p.waitForTimeout(80); await p.keyboard.press('Enter'); await p.waitForTimeout(100);
+    ok(await naBusca() && /\+ para mais um/.test(await dica()), 'Enter põe o produto e a busca lembra: "+ para mais um"');
+    await p.keyboard.press('+'); await p.waitForTimeout(80); await p.keyboard.press('+'); await p.waitForTimeout(80);
+    ok(await naBusca() && await p.inputValue(busca) === '' && /Mais um: .*\(3 na venda\)/.test(await p.textContent('#toast')), '"+" põe mais um do último produto, duas vezes: ' + norm(await p.textContent('#toast')));
+    await p.keyboard.press('Control+Enter'); await p.waitForTimeout(200);
+    const v3 = await ultima(p);
+    ok(v3.items.length === 1 && v3.items[0].pid === 'p2' && v3.items[0].qty === 3 && v3.total === 3 * p2.preco && (await lsJ(p, K.estoque)).find(x => x.id === 'p2').qty === p2.qty - 3, 'venda registrada com 3 unidades e o estoque desconta 3');
+    ok(await naBusca() && await dica() === 'nome, marca ou modelo', 'depois de registrar, o cursor volta para a busca (e a dica volta ao normal)');
+    await p.keyboard.press('+'); await p.waitForTimeout(80);
+    ok(!(await p.$('#saleFormWrap [data-block^="sp-"]')), 'venda nova: "+" não repete o produto da venda anterior');
+    await p.keyboard.press('/'); await p.waitForTimeout(80);
+    ok(await p.evaluate(() => document.activeElement && document.activeElement.id === 'histSearch'), '"/" com a busca do estoque vazia continua indo para a busca do histórico');
+    await p.click('#saleFormWrap [data-fav]'); await p.waitForTimeout(100);
+    ok(await naBusca(), 'depois de clicar num "mais vendido", o cursor volta para a busca');
+    // tirar o produto da venda: a dica e o "+" acompanham
+    await p.fill(busca, p2.modelo); await p.waitForTimeout(80); await p.keyboard.press('Enter'); await p.waitForTimeout(100);
+    const linha = '#saleFormWrap [data-block="sp-p2"]';
+    while (await p.$(linha)) { await p.click(linha + ' .stk-minus'); await p.waitForTimeout(60); }
+    ok(!/\+ para mais um/.test(await dica()), 'tirou o produto da venda: a dica do "+" some na hora');
+    await p.click(busca); await p.keyboard.press('+'); await p.waitForTimeout(80);
+    ok(!(await p.$(linha)), 'e o "+" não traz de volta o produto tirado');
+  }
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+  {
+    const comCtrl2 = JSON.parse(JSON.stringify(D)); comCtrl2.estoque.push({ id: 'ctl', cat: 'Controle de portão', marca: 'Controle clonavel', modelo: '', qty: 2, preco: 80, min: 1 });
+    ({ ctx, p, errs } = await abre(b, comCtrl2));
+    await p.click('[data-clone="1"]'); await p.waitForTimeout(80);
+    ok(/\+ para mais um/.test(await p.getAttribute('[data-stock-box="0"]', 'placeholder')), 'controle clonável posto pela linha dele: a busca também lembra do "+"');
+    await p.click('[data-stock-box="0"]'); await p.keyboard.press('+'); await p.waitForTimeout(80);
+    ok(norm(await p.textContent('#saleFormWrap [data-block="c-clonavel"] .step-count')) === '2', '"+" põe o segundo controle (o estoque tem 2)');
+    await p.keyboard.press('+'); await p.waitForTimeout(80);
+    ok(norm(await p.textContent('#saleFormWrap [data-block="c-clonavel"] .step-count')) === '2' && /Não há mais controle clonável/.test(await p.textContent('#toast')), 'o terceiro não entra: o "+" do teclado trava igual ao botão');
+    await p.click('#registrarBtn'); await p.waitForTimeout(200);
+    ok((await ultima(p)).items[0].qty === 2 && (await lsJ(p, K.estoque)).find(x => x.id === 'ctl').qty === 0, 'vende 2 e o estoque do clonável fica em 0 (nunca negativo)');
+    ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+    await ctx.close();
+  }
+  ({ ctx, p, errs } = await abre(b, D));
+  {
+    const nAntes = (await lsJ(p, K.vendas)).length;
+    await p.click('#prevDay'); await p.waitForTimeout(150);
+    ok(/Que horas foi\? \(opcional\)/.test(await p.textContent('#horaAjustar')), 'dia que já passou (19/10): botão "Que horas foi? (opcional)"');
+    await p.click('#horaAjustar'); await p.waitForTimeout(80);
+    ok(await p.inputValue('#horaVenda') === '' && await p.getAttribute('#horaVenda', 'max') === null && /Sem horário/.test(await p.textContent('#horaAgora')), 'o campo abre vazio, sem limite de hora, com "Sem horário" ao lado');
+    await p.click('.step-btn.plus[data-cat="simples"]'); await p.fill('#horaVenda', '10:30'); await p.dispatchEvent('#horaVenda', 'change'); await p.waitForTimeout(80);
+    await p.click('#registrarBtn'); await p.waitForTimeout(200);
+    let vh = await ultima(p), dh = new Date(vh.ts);
+    ok(vh.day === '2026-10-19' && vh.manual === false && dh.getDate() === 19 && dh.getHours() === 10 && dh.getMinutes() === 30, 'venda do dia 19 gravada às 10:30 (com hora, não "sem horário")');
+    ok(/Que horas foi/.test(await p.textContent('#horaAjustar')), 'a próxima venda volta a começar sem hora');
+    await p.click('.step-btn.plus[data-cat="simples"]'); await p.click('#registrarBtn'); await p.waitForTimeout(200);
+    vh = await ultima(p);
+    ok(vh.day === '2026-10-19' && vh.manual === true, 'sem hora, a venda continua "sem horário", como antes');
+    await p.click('#horaAjustar'); await p.fill('#horaVenda', '09:00'); await p.dispatchEvent('#horaVenda', 'change'); await p.waitForTimeout(80);
+    await p.click('#horaAgora'); await p.waitForTimeout(80);
+    ok(!(await p.$('#horaVenda')) && !!(await p.$('#horaAjustar')), '"Sem horário" tira a hora digitada');
+    await p.click('.step-btn.plus[data-cat="simples"]'); await p.click('#registrarBtn'); await p.waitForTimeout(200);
+    ok((await ultima(p)).manual === true, 'e a venda sai "sem horário"');
+    await p.click('#horaAjustar'); await p.fill('#horaVenda', '11:00'); await p.dispatchEvent('#horaVenda', 'change'); await p.waitForTimeout(80);
+    await p.click('#nextDay'); await p.waitForTimeout(150);
+    ok(/Vendeu mais cedo/.test(await p.textContent('#horaAjustar')) && !(await p.$('#horaVenda')), 'trocou de dia: a hora digitada no dia 19 não vai junto para hoje');
+    await p.click('.step-btn.plus[data-cat="simples"]'); await p.click('#registrarBtn'); await p.waitForTimeout(200);
+    vh = await ultima(p); dh = new Date(vh.ts);
+    ok(vh.day === '2026-10-20' && vh.manual === false && dh.getHours() === 15 && dh.getMinutes() === 0, 'venda de hoje continua com a hora de agora (15:00)');
+    ok((await lsJ(p, K.vendas)).length === nAntes + 4, 'quatro vendas registradas, nenhuma a mais');
+  }
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+  { // atalho: arquivo com espaço, "%" e "$" no caminho, que o atalho precisa abrir certinho
+    const pasta = path.join(TMP, 'Loja $centro'), nomeApp = 'Chaveiro 100% novo.html';
+    fs.mkdirSync(pasta, { recursive: true }); fs.copyFileSync(path.resolve(__dirname, '..', 'Chaveiro_Vendas_e_Gastos.html'), path.join(pasta, nomeApp));
+    ctx = await b.newContext({ viewport: { width: 1366, height: 900 }, acceptDownloads: true }); await ctx.clock.install({ time: new Date(AGORA) });
+    p = await ctx.newPage(); errs = []; p.on('pageerror', e => errs.push(e.message));
+    await p.goto('file://' + path.join(pasta, nomeApp).replace(/%/g, '%25').replace(/ /g, '%20')); await p.waitForSelector('#registrarBtn'); // o "$" fica como está no endereço, como no Chrome
+    ok(/\$centro/.test(await p.evaluate(() => location.pathname)), 'o endereço do arquivo tem um "$" de verdade (o caso difícil do atalho)');
+    await p.click('[data-tab="resumo"]'); await p.click('#ajustesCard summary'); await p.waitForTimeout(100);
+    ok(norm(await p.textContent('#ajustesCard')).includes('O atalho abre este arquivo: ' + nomeApp), 'Ajustes mostra o nome do arquivo que o atalho abre');
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#ajAtalho')]);
+    const dPath = path.join(TMP, 'Chaveiro.desktop'); await dl.saveAs(dPath); const txt = fs.readFileSync(dPath, 'utf8');
+    const exec = (txt.match(/^Exec=(.*)$/m) || [])[1] || '', arg = (exec.match(/^google-chrome --app="([^"]*)"$/) || [])[1];
+    ok(dl.suggestedFilename() === 'Chaveiro.desktop' && txt.startsWith('[Desktop Entry]\n') && /^Type=Application$/m.test(txt) && /^Terminal=false$/m.test(txt) && /^Name=Chaveiro$/m.test(txt), 'baixa o atalho Chaveiro.desktop no formato do Linux');
+    ok(arg !== undefined && !/[`$\\]/.test(arg) && !/%[^%]/.test(arg.replace(/%%/g, '')), 'abre no Chrome em janela própria (--app), com o caminho protegido para o Linux: ' + exec);
+    const url = (arg || '').replace(/%%/g, '%');
+    ok(decodeURIComponent(url) === 'file://' + path.join(pasta, nomeApp), 'o endereço do atalho é exatamente este arquivo');
+    await p.goto(url); await p.waitForSelector('#registrarBtn', { timeout: 3000 }).catch(() => {});
+    ok(!!(await p.$('#registrarBtn')), 'e o endereço do atalho abre o sistema');
+    ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+    await ctx.close();
+    ctx = await b.newContext({ viewport: { width: 390, height: 844 } }); await ctx.clock.install({ time: new Date(AGORA) });
+    p = await ctx.newPage(); await p.goto(APP); await p.waitForSelector('#registrarBtn'); await p.waitForTimeout(150);
+    ok(await p.evaluate(() => !document.activeElement || document.activeElement === document.body), 'tela estreita (celular): o cursor não vai sozinho para a busca (o teclado não abre)');
+    await ctx.close();
+  }
+
   console.log('Excel da contadora (outubro)');
   ({ ctx, p, errs } = await abre(b, D));
   await p.click('[data-tab="resumo"]');

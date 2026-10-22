@@ -64,12 +64,18 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
   sozinho); "Vendas do mês" em ordem de valor; "Outros" abre o detalhe por descrição.
 - Gasto pode ser dividido ("Separar uma parte"): a parte vira gasto novo no mesmo dia e a soma não muda.
 - Venda nova de hoje pode ter a hora ajustada ("Vendeu mais cedo?") quando é lançada depois; nunca no futuro.
+  Num dia que já passou, "Que horas foi? (opcional)": sem hora, a venda continua "sem horário" (`manual`).
+- O cursor volta sozinho para a busca do estoque (ao abrir, depois de registrar e depois de um "mais vendido"; só
+  com tela larga). Com a busca vazia, "+" põe mais uma unidade do último produto do estoque (o clonável trava igual
+  ao botão) e "/" continua indo para a busca do histórico.
+- Ajustes tem "Baixar atalho": um `Chaveiro.desktop` (Linux Mint) que abre o arquivo no Chrome em janela própria
+  (`--app`), sem abas nem barra de endereço. O arquivo do app precisa continuar no mesmo lugar e com o mesmo nome.
 
 ## Testes
 `./chaveiro/testes/rodar.sh` — abre o app no Chromium com relógio fixo (20/10/2026) e dados de
 exemplo: venda do estoque, pagamento dividido, fiado, gasto, persistência, backup/restauração,
 valores mais cobrados, venda em andamento que volta ao recarregar, apagados recentemente, cópias automáticas, comparação com o mês passado, tamanho do
-texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, itens rápidos e sugestão de item, gasto pessoal e categoria sugerida, serviço com "Qual?", Outros detalhado, ordem por valor, conta errada, dividir gasto, contraste do calendário escuro, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados,
+texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, itens rápidos e sugestão de item, gasto pessoal e categoria sugerida, serviço com "Qual?", Outros detalhado, ordem por valor, conta errada, dividir gasto, contraste do calendário escuro, cursor na busca, tecla "+", "Que horas foi?", atalho da área de trabalho, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados,
 e aberto pelo LibreOffice e pelo validador oficial da Microsoft em `valida_excel.py`). Depois roda `lint.js` (ESLint: só ES5
 mais async/await, nada indefinido, recursos do Chrome do notebook) e `acessibilidade.js` (axe-core em 18 telas, claro e escuro).
 Rode antes de cada commit. `MANTER=1` guarda os arquivos gerados.

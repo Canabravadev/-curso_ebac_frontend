@@ -1324,13 +1324,15 @@
   var splitOn = false, splitVals = { dinheiro: '', pix: '', cartao: '' }, cartaoTipo = '';
   var DEFAULT_PAY = 'cartao';
   function resetItemState() {
-    stockItems = {}; stockQueries = {}; horaVenda = ''; payState = DEFAULT_PAY; clienteState = ''; outrosList = []; legacyItems = []; trocoRaw = '';
+    stockItems = {}; stockQueries = {}; horaVenda = ''; horaAberta = false; ultimoEstoque = ''; payState = DEFAULT_PAY; clienteState = ''; outrosList = []; legacyItems = []; trocoRaw = '';
     splitOn = false; splitVals = { dinheiro: '', pix: '', cartao: '' }; cartaoTipo = groupOpen && groupOpen._cartaoTipo || '';
     editBase = {}; editingOrigPay = null; editingSaleDay = null;
     CATEGORIES.forEach(function (c) { itemState[c.id] = { qty: 0, price: c.price !== null ? c.price : '', desc: '', over: null, src: null }; });
   }
   resetItemState();
   var finalValueRaw = '', horaVenda = ''; // horaVenda: "HH:MM" quando a venda de hoje aconteceu mais cedo (lançada depois)
+  var horaAberta = false;  // campo "Que horas foi?" aberto numa venda de dia que já passou (sem hora, fica "sem horário")
+  var ultimoEstoque = '';  // último produto do estoque posto na venda: a tecla "+" (com a busca vazia) põe mais um
   var editingSaleId = null, editingExpId = null;
   var expDraft = null; // {id, desc, cat, valor}: o que está digitado no formulário de gasto (novo: id null)
   var expBase = null;  // {desc, cat, valor} do gasto como estava quando o formulário de edição foi mostrado
@@ -2228,7 +2230,7 @@
     if (d > 0) { if (s) s.qty += 1; else addStockItem(x); }
     else if (s) { s.qty -= 1; if (s.qty <= 0) delete stockItems[x.id]; }
     if (!replaceBlock('c-clonavel', cloneRowHtml())) return renderSaleForm();
-    updateTotalsDisplay();
+    updateTotalsDisplay(); atualizaDicaBusca();
     var b = document.querySelector('#saleFormWrap [data-block="c-clonavel"] .step-count'); anima(b, 'bump');
   }
   function stockSelRowHtml(k) {
@@ -2242,6 +2244,7 @@
   }
   // Coloca um produto do estoque na venda. Sem preço válido no estoque → pede o preço na própria linha (B10).
   function addStockItem(x) {
+    ultimoEstoque = x.id;
     if (stockItems[x.id]) { stockItems[x.id].qty += 1; return; }
     var cp = cloneProd(); if (cp && cp.id === x.id) { stockItems[x.id] = { qty: 1, price: String(PRECO_CLONAVEL), name: 'Controle clonável', needPrice: false }; return; }
     var p = prodPrice(x), ok = p > 0;
@@ -2267,7 +2270,7 @@
     if (!ok) return renderSaleForm();
     updateTotalsDisplay();
   }
-  function refreshStock(pid) { if (!replaceBlock('sp-' + pid, stockSelRowHtml(pid))) return renderSaleForm(); updateTotalsDisplay(); }
+  function refreshStock(pid) { if (!replaceBlock('sp-' + pid, stockSelRowHtml(pid))) return renderSaleForm(); updateTotalsDisplay(); atualizaDicaBusca(); }
   function refreshOutros() {
     if (!replaceBlock('outros', outrosBlockHtml())) return renderSaleForm();
     if (outrosFocus) { outrosFocus = false; var ds = document.querySelectorAll('#saleFormWrap [data-outro-desc]'); if (ds.length) ds[ds.length - 1].focus(); }
@@ -2278,6 +2281,18 @@
     var b = document.querySelector('#saleFormWrap .step-btn.plus[data-cat="' + id + '"]'); anima(b && b.previousElementSibling, 'bump');
   }
   function changeStock(pid, d) { var s = stockItems[pid]; if (!s) return; s.qty += d; if (s.qty <= 0) delete stockItems[pid]; refreshStock(pid); }
+  // Tecla "+" com a busca vazia: mais uma unidade do último produto do estoque posto na venda, sem ir ao touchpad.
+  // O controle clonável continua travando quando acaba, como no botão "+".
+  function maisUmDoUltimo() {
+    var s = ultimoEstoque && stockItems[ultimoEstoque]; if (!s) return;
+    var cp = cloneProd();
+    if (cp && cp.id === ultimoEstoque) { if (s.qty >= availQty(cp)) { showToast('Não há mais controle clonável no estoque', false, true); return; } changeClone(1); }
+    else changeStock(ultimoEstoque, 1);
+    var n = stockItems[ultimoEstoque]; if (n) showToast('Mais um: ' + n.name + ' (' + n.qty + ' na venda)');
+  }
+  // Dica da busca do estoque: com o último produto ainda na venda, lembra que "+" põe mais um dele.
+  function dicaBusca(b) { return ultimoEstoque && stockItems[ultimoEstoque] ? 'outro modelo, ou + para mais um' : b.ph; }
+  function atualizaDicaBusca() { document.querySelectorAll('#saleFormWrap [data-stock-box]').forEach(function (i) { var b = STOCK_BOXES[+i.getAttribute('data-stock-box')]; if (b) i.placeholder = dicaBusca(b); }); }
   // Um único par de listeners (clique/digitação) para o formulário inteiro, ligado uma vez.
   function bindSaleFormEvents() {
     var wrap = document.getElementById('saleFormWrap');
@@ -2312,7 +2327,7 @@
         var id = v.slice(2);
         if (v.charAt(0) === 'p') { var x = estoqueFind(id); if (!x) return; addStockItem(x); }
         else if (itemState[id]) itemState[id].qty += 1;
-        return renderSaleForm();
+        renderSaleForm(); return focaBusca();
       }
     });
     wrap.addEventListener('input', function (ev) {
@@ -2374,6 +2389,13 @@
     if (cancelBtn) cancelBtn.addEventListener('click', function () { cancelSaleEdit(); renderApp(); });
   }
 
+  // O cursor volta para a busca do estoque (só no notebook): ao abrir, depois de registrar e depois de um "mais
+  // vendido". Medido com o robô nas vendas reais: menos cliques para pôr o cursor na busca e menos rolagens.
+  function focaBusca() {
+    if (window.innerWidth <= 860 || currentTab !== 'vendas') return;
+    var m = document.getElementById('modal'), cm = document.getElementById('cmd'); if ((m && !m.hidden) || (cm && !cm.hidden)) return;
+    var i = document.querySelector('#saleFormWrap [data-stock-box="0"]'); if (i && document.activeElement !== i) i.focus({ preventScroll: true });
+  }
   function registrarVenda() {
     var key = viewDay;
     var items = [];
@@ -2418,6 +2440,7 @@
     } else {
       var st = stampFor(key);
       if (horaVenda && isTodayKey(key)) { var hm = horaVenda.split(':'), dh = new Date(); dh.setHours(+hm[0], +hm[1], 0, 0); if (dh.getTime() <= Date.now()) st = { ts: dh.getTime(), manual: false }; }
+      else if (/^\d\d:\d\d$/.test(horaVenda) && key < todayKey()) { var hp = horaVenda.split(':'), dp = parseDay(key); dp.setHours(+hp[0], +hp[1], 0, 0); if (dayKey(dp) === key) st = { ts: dp.getTime(), manual: false }; } // "Que horas foi?"
       rec = Object.assign({ id: genId(), day: key, ts: st.ts, manual: st.manual }, fields);
       if (rec.split === undefined) delete rec.split; if (rec.cartao === undefined) delete rec.cartao;
       all.push(rec);
@@ -2433,7 +2456,7 @@
     showToast((wasEdit ? 'Alterações salvas' : 'Venda registrada') + aviso, true);
     resetItemState();
     finalValueRaw = '';
-    renderApp();
+    renderApp(); focaBusca();
     marcarVenda(rec.id);
     anima(document.querySelector('h1 .logo svg'), 'gira');
     if (!wasEdit) {
@@ -3412,7 +3435,7 @@
     var cp = cloneProd(), sel = Object.keys(stockItems).filter(function (k) { return !cp || k !== cp.id; }).map(stockSelRowHtml).join('');   // o clonável aparece na própria linha rápida
     var boxes = STOCK_BOXES.map(function (b, idx) {
       return '<div class="stk-box"><div class="stk-head"><span class="ico">' + KEY_SVG + '</span><span><b>' + b.label + '</b><small>' + b.sub + '</small></span></div>' +
-        '<div class="stk-input"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="text" data-stock-box="' + idx + '" placeholder="' + b.ph + '" value="' + escAttr(stockQueries[b.key] || '') + '"></div>' +
+        '<div class="stk-input"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="text" data-stock-box="' + idx + '" placeholder="' + dicaBusca(b) + '" value="' + escAttr(stockQueries[b.key] || '') + '"></div>' +
         '<div class="stk-list" id="stockResults-' + idx + '"></div></div>';
     }).join('');
     return '<div class="stk-panel"><div class="stk-tip"><b>Adicionar do estoque</b> · digite e clique no produto. O estoque desconta sozinho ao registrar.</div><div class="stk-grid">' + boxes + '</div><button type="button" class="stk-nostock stk-procura" data-procura-abre="1">🔎 O cliente procurou algo que não tinha? Anotar</button></div>' + sel;
@@ -3454,6 +3477,10 @@
       inp.addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter') { var f = resBox.querySelector('.stk-res'); if (f) { ev.preventDefault(); f.click(); } }
         else if (ev.key === 'Escape') { stockQueries[box.key] = ''; inp.value = ''; resBox.innerHTML = ''; }
+        else if (ev.key === '+' && !inp.value.trim() && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
+          ev.preventDefault(); maisUmDoUltimo();
+          var aqui = document.querySelector('#saleFormWrap [data-stock-box="' + idx + '"]'); if (aqui && document.activeElement !== aqui) aqui.focus({ preventScroll: true });
+        }
       });
     });
   }
@@ -4028,8 +4055,8 @@
     renderDataBar();
   }
   function stamp() { var d = new Date(); return dayKey(d) + '_' + String(d.getHours()).padStart(2, '0') + String(d.getMinutes()).padStart(2, '0') + String(d.getSeconds()).padStart(2, '0'); }
-  function baixarArquivo(nome, texto) {
-    var url = URL.createObjectURL(new Blob([texto], { type: 'application/json' }));
+  function baixarArquivo(nome, texto, tipo) {
+    var url = URL.createObjectURL(new Blob([texto], { type: tipo || 'application/json' }));
     var a = document.createElement('a'); a.href = url; a.download = nome;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
@@ -4150,20 +4177,22 @@
     var q = document.getElementById('trocoQ'); if (q && q.getAttribute('data-t') !== String(t)) { q.setAttribute('data-t', t); q.innerHTML = trocoQHtml(t); }
   }
   // Venda lançada depois (no fim do dia, por exemplo): guarda a hora em que aconteceu, para o horário de
-  // movimento e a coluna Hora do Excel ficarem certos. Só para venda nova de hoje; nunca no futuro.
+  // movimento e a coluna Hora do Excel ficarem certos. Só para venda nova; hoje, nunca no futuro.
+  // Num dia que já passou, "Que horas foi?" é opcional: sem hora, a venda continua "sem horário", como antes.
   function agoraHM() { var n = new Date(); return String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'); }
   function horaHtml() {
-    if (editingSaleId || !isTodayKey(viewDay)) return '';
-    if (!horaVenda) return '<button type="button" class="pill hora-btn" id="horaAjustar">🕑 Vendeu mais cedo? Ajustar a hora</button>';
-    var fut = horaVenda > agoraHM();
-    return '<div class="field-wrap hora-wrap' + (fut ? ' invalid' : '') + '"><label for="horaVenda">Hora em que a venda aconteceu</label><div class="row-fb"><div class="money-input"><input class="text-input" type="time" id="horaVenda" value="' + escAttr(horaVenda) + '" max="' + agoraHM() + '"></div>' +
-      '<button type="button" class="pill" id="horaAgora">Usar a hora de agora</button></div>' + (fut ? '<span class="hint" style="display:block">Essa hora ainda não chegou.</span>' : '') + '</div>';
+    if (editingSaleId || viewDay > todayKey()) return '';
+    var hoje = isTodayKey(viewDay);
+    if (!horaVenda && (hoje || !horaAberta)) return '<button type="button" class="pill hora-btn" id="horaAjustar">' + (hoje ? '🕑 Vendeu mais cedo? Ajustar a hora' : '🕑 Que horas foi? (opcional)') + '</button>';
+    var fut = hoje && horaVenda > agoraHM();
+    return '<div class="field-wrap hora-wrap' + (fut ? ' invalid' : '') + '"><label for="horaVenda">Hora em que a venda aconteceu</label><div class="row-fb"><div class="money-input"><input class="text-input" type="time" id="horaVenda" value="' + escAttr(horaVenda) + '"' + (hoje ? ' max="' + agoraHM() + '"' : '') + '></div>' +
+      '<button type="button" class="pill" id="horaAgora">' + (hoje ? 'Usar a hora de agora' : 'Sem horário') + '</button></div>' + (fut ? '<span class="hint" style="display:block">Essa hora ainda não chegou.</span>' : '') + '</div>';
   }
   function bindHora() {
     var a = document.getElementById('horaAjustar'), i = document.getElementById('horaVenda'), z = document.getElementById('horaAgora');
-    if (a) a.addEventListener('click', function () { horaVenda = agoraHM(); renderSaleForm(); var n = document.getElementById('horaVenda'); if (n) n.focus(); });
+    if (a) a.addEventListener('click', function () { if (isTodayKey(viewDay)) horaVenda = agoraHM(); else horaAberta = true; renderSaleForm(); var n = document.getElementById('horaVenda'); if (n) n.focus(); });
     if (i) i.addEventListener('change', function () { horaVenda = i.value; renderSaleForm(); });
-    if (z) z.addEventListener('click', function () { horaVenda = ''; renderSaleForm(); });
+    if (z) z.addEventListener('click', function () { horaVenda = ''; horaAberta = false; renderSaleForm(); });
   }
   function payHtml() {
     var orig = editingSaleId ? loadVendas().find(function (v) { return v.id === editingSaleId; }) : null, podeDividir = !(orig && recList(orig).length);
@@ -5004,14 +5033,29 @@
       '<div class="pills"><button type="button" class="pill" id="ajOculto" aria-pressed="' + !!cfgGet('ocultoInicio', false) + '">Abrir com os valores escondidos</button></div></div>' +
       '<div class="bloco"><div class="sec-t">Tamanho do texto</div><p class="sec-p">Muda na hora e vale só para este aparelho.</p>' +
       '<div class="seg" style="--n:3">' + ZOOMS.map(function (x) { return '<button type="button" class="pay-btn' + (zoomAtual() === x[0] ? ' on' : '') + '" data-zoom="' + x[0] + '" aria-pressed="' + (zoomAtual() === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
+      (atalhoPossivel() ? '<div class="bloco"><div class="sec-t">Atalho na área de trabalho</div><p class="sec-p">Abre o sistema numa janela só dele, sem abas e sem a barra de endereço: sobra mais tela e precisa rolar menos. ' +
+        'Clique em "Baixar atalho", arraste o arquivo <b>Chaveiro.desktop</b> da pasta Downloads para a área de trabalho e dê dois cliques nele. Na primeira vez, o Linux pergunta se confia no atalho: escolha confiar (se o Chrome perguntar ao baixar, escolha manter).</p>' +
+        '<p class="sec-p">O atalho abre este arquivo: <b>' + escAttr(arquivoAtual()) + '</b>. Quando receber uma versão nova do sistema, salve por cima deste, com o mesmo nome.</p>' +
+        '<div class="pills"><button type="button" class="pill" id="ajAtalho">Baixar atalho</button></div></div>' : '') +
       ('wakeLock' in navigator ? '<div class="bloco"><div class="sec-t">Tela do balcão</div><p class="sec-p">Não deixa a tela apagar sozinha enquanto o sistema estiver aberto. Vale só para este aparelho e gasta um pouco mais de bateria.</p>' +
         '<div class="pills"><button type="button" class="pill" id="ajAcesa" aria-pressed="' + !!groupOpen._acesa + '">Manter a tela acesa</button></div></div>' : '') +
       '<div class="bloco"><div class="sec-t">Máquina de chaves</div><p class="sec-p">Avisar quando passar desse número de chaves cortadas desde a última troca da fresa (vazio = não avisar).</p>' +
       '<div class="extra-fields">' + campo('ajFresa', 'Avisar a cada', fa || '', '2000', '', 'chaves', 'numeric') + '</div></div>' +
       '<div class="acts"><button type="button" class="registrar-btn" id="ajSalvar">Salvar ajustes</button></div><div class="item-price" id="ajMsg" role="status" style="padding-top:6px"></div></details>';
   }
+  // Atalho do Linux (Linux Mint): arquivo .desktop que abre este HTML no Chrome em janela própria (--app).
+  // No Exec, "%" vira "%%" e as aspas, crase, "$" e "\" vão como código %XX, para o caminho chegar inteiro.
+  function atalhoPossivel() { return location.protocol === 'file:' && /Linux/.test(navigator.userAgent) && !/Android/.test(navigator.userAgent); }
+  function arquivoAtual() { var p = location.pathname.split('/'); try { return decodeURIComponent(p[p.length - 1]); } catch (e) { return p[p.length - 1]; } }
+  function atalhoDesktop() {
+    var url = (location.origin === 'null' ? 'file://' : location.origin) + location.pathname;
+    url = url.replace(/["`$\\]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }).replace(/%/g, '%%');
+    return ['[Desktop Entry]', 'Version=1.0', 'Type=Application', 'Name=Chaveiro', 'Comment=Vendas e Gastos', 'Exec=google-chrome --app="' + url + '"',
+      'Icon=google-chrome', 'Terminal=false', 'Categories=Office;', ''].join('\n');
+  }
   function bindAjustes() {
     var card = document.getElementById('ajustesCard'); if (!card) return;
+    var at = document.getElementById('ajAtalho'); if (at) at.addEventListener('click', function () { baixarArquivo('Chaveiro.desktop', atalhoDesktop(), 'application/x-desktop'); showToast('Atalho baixado: arraste da pasta Downloads para a área de trabalho'); });
     card.addEventListener('toggle', function () { groupOpen._ajustes = card.open; saveUi(); });
     var ao = document.getElementById('ajOculto'); if (ao) ao.addEventListener('click', function () { ao.setAttribute('aria-pressed', String(ao.getAttribute('aria-pressed') !== 'true')); });
     var ac = document.getElementById('ajAcesa');
@@ -5167,6 +5211,7 @@
   });
   function goToDay(k) {
     var t = todayKey(); if (k > t) k = t; var dir = k < viewDay ? 'l' : k > viewDay ? 'r' : '';
+    if (k !== viewDay) { horaVenda = ''; horaAberta = false; } // a hora digitada era daquele dia
     viewDay = k; followToday = k === t; dayRolled = false; renderApp();
     if (dir) ['history', 'expHistory', 'dayTotal'].forEach(function (id) { anima(document.getElementById(id), dir); });
   }
@@ -5361,7 +5406,8 @@
       if (rb && !rb.disabled) { ev.preventDefault(); rb.click(); }
       return;
     }
-    if (ev.key === '/' && !typing && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+    var buscaVazia = typing && t.hasAttribute('data-stock-box') && !t.value; // o cursor fica na busca do estoque: "/" continua indo para a busca do histórico
+    if (ev.key === '/' && (!typing || buscaVazia) && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
       var se = document.getElementById(currentTab === 'vendas' ? 'histSearch' : currentTab === 'estoque' ? 'estSearch' : '');
       if (se) { ev.preventDefault(); se.focus(); se.select(); }
     }
@@ -5477,7 +5523,7 @@
     aplicaZoom();
     if (cfgGet('ocultoInicio', false)) { try { localStorage.setItem('chaveiro_oculto_v1', '1'); } catch (e) {} aplicaOculto(); } // ajuste "abrir com os valores escondidos"
     renderApp(); syncStickyOffsets(); initFile();
-    recuperaRascunho(); copiaAutomatica(); telaAcesa();
+    recuperaRascunho(); copiaAutomatica(); telaAcesa(); focaBusca();
   }
   if (ampPrecisaCarregar()) ampCarrega().then(iniciar, iniciar); else iniciar();
 })();
