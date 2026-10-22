@@ -7,12 +7,25 @@ arrisca algum dado salvo? já foi recusada ou já existe? dá para testar?
 Nenhuma ideia entra no app sem aprovação de quem usa. Os números de cada prova ficam na conversa,
 nunca aqui (dados reais da loja não entram no repositório).
 
-## Guardadas (não fazer até pedirem)
+## Feitas (22/10/2026)
 
-- **Comparação justa no topo de Vendas.** Hoje o dia é comparado com o mesmo dia da semana anterior
-  inteiro. De manhã a comparação quase sempre aparece em baixa. A ideia é comparar só até a mesma hora.
-- **Tirar as opções de WhatsApp** (comprovante da venda, lembrar fiado, resumo do dia, retrato do ano e
-  lista de compras). Ninguém usa. Aprovada para tirar, mas só quando pedirem.
+- **Comparação justa no topo de Vendas:** hoje compara só até a mesma hora da semana passada; o dia inteiro
+  aparece ao passar o mouse. Vendas "sem horário" (lançadas depois) não entram no "até esta hora", porque a hora
+  delas não é conhecida; o valor delas aparece à parte na mesma linha.
+- **Opções de WhatsApp tiradas** (comprovante, lembrar fiado, resumo do dia, retrato do ano, lista de compras).
+  "Copiar lista" continua no Estoque.
+- **"Clique" no lugar de "toque"** nos textos (o app é usado no notebook).
+- **Tela de Vendas para o touchpad:** busca do estoque em cima, depois mais vendidos, "Outros" e os itens rápidos;
+  dica "Ctrl+Enter também registra" embaixo do botão. Medido com o robô nas vendas reais, na tela do notebook:
+  32% menos rolagens por venda.
+
+## Testadas e deixadas de fora (medidas com o robô, não refazer)
+
+- Barra flutuante com "Registrar" no notebook: nenhuma rolagem a menos.
+- Voltar ao começo da tela depois de cada venda: piorou (mais rolagens).
+- "Mais vendidos" logo abaixo da busca principal: ganho menor que a ordem escolhida.
+- Tela que sobe sozinha enquanto se digita na busca do estoque: ganho pequeno (2% menos rolagens) e a tela
+  andaria sozinha, o que confunde.
 
 ## Descartadas por serem de celular
 
