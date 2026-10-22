@@ -36,34 +36,48 @@ nunca aqui (dados reais da loja não entram no repositório).
   "+" pequeno com o touchpad.
 - **Gasto que se repete todo mês vira "gasto fixo" com um clique.** Só quando houver dois meses de dados, para
   saber o que se repete.
+- **Mercado Pago: vendas e saídas automáticas.** O app busca no Mercado Pago (pela internet) as vendas de cartão e
+  Pix e o dinheiro que saiu da conta, e mostra: o que entrou e não foi lançado, o que foi lançado como cartão ou Pix
+  e não aparece lá, a taxa de verdade da maquininha e as compras pagas pela conta. Lançar o que falta é um clique;
+  nada entra sozinho.
+- **Maquininha integrada (Point do Mercado Pago em modo PDV).** O app manda o valor para a maquininha, o cliente
+  paga no cartão ou no Pix, e a forma de pagamento (débito, crédito ou Pix) volta sozinha para a venda. Sem
+  internet, continua do jeito de hoje (digitar na maquininha). Falta saber o modelo da maquininha.
+- Para essas duas: uma "ponte" na internet guarda a senha de acesso do Mercado Pago (o Mercado Pago exige que ela
+  fique fora do navegador). A senha nunca fica no app nem no backup.
+
+## Passaram no filtro, esperando resposta (22/10/2026)
+
+- **Backup automático todo dia no Google Drive de vocês**, pela mesma ponte. Hoje o backup depende de clicar
+  quando o app avisa, e as cópias automáticas ficam no próprio notebook.
 
 ## Esperam mais dados ou resposta da contadora
 
-- **Conferir as vendas com o relatório do Mercado Pago.** O app lê a planilha baixada do site do Mercado Pago (sem
-  internet no app) e mostra o que está no Mercado Pago e não foi lançado, o que foi lançado como cartão ou Pix e não
-  está lá, e a taxa de verdade da maquininha. Nada é lançado sem clique. Precisa de um relatório de exemplo.
 - **Ler a nota (XML) do fornecedor na "Chegou mercadoria".** Só se o fornecedor mandar o arquivo da nota; hoje é
   mais ou menos uma compra por mês.
-- **Nota fiscal (NFC-e de produto, NFS-e de serviço).** O app não emite nota: precisa de internet, certificado
-  digital e um emissor autorizado. Depende do que a contadora disser que a loja precisa.
-- **Maquininha integrada** (o valor da venda vai sozinho para a maquininha do Mercado Pago). Precisa de internet,
-  da maquininha certa e de um programa "ponte" para guardar a senha de acesso; muda o jeito do app.
+- **Nota fiscal (NFC-e de produto, NFS-e de serviço) emitida pelo app**, por um serviço de notas ligado à ponte
+  (precisa de certificado digital e tem custo por nota). Depende do que a contadora disser que a loja precisa; para
+  serviço, o Emissor Nacional do governo é grátis.
 
 ## Não passaram no filtro (análise dos outros sistemas, 22/10/2026)
 
-- Ligação automática com o Mercado Pago pela internet: a senha de acesso tem que ficar num servidor, e o app é um
-  arquivo que funciona sem internet. A conferência pela planilha dá o mesmo resultado sem esse risco.
-- Inteligência artificial dentro do app: precisa de internet, tem custo e os dados sairiam do notebook. Já existem
-  sugestões feitas pelo próprio app (categoria do gasto, mais vendidos, comprar), e a análise dos backups é feita
-  na conversa.
-- Guardar o segredo da chave de cada cliente: arriscado se o notebook for perdido ou roubado (não há senha).
-- Leitor de código de barras e etiquetas: chave virgem não tem código; a busca é pelo modelo.
-- Orçamento, agenda e ordem de serviço completos: "Encomendas e serviços pendentes" já existe e quase não é usado.
-- Cadastro de clientes, fidelidade, comissão de vendedor e login por pessoa: sem sinal de necessidade nos dados.
-- Boletos e cobrança: não há fiado no período.
-- DRE e conciliação contábil: é trabalho da contadora; o app não inventa contabilidade.
-- App de celular, loja online e WhatsApp: fora do jeito que a loja usa o app.
-- Backup automático na nuvem: precisa de internet; o backup e o arquivo de dados já existem.
+Sistemas olhados: GestãoClick, BomSaldo, Simples Agenda, PDV Smart, vhsys, eGestor, Bling, Omie, Olist Tiny,
+Nuvemshop PDV, Mais PDV, InfinitePay, MarketUP, Loyverse, Hiper, TagPlus, Conta Azul, Awise, Gratis POS e KeyBolt.
+
+- Inteligência artificial dentro do app (perguntas, classificar lançamentos, ler foto de nota): tem custo, os dados
+  sairiam para outra empresa e nada nos dados pede isso. A análise mensal dos backups é feita na conversa.
+- Guardar o segredo da chave de cada cliente: arriscado se o notebook for perdido ou roubado.
+- Leitor de código de barras, etiquetas e impressora: chave virgem não tem código; a busca é pelo modelo.
+- Orçamento com link, agenda com lembretes e ordem de serviço completa: "Encomendas e serviços pendentes" já existe
+  e quase não é usado.
+- Cadastro de clientes, fidelidade, comissão, permissões e ponto de funcionário: sem sinal de necessidade nos dados.
+- Boletos, carnês, link de pagamento e cobrança automática: não há fiado no período.
+- Contratos e cobrança recorrente: sem clientes de contrato nos dados.
+- Abertura, sangria e fechamento de caixa: "Conferir o caixa do dia" foi retirado a pedido.
+- DRE, plano de contas e conciliação contábil: é trabalho da contadora; o app não inventa contabilidade.
+- Contadora vendo tudo em tempo real: perto do "Aviso para a contadora", recusado; ela recebe o Excel.
+- Pix com QR na tela do app: recusado; com a maquininha integrada, o Pix é pago na maquininha.
+- Várias lojas, loja online, marketplaces, app de celular e WhatsApp: fora do jeito que a loja trabalha.
 - Estoque separado do carro de serviço: sem dados.
 
 ## Testadas e deixadas de fora (medidas com o robô, não refazer)
@@ -110,3 +124,4 @@ celular e "Mais vendidos" compactos no celular.
 - Não escolhidas em 22/10: serviços novos "Confecção de chave" e "Manutenção / conserto"; "o que foi?" no
   "Outros" sem descrição; sugestão de categoria do gasto mais esperta; ajuste de estoque anotado num histórico;
   lembrete de "Chegou mercadoria" ao lançar gasto de mercadoria.
+- Conferir as vendas pela planilha baixada do Mercado Pago: não escolhida (a preferida é a ligação automática).
