@@ -46,7 +46,13 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
   Sem gasto pessoal no mês, o Excel sai idêntico ao de antes. Nenhum gasto muda de categoria sozinho.
 - A categoria do gasto é sugerida pela descrição (memória dos gastos já lançados, depois palavras óbvias).
 - "Conferir o caixa do dia" foi retirado (pedido de quem usa o app).
-- As opções de WhatsApp (comprovante, lembrar fiado, resumo do dia, retrato do ano, lista de compras) não são usadas.
+- As opções de WhatsApp foram tiradas (não eram usadas); "Copiar lista" continua no Estoque. Textos dizem "clique",
+  não "toque" (notebook).
+- Tela de Vendas, de cima para baixo: busca do estoque, mais vendidos, "Outros", itens rápidos (ordem medida com o
+  robô no notebook: 32% menos rolagens). Depois de registrar, a tela não volta ao topo (medido: piora).
+- Comparação do dia no topo: hoje compara só até a mesma hora da semana anterior (dia inteiro na dica do mouse,
+  escondida junto com os valores); venda "sem horário" (lançada depois) não tem hora conhecida, então fica fora do
+  "até esta hora" e aparece à parte na mesma linha ("+ R$ X sem horário"); dias que já passaram comparam o dia inteiro.
 - O app é aberto direto do arquivo no Chrome; o backup ("Salvar backup") é feito quando o app avisa.
 - Serviços têm "Qual?" opcional; em Outros, "instalação/retirada/buscar…" sugere "Outro serviço" (descrição inteira).
 - Resumo: venda com a conta errada (itens/desconto/total não fecham) aparece com "Abrir e corrigir" (nunca corrige

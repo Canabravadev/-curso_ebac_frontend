@@ -543,7 +543,6 @@
   .hb span { font-size: .62rem; color: var(--ink-soft); }
 
   .buy-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-  #buyWa { background: linear-gradient(180deg, #4FD27A, #2FA95B); color: #fff; }
 
   .toast { display: flex; align-items: center; gap: 14px; }
   .toast.has-undo { pointer-events: auto; padding-right: 10px; }
@@ -1102,18 +1101,7 @@
   .a12-n { padding-top: 8px; }
   @media (max-width: 640px) { .a12 { gap: 2px; } .a12-c { height: 96px; } .a12-b small { font-size: .58rem; } }
 
-  /* --- WhatsApp: comprovante, lembrete de fiado, resumo do dia --- */
-  .s-wa { border: none; background: none; color: var(--steel); cursor: pointer; border-radius: 8px; width: 32px; height: 32px; display: inline-grid; place-items: center; padding: 0;
-    opacity: .6; transition: opacity .15s, background .15s, color .15s; }
-  .sale-item:hover .s-wa, .s-wa:focus-visible { opacity: 1; }
-  .s-wa:hover, .s-wa:active { background: color-mix(in srgb, #25D366 16%, transparent); color: #128C4A; }
-  .wa-lembra, .hist-share { display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, #25D366 45%, var(--line)); background: var(--paper); color: #127A42;
-    border-radius: 99px; padding: 6px 12px; min-height: 32px; font-family: inherit; font-size: .78rem; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s; }
-  .wa-lembra:hover, .hist-share:hover { background: color-mix(in srgb, #25D366 12%, var(--paper)); border-color: #25D366; }
-  .wa-lembra { margin: 4px 0 10px; } .hist-share[hidden] { display: none; }
-  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .wa-lembra, :root:not([data-theme="light"]) .hist-share { color: #6EE7A0; } :root:not([data-theme="light"]) .s-wa:hover { color: #6EE7A0; } }
-  :root[data-theme="dark"] .wa-lembra, :root[data-theme="dark"] .hist-share { color: #6EE7A0; } :root[data-theme="dark"] .s-wa:hover { color: #6EE7A0; }
-  @media (max-width: 640px) { .sale-item .s-right .s-wa, .sale-item .s-right .s-edit, .sale-item .s-right .s-del { width: 30px; } .hist-share span { display: none; } .hist-share { padding: 6px 9px; }
+  @media (max-width: 640px) { .sale-item .s-right .s-edit, .sale-item .s-right .s-del { width: 30px; }
     #history .sale-item .s-right { width: 96px; column-gap: 3px; } }
 
   /* --- recorde e celebração --- */
@@ -1200,7 +1188,7 @@
     <div class="sale-bar" id="saleBar" role="region" aria-label="Venda em andamento"><button type="button" class="sb-sum" id="sbSum"><small id="sbN"></small><b id="sbTot"></b></button><button type="button" class="sb-reg" id="sbReg">Registrar</button></div>
     <div class="cols sale-cols" id="vendasCols"><div class="col"><div id="saleFormWrap"></div></div><div class="col col-receipt"><div id="saleTotalsWrap"></div></div></div>
     <div class="hist-area" id="histArea">
-      <div class="hist-head"><div class="section-title" id="histTitle">Vendas do dia</div><button type="button" class="hist-share" id="shareDay" title="Resumo do dia no WhatsApp" aria-label="Compartilhar o resumo do dia no WhatsApp"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.6-5.4A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg><span>Compartilhar</span></button><div class="field-wrap hist-search"><div class="money-input"><input class="text-input" type="search" id="histSearch" placeholder="Buscar no histórico (item, dia, cliente, valor)" aria-label="Buscar no histórico"></div></div></div>
+      <div class="hist-head"><div class="section-title" id="histTitle">Vendas do dia</div><div class="field-wrap hist-search"><div class="money-input"><input class="text-input" type="search" id="histSearch" placeholder="Buscar no histórico (item, dia, cliente, valor)" aria-label="Buscar no histórico"></div></div></div>
       <div class="history" id="history"></div>
       <div id="encBox"></div>
       <div class="footer-actions" id="footerActions">
@@ -2019,7 +2007,7 @@
       var idAttr = l.sp ? 'data-sp="' + escAttr(l.sp) + '"' : (l.so !== undefined ? 'data-so="' + l.so + '"' : 'data-sc="' + l.sc + '"');
       var isOutro = l.so !== undefined, minusOff = isOutro && l.q <= 1;
       return '<div class="sel-line" data-k="' + (l.sp ? 'sp:' + escAttr(l.sp) : l.so !== undefined ? 'so:' + l.so : 'sc:' + l.sc) + '"><span class="sel-name">' + escAttr(l.name) + '</span><span class="sel-step"><button class="sl-btn sl-minus" ' + idAttr + (minusOff ? ' disabled title="Quantidade mínima é 1. Para tirar o item, use 🗑."' : '') + ' aria-label="Diminuir">−</button><span class="sel-q">' + l.q + '</span><button class="sl-btn sl-plus" ' + idAttr + ' aria-label="Aumentar">+</button>' + (isOutro ? '<button class="sl-btn sl-del" data-so-del="' + l.so + '" aria-label="Remover este item" title="Remover este item">🗑</button>' : '') + '</span><span class="sel-v' + (l.pend ? ' pend' : '') + '">' + (l.pend ? 'sem valor' : brl(l.v)) + '</span></div>';
-    }).join('') : '<div class="sel-empty">Toque num produto ou busque no estoque para começar.</div>') + '</div>';
+    }).join('') : '<div class="sel-empty">Clique num produto ou busque no estoque para começar.</div>') + '</div>';
   }
   // Problemas de pagamento da venda em edição (B21/B11).
   function payProblem() {
@@ -2033,7 +2021,7 @@
     return '';
   }
   function regHint() {
-    if (isFormValid()) return '';
+    if (isFormValid()) return window.innerWidth > 860 ? 'Dica: Ctrl+Enter também ' + (editingSaleId ? 'salva' : 'registra') + '.' : '';
     var fe = finalInfo().error; if (fe) return fe;
     var pp = payProblem(); if (pp) return pp;
     var c =CATEGORIES.find(function (c) { return c.price === null && itemState[c.id].qty > 0 && !(num(itemState[c.id].price) > 0); });
@@ -2042,7 +2030,7 @@
     var semPreco = Object.keys(stockItems).filter(function (k) { return !(num(stockItems[k].price) > 0); })[0];
     if (semPreco) return 'Informe o preço de "' + stockItems[semPreco].name + '" no campo logo abaixo do produto (ele está sem preço no estoque).';
     if (payState === 'fiado' && !clienteState.trim()) return 'No fiado, digite o nome do cliente.';
-    return 'Adicione um item (toque num produto ou busque no estoque) para registrar.';
+    return 'Adicione um item (clique num produto ou busque no estoque) para registrar.';
   }
   var _selPrev = null, _totPrev = null; // o que o resumo da venda mostrava antes — para animar só o que mudou
   function markSelChanges() {
@@ -2186,7 +2174,7 @@
   }
   function outrosSugHtml() {
     var om = outrosMemoria(), top = om.lista.filter(function (o) { return o.n >= 2 && o.preco > 0; }).slice(0, 6);
-    return (top.length ? '<div class="fav"><div class="fav-t">Mais usados em Outros · toque para adicionar</div><div class="fav-row">' + top.map(function (o) { return '<button type="button" class="fav-chip" data-outro-sug="' + escAttr(o.k) + '" title="Adicionar ' + escAttr(o.desc) + ' por ' + escAttr(brl(o.preco)) + ' (vendido ' + o.n + ' vezes)">' + escAttr(o.desc) + '<small>' + brl(o.preco).replace(/,00$/, '') + '</small></button>'; }).join('') + '</div></div>' : '') +
+    return (top.length ? '<div class="fav"><div class="fav-t">Mais usados em Outros · clique para adicionar</div><div class="fav-row">' + top.map(function (o) { return '<button type="button" class="fav-chip" data-outro-sug="' + escAttr(o.k) + '" title="Adicionar ' + escAttr(o.desc) + ' por ' + escAttr(brl(o.preco)) + ' (vendido ' + o.n + ' vezes)">' + escAttr(o.desc) + '<small>' + brl(o.preco).replace(/,00$/, '') + '</small></button>'; }).join('') + '</div></div>' : '') +
       '<datalist id="outrosSug">' + om.lista.slice(0, 200).map(function (o) { return '<option value="' + escAttr(o.desc) + '" label="' + escAttr(brl(o.preco) + ' da última vez') + '">'; }).join('') + '</datalist>';
   }
   // Valores mais cobrados (últimos 180 dias, 2 vezes ou mais) num item de preço livre: um toque preenche.
@@ -2351,7 +2339,7 @@
 
     var rowsHtml = CATEGORIES.map(function (c) {
       if (c.group) return '';
-      if (c.id === 'outros') return outrosBlockHtml();
+      if (c.id === 'outros') return ''; // "Outros" vai logo depois dos mais vendidos (é o 2º item mais usado)
       var svcHead = '';
       if (c.svc) { if (c.id === SERVICES[0].id) svcHead = svcHeadHtml(); if (groupOpen.svc === false) return svcHead; }
       return svcHead + (c.id === 'simples' ? cloneRowHtml() : '') + catRowHtml(c) + (c.id === 'carro' ? GROUPS.map(groupHtml).join('') : '');
@@ -2362,7 +2350,9 @@
     var legacyNote = legacyItems.length ? '<div class="stk-tip" style="margin-top:8px;color:var(--brass-strong)">Esta venda tem ' + legacyItems.length + ' item(ns) de uma versão antiga do sistema. Eles aparecem no resumo da venda, não podem ser alterados aqui e serão mantidos como estão ao salvar.</div>' : '';
 
     wrap.innerHTML =
-      '<div class="card"><div class="card-title">' + title + '</div>' + legacyNote + favHtml() + stockPickerHtml() + rowsHtml + '</div>';
+      '<div class="card"><div class="card-title">' + title + '</div>' + legacyNote + stockPickerHtml() + favHtml() + outrosBlockHtml() + rowsHtml + '</div>';
+    // Ordem medida com o robô nas vendas reais, na tela do notebook (1366x768): busca do estoque (os resultados abrem
+    // dentro da tela), mais vendidos, "Outros" e depois os itens rápidos. 32% menos rolagens por venda.
     document.getElementById('saleTotalsWrap').innerHTML =
       '<div class="totals-card">' + selSumHtml() +
       '<div class="totals-row"><span>Subtotal</span><span id="subtotalDisplay">' + brl(fi.subtotal) + '</span></div>' +
@@ -2569,47 +2559,7 @@
     rightEl.querySelector('.yes').addEventListener('click', onYes);
     rightEl.querySelector('.no').addEventListener('click', renderApp);
   }
-  // WhatsApp: textos prontos (comprovante, lembrete de fiado, resumo do dia). Sem telefone guardado (não há
-  // cadastro de clientes): o WhatsApp abre para escolher o contato. O texto também vai para a área de transferência.
-  var WA_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 20.5l1.6-5.4A8.4 8.4 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg>';
   function capIni(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
-  function abreWhats(txt, aviso) {
-    try { if (navigator.clipboard) navigator.clipboard.writeText(txt).catch(function () {}); } catch (e) {}
-    var w = window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank', 'noopener');
-    showToast(aviso || (w === null ? 'Texto copiado — cole no WhatsApp' : 'Abrindo o WhatsApp (o texto também foi copiado)'));
-  }
-  function msgComprovante(v) {
-    var t = ['*Chaveiro* — comprovante', capIni(fmtDayLong(v.day)) + (v.manual ? '' : ' · ' + timeLabel(v))];
-    (v.items || []).forEach(function (it) { t.push('• ' + it.qty + 'x ' + itemName(it) + ' — ' + brl(money((it.unitPrice || 0) * it.qty))); });
-    if (v.discount > 0) t.push('Desconto: − ' + brl(v.discount));
-    t.push('*Total: ' + brl(v.total) + '*');
-    var f = v.pay === 'fiado' ? saldoFiado(v) : 0;
-    t.push('Pagamento: ' + payTexto(v) + (v.pay === 'fiado' ? (f > 0 ? ' (em aberto: ' + brl(f) + ')' : ' (quitado)') : ''));
-    t.push('Obrigado pela preferência! 🔑');
-    return t.join('\n');
-  }
-  function msgFiado(vs) {
-    var nome = (vs[0] && vs[0].cliente || '').trim(), tot = money(vs.reduce(function (s, v) { return s + saldoFiado(v); }, 0));
-    var linhas = vs.map(function (v) { return '• ' + fmtDayShort(v.day) + ': ' + v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', ') + ' — ' + brl(saldoFiado(v)); });
-    return ['Olá' + (nome ? ', ' + nome : '') + '! Tudo bem? 😊', 'Passando para lembrar do valor em aberto aqui no chaveiro:'].concat(linhas)
-      .concat(['*Total: ' + brl(tot) + '*', 'Quando puder, dá para pagar em dinheiro, Pix ou cartão. Obrigado! 🔑']).join('\n');
-  }
-  function msgResumoDia(key) {
-    var vs = salesOfDay(key), por = { dinheiro: 0, pix: 0, cartao: 0, fiado: 0 }, outros = 0;
-    vs.forEach(function (v) { partesPag(v).forEach(function (x) { if (por[x.pay] !== undefined) por[x.pay] += x.valor; else outros += x.valor; }); });
-    var rec = 0; recOfDay(key).forEach(function (e) { rec += Number(e.r.valor) || 0; });
-    var gastos = somaGastos(expOfDay(key), false), pessoal = somaGastos(expOfDay(key), true), tot = dayTotalOf(key);
-    var t = ['*Chaveiro — ' + capIni(fmtDayLong(key)) + '*', 'Vendas: ' + vs.length + ' · ' + brl(tot)];
-    ['dinheiro', 'pix', 'cartao', 'fiado'].forEach(function (k) { if (por[k]) t.push('• ' + PAY[k] + ': ' + brl(money(por[k]))); });
-    if (outros) t.push('• Sem forma informada: ' + brl(money(outros)));
-    if (rec) t.push('Fiado recebido hoje: ' + brl(money(rec)));
-    if (gastos) t.push('Gastos: − ' + brl(gastos));
-    if (pessoal) t.push('Pessoal / da casa (fora do saldo): ' + brl(pessoal));
-    var devD = devolucoesDe(function (d) { return d === key; }).total; if (devD) t.push('Devoluções: − ' + brl(devD));
-    t.push('*Saldo do dia: ' + brl(money(tot - gastos - devD)) + '*');
-    if (recordeDoMes(key)) t.push('🏆 Melhor dia do mês até agora!');
-    return t.join('\n');
-  }
   function buildSaleRow(sale, showDay) {
     var time = timeLabel(sale);
     if (showDay) time = sale.day.split('-').reverse().join('/') + ' · ' + time;
@@ -2620,11 +2570,10 @@
     var row = document.createElement('div'); row.className = 'sale-item'; row.setAttribute('data-id', sale.id);
     row.innerHTML = '<div class="s-left"><span class="s-time">' + time + '</span><span class="s-desc">' + summary + '</span>' +
       (sale.discount > 0 ? '<span class="s-discount">desconto ' + brl(sale.discount) + '</span>' : '') + payTag(sale) + retTags(sale) + '</div>' +
-      '<div class="s-right"><span class="s-total">' + brl(sale.total) + '</span><button class="s-wa" aria-label="Comprovante no WhatsApp" title="Comprovante no WhatsApp">' + WA_SVG + '</button><button class="s-ret" aria-label="Refazer ou devolver" title="Refazer de graça ou devolver dinheiro">↺</button><button class="s-edit" aria-label="Editar">✎</button><button class="s-del" aria-label="Remover">✕</button></div>';
+      '<div class="s-right"><span class="s-total">' + brl(sale.total) + '</span><button class="s-ret" aria-label="Refazer ou devolver" title="Refazer de graça ou devolver dinheiro">↺</button><button class="s-edit" aria-label="Editar">✎</button><button class="s-del" aria-label="Remover">✕</button></div>';
     if (sale.id === editingSaleId) row.classList.add('editing');
     row.querySelector('.s-edit').addEventListener('click', function () { requestEditSale(sale); });
     row.querySelector('.s-ret').addEventListener('click', function () { abrirRetrabalho(sale); });
-    row.querySelector('.s-wa').addEventListener('click', function () { abreWhats(msgComprovante(sale), 'Comprovante pronto — escolha o contato no WhatsApp (texto copiado)'); });
     // remover venda pode ser desfeito pelo aviso que aparece em seguida
     row.querySelector('.s-del').addEventListener('click', function () { confirmInline(row, 'Remover?', function () { removerVenda(sale.id); }); });
     return row;
@@ -2658,6 +2607,24 @@
     }
     return h;
   }
+  // Total de um dia só até uma hora (minutos desde a meia-noite), pela hora gravada em cada venda. Venda lançada
+  // depois ("sem horário") não tem a hora de verdade: fica de fora, como no cartão de horários.
+  function dayTotalAte(k, min) {
+    return money(salesOfDay(k).reduce(function (s, v) { if (v.manual) return s; var d = new Date(v.ts); return d.getHours() * 60 + d.getMinutes() <= min ? s + (Number(v.total) || 0) : s; }, 0));
+  }
+  // Comparação com o mesmo dia da semana anterior. Hoje ainda não acabou: compara só até a mesma hora
+  // (o dia inteiro da semana passada fica na dica do mouse). Dias que já passaram: dia inteiro com dia inteiro.
+  function atualizaComparacao() {
+    var dc = document.getElementById('dayCmp'); if (!dc) return;
+    var key = viewDay, hoje = isTodayKey(key), k7 = addDays(key, -7), a7 = dayTotalOf(key), b7 = dayTotalOf(k7);
+    var wd = parseDay(k7).toLocaleDateString('pt-BR', { weekday: 'long' }).replace('-feira', '');
+    var agora = new Date(), base = hoje ? dayTotalAte(k7, agora.getHours() * 60 + agora.getMinutes()) : b7, df = money(a7 - base);
+    var semHora = hoje ? money(salesOfDay(k7).reduce(function (s, v) { return v.manual ? s + (Number(v.total) || 0) : s; }, 0)) : 0;
+    dc.innerHTML = !(a7 > 0) && !(b7 > 0) ? '' : '<b class="' + (df > 0 ? 'up">▲ ' : df < 0 ? 'down">▼ ' : 'eq">= ') + brl(Math.abs(df)) + '</b> vs ' + escAttr(wd) + ' anterior' +
+      (hoje ? ' até esta hora (' + brl(base) + (semHora > 0 ? ' + ' + brl(semHora) + ' sem horário' : '') + ')' : ' (' + (b7 > 0 ? brl(b7) : 'sem vendas') + ')');
+    dc.title = hoje && b7 > 0 && !document.body.classList.contains('oculto') ? 'Dia inteiro na semana passada: ' + brl(b7) +
+      (semHora > 0 ? '. Venda sem horário foi lançada depois: não dá para saber se foi antes desta hora.' : '') : '';
+  }
   var lastHistQ = '';
   function renderHistoryAndTotal() {
     var all = loadVendas();
@@ -2672,12 +2639,7 @@
     var hl = document.getElementById('heroLbl'); if (hl) hl.textContent = isToday ? 'Faturamento de hoje' : 'Faturamento de ' + fmtDayMed(key);
     var gb = document.getElementById('goalBox'); if (gb) gb.innerHTML = goalHtml(key.slice(0, 7));
     var rb = document.getElementById('recBadge'); if (rb) rb.hidden = !recordeDoMes(key);
-    var dc = document.getElementById('dayCmp');
-    if (dc) {
-      var k7 = addDays(key, -7), a7 = dayTotalOf(key), b7 = dayTotalOf(k7), df = money(a7 - b7), wd = parseDay(k7).toLocaleDateString('pt-BR', { weekday: 'long' }).replace('-feira', '');
-      dc.innerHTML = !(a7 > 0) && !(b7 > 0) ? '' : '<b class="' + (df > 0 ? 'up">▲ ' : df < 0 ? 'down">▼ ' : 'eq">= ') + brl(Math.abs(df)) + '</b> vs ' + escAttr(wd) + ' anterior (' + (b7 > 0 ? brl(b7) : 'sem vendas') + ')';
-    }
-    var shd = document.getElementById('shareDay'); if (shd) shd.hidden = !daySales.length;
+    atualizaComparacao();
 
     var searchEl = document.getElementById('histSearch');
     var q = norm(searchEl ? searchEl.value : '');
@@ -2795,7 +2757,7 @@
         if (cur[f] !== base[f] && cur[f] !== fields[f]) conf.push(f === 'desc' ? 'descrição' : f === 'cat' ? 'categoria' : 'valor');
         novo[f] = fields[f];
       });
-      if (conf.length) { expBase = { desc: cur.desc, cat: cur.cat, valor: cur.valor }; showToast('Este gasto foi alterado em outra janela (' + conf.join(', ') + '). Nada foi salvo. Confira e toque em Salvar de novo para ficar com o que você digitou.', false, true); return; }
+      if (conf.length) { expBase = { desc: cur.desc, cat: cur.cat, valor: cur.valor }; showToast('Este gasto foi alterado em outra janela (' + conf.join(', ') + '). Nada foi salvo. Confira e clique em Salvar de novo para ficar com o que você digitou.', false, true); return; }
       all[idx] = novo;
     }
     else all.push(Object.assign({ id: genId(), day: key, ts: st.ts, manual: st.manual }, fields));
@@ -3409,7 +3371,7 @@
   var NIVEIS = [['out', 'Sem unidades'], ['low', 'Abaixo do mínimo'], ['ok', 'Em dia'], ['off', 'Desativados']];
   function nivHtml() {
     var c = nivelCounts(), tot = c.out + c.low + c.ok + c.off || 1;
-    return '<div class="niv" role="group" aria-label="Situação do estoque (toque para filtrar a lista)">' + NIVEIS.map(function (n) {
+    return '<div class="niv" role="group" aria-label="Situação do estoque (clique para filtrar a lista)">' + NIVEIS.map(function (n) {
       return '<button type="button" class="niv-b ' + n[0] + '" data-nivel="' + n[0] + '" aria-pressed="' + (estUi.nivel === n[0]) + '"><i aria-hidden="true"></i>' + n[1] + '<b>' + fmtInt(c[n[0]]) + '</b></button>';
     }).join('') + '<div class="niv-bar" aria-hidden="true">' + NIVEIS.map(function (n) { return '<i class="nb-' + n[0] + '" style="width:' + (c[n[0]] / tot * 100).toFixed(2) + '%"></i>'; }).join('') + '</div></div>';
   }
@@ -3453,7 +3415,7 @@
         '<div class="stk-input"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg><input type="text" data-stock-box="' + idx + '" placeholder="' + b.ph + '" value="' + escAttr(stockQueries[b.key] || '') + '"></div>' +
         '<div class="stk-list" id="stockResults-' + idx + '"></div></div>';
     }).join('');
-    return '<div class="stk-panel"><div class="stk-tip"><b>Adicionar do estoque</b> · digite e toque no produto. O estoque desconta sozinho ao registrar.</div><div class="stk-grid">' + boxes + '</div><button type="button" class="stk-nostock stk-procura" data-procura-abre="1">🔎 O cliente procurou algo que não tinha? Anotar</button></div>' + sel;
+    return '<div class="stk-panel"><div class="stk-tip"><b>Adicionar do estoque</b> · digite e clique no produto. O estoque desconta sozinho ao registrar.</div><div class="stk-grid">' + boxes + '</div><button type="button" class="stk-nostock stk-procura" data-procura-abre="1">🔎 O cliente procurou algo que não tinha? Anotar</button></div>' + sel;
   }
   // Resultados por relevância (modelo exato primeiro). Mostra 8, informa o total e permite ver mais.
   function stockResultsHtml(box) {
@@ -3690,7 +3652,7 @@
   function contagemHtml() {
     var c = contState(), lista = contLista(c), mostra = lista.slice(0, 400), dif = contDifs(c);
     var hist = loadExtras().contagens.slice(-4).reverse().map(function (k) { var d = (k.itens || []).reduce(function (a, i) { return a + (i.contado - i.antes); }, 0); return '<div>' + fmtDayShort(k.day) + ' · ' + escAttr(k.cat || 'todas') + ' · ' + fmtInt(k.conferidos || 0) + ' conferidos, ' + (k.itens || []).length + ' ajustados (' + (d > 0 ? '+' : '') + d + ' un.)</div>'; }).join('');
-    return '<div class="card est-painel"><div class="card-title">🔢 Contagem do estoque</div><p class="sec-p">Conte o que tem na prateleira e digite. Só os produtos que você digitar são conferidos; nada muda até tocar em "Aplicar ajustes".</p>' +
+    return '<div class="card est-painel"><div class="card-title">🔢 Contagem do estoque</div><p class="sec-p">Conte o que tem na prateleira e digite. Só os produtos que você digitar são conferidos; nada muda até clicar em "Aplicar ajustes".</p>' +
       '<div class="extra-fields"><div class="field-wrap"><label for="contCat">Categoria</label><select class="select-input" id="contCat">' + opts(STOCK_CATS, c.cat, '<option value="">Todas as categorias</option>') + '</select></div>' +
       '<div class="field-wrap"><label for="contQ">Filtrar</label><div class="money-input"><input class="text-input" type="search" id="contQ" placeholder="Marca ou modelo" value="' + escAttr(c.q) + '"></div></div></div>' +
       '<div class="sec-t" style="margin-top:14px">' + fmtInt(lista.length) + ' produto(s)</div><div class="cont-lista">' + (mostra.map(function (x) { var v = c.vals[x.id], t = v == null ? '' : v, d = t === '' ? null : Number(t) - (Number(x.qty) || 0);
@@ -3729,7 +3691,7 @@
   // Cartões laterais do Estoque: procurados (A), parados (C), revisão dos mínimos (N).
   function estAnaliseHtml() {
     var h = '', pr = procurasRecentes();
-    h += '<div class="card"><div class="card-title">Procuraram e não tinha</div>' + (pr.length ? pr.slice(0, 8).map(function (o) { return '<div class="totals-row"><span>' + escAttr(o.desc) + '<span class="mini-t">último pedido em ' + fmtDayShort(o.ult) + '</span></span><span><span class="badge">' + o.n + 'x</span><button type="button" class="pill-x" data-proc-del="' + escAttr(o.ids.join(',')) + '" title="Já resolvi: tirar da lista" aria-label="Tirar ' + escAttr(o.desc) + ' da lista">✕</button></span></div>'; }).join('') + '<div class="item-price" style="padding-top:6px">Últimos 30 dias. Vão junto na lista de compras do WhatsApp.</div>' : '<div class="item-price">Nada anotado nos últimos 30 dias. Na tela de vendas, toque em "Procuraram e não tinha".</div>') +
+    h += '<div class="card"><div class="card-title">Procuraram e não tinha</div>' + (pr.length ? pr.slice(0, 8).map(function (o) { return '<div class="totals-row"><span>' + escAttr(o.desc) + '<span class="mini-t">último pedido em ' + fmtDayShort(o.ult) + '</span></span><span><span class="badge">' + o.n + 'x</span><button type="button" class="pill-x" data-proc-del="' + escAttr(o.ids.join(',')) + '" title="Já resolvi: tirar da lista" aria-label="Tirar ' + escAttr(o.desc) + ' da lista">✕</button></span></div>'; }).join('') + '<div class="item-price" style="padding-top:6px">Últimos 30 dias. Vão junto na lista de compras.</div>' : '<div class="item-price">Nada anotado nos últimos 30 dias. Na tela de vendas, clique em "Procuraram e não tinha".</div>') +
       '<button type="button" class="clear-btn w100" id="procNova">+ Anotar procura</button></div>';
     if (!analisePronta()) {
       var d = analiseDesde();
@@ -3751,7 +3713,13 @@
     root.querySelectorAll('[data-min-ign]').forEach(function (b) { b.addEventListener('click', function () { var id = b.getAttribute('data-min-ign'), a = +b.getAttribute('data-min-a'); if (exMod(function (x) { var m = isObj(x.cfg.minIgn) ? x.cfg.minIgn : {}; m[id] = a; x.cfg.minIgn = m; })) renderApp(); }); });
     var mt = document.getElementById('minTodas'); if (mt) mt.addEventListener('click', function () { var sg = sugestoesMinimo(); askConfirm('Aceitar as ' + sg.length + ' sugestões de mínimo?', 'Aceitar todas', 'Voltar', function () { if (setMin(sg.map(function (o) { return { id: o.x.id, v: o.sug }; }))) { renderApp(); showToast(sg.length + ' mínimos ajustados'); } }, sg.map(function (o) { return pname(o.x) + ': ' + o.min + ' → ' + o.sug; })); });
   }
-  // Lista de compras por fornecedor (H) e procurados (A) no texto do WhatsApp.
+  // Copia um texto e mostra "Copiado ✓" no próprio botão por um instante.
+  function copiaTexto(btn, texto, rotulo) {
+    function ok() { btn.textContent = 'Copiado ✓'; setTimeout(function () { btn.textContent = rotulo; }, 1800); }
+    function fb() { var ta = document.createElement('textarea'); ta.value = texto; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e) {} ta.remove(); }
+    try { navigator.clipboard.writeText(texto).then(ok, fb); } catch (e) { fb(); }
+  }
+  // Lista de compras para copiar: abaixo do mínimo, vão acabar, por fornecedor (H) e procurados (A).
   function textoCompras(low, logo, filtro) {
     var f = function (x) { return !filtro || nomeChave(x.fornecedor || '') === filtro; };
     var a = low.filter(f), b = logo.filter(function (o) { return f(o.x); }), pr = filtro ? [] : procurasRecentes();
@@ -3762,7 +3730,7 @@
   function fornGruposHtml(low, logo) {
     var g = new Map(); low.concat(logo.map(function (o) { return o.x; })).forEach(function (x) { var f = String(x.fornecedor || '').trim(); if (!f) return; var k = nomeChave(f), o = g.get(k) || { k: k, f: f, n: 0 }; o.n++; g.set(k, o); });
     if (!g.size) return '';
-    return '<div class="forn"><div class="buy-soon-t">Por fornecedor</div>' + Array.from(g.values()).sort(function (a, b) { return collator.compare(a.f, b.f); }).map(function (o) { return '<div class="totals-row forn-l"><span>' + escAttr(o.f) + ' <span class="mini-t" style="display:inline">· ' + o.n + ' produto(s)</span></span><button type="button" class="est-btn" data-buy-forn="' + escAttr(o.k) + '">WhatsApp</button></div>'; }).join('') + '</div>';
+    return '<div class="forn"><div class="buy-soon-t">Por fornecedor</div>' + Array.from(g.values()).sort(function (a, b) { return collator.compare(a.f, b.f); }).map(function (o) { return '<div class="totals-row forn-l"><span>' + escAttr(o.f) + ' <span class="mini-t" style="display:inline">· ' + o.n + ' produto(s)</span></span><button type="button" class="est-btn" data-buy-forn="' + escAttr(o.k) + '" aria-label="Copiar a lista de ' + escAttr(o.f) + '">Copiar</button></div>'; }).join('') + '</div>';
   }
   // ----- aba Estoque
   function renderEstoque() {
@@ -3775,15 +3743,15 @@
       .sort(function (a, b) { return (a.z - b.z) || (a.r - b.r) || (a.i - b.i); }).map(function (o) { return o.x; });
     var un = ix.un, low = ix.lowU;
     var eb = document.getElementById('estBadge'); if (eb) { eb.textContent = low.length; eb.style.display = low.length ? 'inline-block' : 'none'; }
-    // Card "Comprar": mostra 10 e cresce sob demanda; a lista do WhatsApp/cópia continua com todos.
+    // Card "Comprar": mostra 10 e cresce sob demanda; a lista copiada continua com todos.
     var lowShown = shownCount('comprar', 10, 50);
     var vmes = function (x) { var v = vende30(x.id); return v > 0 ? ' · vende ~' + fmtInt(Math.round(v)) + '/mês' : ''; };
     var logo = acabaLogo(), logoShown = logo.slice(0, 8);
     var procN = procurasRecentes().length;
     var buyCard = (low.length || logo.length || procN ? '<div class="card card-buy"><div class="card-title">Comprar (' + fmtInt(low.length) + ')</div>' + (low.length ? '' : '<div class="item-price">Nada abaixo do mínimo.</div>') + low.slice(0, lowShown).map(function (x) { return '<div class="totals-row"><span>' + escAttr(pname(x)) + '</span><span>' + escAttr(x.qty) + ' / mín. ' + escAttr(x.min) + vmes(x) + ' · <b>repor ' + reporQtd(x) + '</b></span></div>'; }).join('') +
         (low.length > lowShown ? '<div class="item-price" style="padding-top:6px">Mostrando ' + fmtInt(lowShown) + ' de ' + fmtInt(low.length) + ' produtos abaixo do mínimo.</div>' : '') + moreHtml('comprar', low.length, Math.min(lowShown, low.length), 50) +
-        (logo.length ? '<div class="buy-soon"><div class="buy-soon-t">Vão acabar em breve (' + fmtInt(logo.length) + ')</div><div class="item-price">Pelo ritmo de vendas dos últimos 30 dias.</div>' + logoShown.map(function (o) { return '<div class="totals-row"><span>' + escAttr(pname(o.x)) + '</span><span>' + escAttr(o.x.qty) + ' un.' + vmes(o.x) + ' · dura ~' + o.dias + (o.dias === 1 ? ' dia' : ' dias') + ' · <b>repor ' + reporQtd(o.x) + '</b></span></div>'; }).join('') + (logo.length > logoShown.length ? '<div class="item-price">e mais ' + (logo.length - logoShown.length) + ' (todos vão na lista do WhatsApp).</div>' : '') + '</div>' : '') +
-        fornGruposHtml(low, logo) + '<div class="buy-actions"><button class="est-btn" id="buyWa">Enviar no WhatsApp</button><button class="est-btn alt" id="buyCopy">Copiar lista</button></div></div>' : '');
+        (logo.length ? '<div class="buy-soon"><div class="buy-soon-t">Vão acabar em breve (' + fmtInt(logo.length) + ')</div><div class="item-price">Pelo ritmo de vendas dos últimos 30 dias.</div>' + logoShown.map(function (o) { return '<div class="totals-row"><span>' + escAttr(pname(o.x)) + '</span><span>' + escAttr(o.x.qty) + ' un.' + vmes(o.x) + ' · dura ~' + o.dias + (o.dias === 1 ? ' dia' : ' dias') + ' · <b>repor ' + reporQtd(o.x) + '</b></span></div>'; }).join('') + (logo.length > logoShown.length ? '<div class="item-price">e mais ' + (logo.length - logoShown.length) + ' (todos vão na lista copiada).</div>' : '') + '</div>' : '') +
+        fornGruposHtml(low, logo) + '<div class="buy-actions"><button class="est-btn" id="buyCopy">Copiar lista</button></div></div>' : '');
     document.getElementById('estoqueContent').innerHTML = '<div class="est-layout"><div class="est-main">' +
       '<div class="card est-card"><div class="card-title">Produtos</div>' +
       '<div class="est-tools"><div class="field-wrap est-q"><div class="money-input"><input class="text-input" type="search" id="estSearch" aria-label="Buscar produto" placeholder="Buscar nome, marca, modelo ou código" value="' + escAttr(estUi.q) + '"></div></div>' +
@@ -3806,15 +3774,9 @@
     var abrePainel = function (n) { estUi.painel = estUi.painel === n ? null : n; renderEstoque(); var pb = document.getElementById('estPainel'); if (pb && estUi.painel) pb.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
     document.getElementById('estEntrada').addEventListener('click', function () { abrePainel('entrada'); });
     document.getElementById('estContagem').addEventListener('click', function () { abrePainel('contagem'); });
-    document.querySelectorAll('#estoqueContent [data-buy-forn]').forEach(function (b) { b.addEventListener('click', function () { window.open('https://wa.me/?text=' + encodeURIComponent(textoCompras(low, logo, b.getAttribute('data-buy-forn'))), '_blank'); }); });
-    var txt = textoCompras(low, logo, '');
-    var bw = document.getElementById('buyWa'), bc = document.getElementById('buyCopy');
-    if (bw) bw.addEventListener('click', function () { window.open('https://wa.me/?text=' + encodeURIComponent(txt), '_blank'); });
-    if (bc) bc.addEventListener('click', function () {
-      function ok() { bc.textContent = 'Copiado ✓'; setTimeout(function () { bc.textContent = 'Copiar lista'; }, 1800); }
-      try { navigator.clipboard.writeText(txt).then(ok, fb); } catch (e) { fb(); }
-      function fb() { var ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); ok(); } catch (e) {} ta.remove(); }
-    });
+    document.querySelectorAll('#estoqueContent [data-buy-forn]').forEach(function (b) { b.addEventListener('click', function () { copiaTexto(b, textoCompras(low, logo, b.getAttribute('data-buy-forn')), 'Copiar'); }); });
+    var txt = textoCompras(low, logo, ''), bc = document.getElementById('buyCopy');
+    if (bc) bc.addEventListener('click', function () { copiaTexto(bc, txt, 'Copiar lista'); });
   }
   // estUi.draft: o que está digitado no formulário de produto (sobrevive a redesenhos, ex.: outra aba gravou) e
   // "base" = o produto como estava quando a pessoa começou a digitar. Ao salvar, só os campos que a pessoa mudou
@@ -3876,7 +3838,7 @@
           if (cur[f] !== base[f] && cur[f] !== mine[f]) conf.push({ qty: 'quantidade', preco: 'preço', min: 'aviso', cat: 'categoria', marca: 'marca', modelo: 'modelo', fornecedor: 'fornecedor' }[f] + ' agora é ' + cur[f]);
           o[f] = mine[f];
         });
-        if (conf.length) { dft.base = cur; return fail('Este produto foi alterado em outra janela (' + conf.join('; ') + '). Nada foi salvo. Confira os campos e toque em Salvar de novo para ficar com o que você digitou.'); }
+        if (conf.length) { dft.base = cur; return fail('Este produto foi alterado em outra janela (' + conf.join('; ') + '). Nada foi salvo. Confira os campos e clique em Salvar de novo para ficar com o que você digitou.'); }
       }
       if (isNew) es.push(o); else es[pos] = o;
       if (!saveEstoque(es)) return; // falhou: o formulário continua aberto e preenchido
@@ -3889,7 +3851,7 @@
     document.getElementById('fCancel').addEventListener('click', function () { estUi.form = null; renderEstForm(); });
     var del = document.getElementById('fDel');
     if (del) del.addEventListener('click', function () {
-      if (!del.getAttribute('data-ask')) { del.setAttribute('data-ask', '1'); del.textContent = 'Toque de novo para excluir — isso não pode ser desfeito'; return; }
+      if (!del.getAttribute('data-ask')) { del.setAttribute('data-ask', '1'); del.textContent = 'Clique de novo para excluir — isso não pode ser desfeito'; return; }
       if (salesIndex().pids.has(x.id)) { estUi.form = x.id; renderEstForm(); return; } // ganhou venda enquanto o formulário estava aberto
       if (!saveEstoque(loadEstoque().filter(function (y) { return y.id !== x.id; }))) return;
       estUi.form = null; renderEstoque();
@@ -3921,7 +3883,7 @@
     var found = searchProducts(estUi.q, estUi.cat || null), searching = !!found;
     var list = found || (estUi.cat ? sortedEst().filter(function (x) { return x.cat === estUi.cat; }) : sortedEst());
     if (estUi.nivel) list = list.filter(function (x) { return nivelDe(x) === estUi.nivel; });
-    if (!list.length) { box.innerHTML = '<div class="empty">' + (all.length ? 'Nenhum produto encontrado.' + (estUi.nivel ? ' <button type="button" class="stk-nostock" data-nivel-off>Limpar o filtro</button>' : '') : 'Nenhum produto cadastrado ainda. Toque em "+ Novo produto".') + '</div>';
+    if (!list.length) { box.innerHTML = '<div class="empty">' + (all.length ? 'Nenhum produto encontrado.' + (estUi.nivel ? ' <button type="button" class="stk-nostock" data-nivel-off>Limpar o filtro</button>' : '') : 'Nenhum produto cadastrado ainda. Clique em "+ Novo produto".') + '</div>';
       var off0 = box.querySelector('[data-nivel-off]'); if (off0) off0.addEventListener('click', limparNivel); return; }
     var lim = estUi.limit || EST_PAGE, shown = list.slice(0, lim);
     var palavra = searching || estUi.cat || estUi.nivel ? ' produtos encontrados' : ' produtos';
@@ -4352,7 +4314,7 @@
   function favHtml() {
     var f = favItems(); if (!f.length) return '';
     var cp = cloneProd(), cpk = cp ? 'p:' + cp.id : '';
-    return '<div class="fav"><div class="fav-t">★ Mais vendidos · toque para adicionar</div><div class="fav-row">' + f.map(function (x) { return '<button class="fav-chip" data-fav="' + escAttr(x.k) + '">' + escAttr(x.k === cpk ? 'Controle clonável' : x.name) + '<small>' + x.n + '</small></button>'; }).join('') + '</div></div>';
+    return '<div class="fav"><div class="fav-t">★ Mais vendidos · clique para adicionar</div><div class="fav-row">' + f.map(function (x) { return '<button class="fav-chip" data-fav="' + escAttr(x.k) + '">' + escAttr(x.k === cpk ? 'Controle clonável' : x.name) + '<small>' + x.n + '</small></button>'; }).join('') + '</div></div>';
   }
   function sumA(a) { return a.reduce(function (s, x) { return s + x; }, 0); }
   function monthSums(mKey) {
@@ -4369,7 +4331,7 @@
     var y = +mKey.slice(0, 4), m = +mKey.slice(5, 7), n = new Date(y, m, 0).getDate(), first = new Date(y, m - 1, 1).getDay(), hoje = todayKey(), tot = salesIndex().dayTot;
     var vals = [], mx = 0; for (var d = 1; d <= n; d++) { var k = mKey + '-' + String(d).padStart(2, '0'), v = money(tot.get(k) || 0); vals.push([k, v]); if (v > mx) mx = v; }
     var curto = function (v) { return v >= 1000 ? (v / 1000).toFixed(1).replace('.', ',') + 'k' : String(Math.round(v)); };
-    var h = '<div class="cal-wrap"><div class="cal-t">Calendário · toque num dia para abrir as vendas dele</div><div class="cal" role="group" aria-label="Faturamento por dia do mês">' + ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(function (w) { return '<span class="cal-h" aria-hidden="true">' + w + '</span>'; }).join('');
+    var h = '<div class="cal-wrap"><div class="cal-t">Calendário · clique num dia para abrir as vendas dele</div><div class="cal" role="group" aria-label="Faturamento por dia do mês">' + ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map(function (w) { return '<span class="cal-h" aria-hidden="true">' + w + '</span>'; }).join('');
     for (var p = 0; p < first; p++) h += '<span class="cal-d pad" aria-hidden="true"></span>';
     vals.forEach(function (e) {
       var k = e[0], v = e[1], fut = k > hoje, hv = mx > 0 ? Math.sqrt(v / mx) : 0, dn = +k.slice(8, 10), fe = !lojaAbre(k) ? ' fechado' : '';
@@ -4431,7 +4393,7 @@
         '<span class="a12-c" style="--h:' + h + '%">' + (e.v > 0 ? '<i></i>' : '') + lbl + '</span><small>' + escAttr(ab) + '</small></button>';
     }).join('');
     return '<div class="card card-ano"><div class="card-title">Últimos 12 meses</div><div class="a12" role="group" aria-label="Faturamento dos últimos 12 meses">' + bars + '</div>' +
-      '<div class="item-price a12-n">Melhor mês: <b>' + escAttr(capIni(ms[bi].d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }))) + '</b> · ' + brl(ms[bi].v) + ' · toque num mês para abrir o resumo dele</div></div>';
+      '<div class="item-price a12-n">Melhor mês: <b>' + escAttr(capIni(ms[bi].d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }))) + '</b> · ' + brl(ms[bi].v) + ' · clique num mês para abrir o resumo dele</div></div>';
   }
   function payChips(sales, dayKeyRec) {
     var t = {}; sales.forEach(function (s) { partesPag(s).forEach(function (x) { var k = x.pay || ''; t[k] = (t[k] || 0) + x.valor; }); });
@@ -4488,14 +4450,13 @@
         g.vendas.push(v); g.saldo = money(g.saldo + saldoFiado(v));
       });
       var payBtns = function (attr, id) { return '<span class="fiado-pays">em: ' + ['dinheiro', 'pix', 'cartao'].map(function (k) { return '<button class="est-btn alt" ' + attr + '="' + escAttr(id) + '" data-how="' + k + '">' + PAY[k] + '</button>'; }).join('') + '</span>'; };
-      h += '<div class="card" style="border-color:var(--danger)"><div class="card-title" data-fiado-total>A receber (fiado): ' + brl(pendTotal) + '</div><div class="item-price" style="padding-bottom:6px">A venda já está somada no dia em que foi feita. Ao receber, o dinheiro aparece no dia do recebimento — o dia da venda não muda. Recebeu só uma parte? Troque o valor antes de tocar na forma de pagamento.</div>';
+      h += '<div class="card" style="border-color:var(--danger)"><div class="card-title" data-fiado-total>A receber (fiado): ' + brl(pendTotal) + '</div><div class="item-price" style="padding-bottom:6px">A venda já está somada no dia em que foi feita. Ao receber, o dinheiro aparece no dia do recebimento — o dia da venda não muda. Recebeu só uma parte? Troque o valor antes de clicar na forma de pagamento.</div>';
       // 15 clientes por vez (com muitos fiados, a tela não fica enorme); o total do título continua sendo de todos.
       var lista = []; grupos.forEach(function (g) { lista.push(g); });
       _fiadoGrupos = lista.map(function (g) { return g.vendas.map(function (v) { return v.id; }); });
       h += capList('fiado-cli', lista, 15, function (g, gi) {
         var multi = g.vendas.length > 1;
-        var lembra = '<button type="button" class="wa-lembra" data-wa-fiado="' + gi + '">' + WA_SVG + 'Lembrar no WhatsApp' + (multi ? ' (' + brl(g.saldo) + ')' : '') + '</button>';
-        return '<div class="fiado-cli">' + (multi ? '<div class="fiado-cli-head"><span>Mesmo nome: <b>' + escAttr(g.nome) + '</b> · ' + g.vendas.length + ' vendas</span><b>' + brl(g.saldo) + '</b></div>' + lembra +
+        return '<div class="fiado-cli">' + (multi ? '<div class="fiado-cli-head"><span>Mesmo nome: <b>' + escAttr(g.nome) + '</b> · ' + g.vendas.length + ' vendas</span><b>' + brl(g.saldo) + '</b></div>' +
           '<div class="fiado-row">Pagou tudo hoje ' + payBtns('data-recall', gi) + '</div>' : '') +
           g.vendas.map(function (v) {
             var resumo = v.items.map(function (it) { return it.qty + 'x ' + itemName(it); }).join(', '), rec = recebido(v), falta = saldoFiado(v);
@@ -4503,7 +4464,7 @@
               (rec > 0 ? '<div class="item-price" style="width:100%">Total ' + brl(v.total) + ' · já recebido ' + brl(rec) + '</div>' : '') +
               '<div class="fiado-row"><label for="rv-' + escAttr(v.id) + '">Recebeu hoje R$</label><input class="text-input rec-val" inputmode="decimal" id="rv-' + escAttr(v.id) + '" data-recval="' + escAttr(v.id) + '" value="' + moneyTxt(falta) + '" aria-label="Valor recebido de ' + escAttr(v.cliente || 'sem nome') + '">' + payBtns('data-rec', v.id) + '</div>' +
               '<div class="hint" id="rh-' + escAttr(v.id) + '" data-rechint="' + escAttr(v.id) + '" style="display:none;width:100%"></div></div>';
-          }).join('') + (multi ? '' : lembra) + '</div>';
+          }).join('') + '</div>';
       }, 30);
       h += '</div>';
     }
@@ -4594,7 +4555,7 @@
     return '<div class="card card-wide card-backup"><div class="card-title">Backup dos dados</div>' +
       '<div class="sub" style="margin-bottom:10px">' + (last ? 'Último backup: ' + last.split('-').reverse().join('/') + '.' : 'Você ainda não fez backup.') + ' Guarde o arquivo no Google Drive ou em um pendrive.' +
       (nq ? ' <b>' + nq + ' registro(s) ilegível(is) estão guardados à parte</b> e vão junto no backup.' : '') + ' Restaurar junta o backup com os dados atuais, sem apagar nada.</div>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="clear-btn" id="backupBtn">Salvar backup</button>' + (podeEnviar('b.json', 'application/json') ? '<button class="clear-btn" id="backupEnviar">Enviar backup (Drive, WhatsApp…)</button>' : '') + '<button class="clear-btn" id="restoreBtn">Restaurar backup</button><input type="file" id="restoreFile" accept=".json,application/json" style="display:none"></div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button class="clear-btn" id="backupBtn">Salvar backup</button>' + (podeEnviar('b.json', 'application/json') ? '<button class="clear-btn" id="backupEnviar">Enviar backup (Drive, e-mail…)</button>' : '') + '<button class="clear-btn" id="restoreBtn">Restaurar backup</button><input type="file" id="restoreFile" accept=".json,application/json" style="display:none"></div>' +
       '<div class="export-msg" id="backupMsg" role="status" style="padding:8px 0 0;text-align:left"></div>' + espacoHtml() + '<div class="item-price" id="protecaoDados" style="padding-top:6px"></div><div class="bloco" id="copiasAuto"></div></div>';
   }
   /* ----- Cópias automáticas: uma por dia, feita na primeira vez que o sistema abre no dia (antes das mudanças do
@@ -4635,13 +4596,13 @@
     var box = document.getElementById('copiasAuto'); if (!box) return;
     if (copiasLista === null) { if (window.indexedDB) copiasOp('readonly', function (st) { return st.getAllKeys(); }).then(function (ks) { if (Array.isArray(ks)) { copiasLista = ks.map(String).sort(); desenhaCopias(); } }); return; }
     if (!copiasLista.length) { box.innerHTML = ''; return; }
-    box.innerHTML = '<div class="sec-t">Cópias automáticas deste navegador</div><p class="sec-p">Feitas sozinhas ao abrir o sistema a cada dia (ficam as últimas ' + COPIAS_N + '). Se algo sumiu ou foi estragado por engano, baixe a cópia de um dia em que estava certo e toque em "Restaurar backup": o que faltava volta e nada atual é apagado.</p>' +
+    box.innerHTML = '<div class="sec-t">Cópias automáticas deste navegador</div><p class="sec-p">Feitas sozinhas ao abrir o sistema a cada dia (ficam as últimas ' + COPIAS_N + '). Se algo sumiu ou foi estragado por engano, baixe a cópia de um dia em que estava certo e clique em "Restaurar backup": o que faltava volta e nada atual é apagado.</p>' +
       '<div class="pills">' + copiasLista.slice().reverse().map(function (k) { return '<button type="button" class="pill" data-copia="' + k + '">⬇ ' + fmtDayShort(k) + '</button>'; }).join('') + '</div>';
     box.querySelectorAll('[data-copia]').forEach(function (b) { b.addEventListener('click', function () {
       var k = b.getAttribute('data-copia');
       copiasOp('readonly', function (st) { return st.get(k); }).then(function (v) {
         if (typeof v !== 'string') { setBackupMsg('Não foi possível ler essa cópia.'); return; }
-        baixarArquivo('chaveiro-copia-automatica-' + k + '.json', v); setBackupMsg('Cópia de ' + fmtDayShort(k) + ' salva na pasta de downloads. Para usar, toque em "Restaurar backup" e escolha esse arquivo.');
+        baixarArquivo('chaveiro-copia-automatica-' + k + '.json', v); setBackupMsg('Cópia de ' + fmtDayShort(k) + ' salva na pasta de downloads. Para usar, clique em "Restaurar backup" e escolha esse arquivo.');
       });
     }); });
   }
@@ -4742,15 +4703,7 @@
       t('Gastos do ano', brl(r.gastos)) + t('Resultado', brl(money(r.tot - r.gastos)), 'vendas − gastos') +
       (r.rec > 0 ? t('Fiado recebido no ano', brl(r.rec)) : '') + '</div>' +
       (r.campeoes.length ? '<div class="retrato-c"><b>Campeões de venda:</b> ' + r.campeoes.map(function (p, i) { return ['🥇', '🥈', '🥉'][i] + ' ' + escAttr(p.nome) + ' (' + fmtInt(p.q) + ' un.)'; }).join(' · ') + '</div>' : '') +
-      '<button type="button" class="wa-lembra" id="retratoShare" data-ano="' + ano + '">' + WA_SVG + 'Compartilhar o retrato</button></details>';
-  }
-  function msgRetrato(ano) {
-    var r = retratoDados(ano); if (!r) return '';
-    var t = ['*Chaveiro — retrato de ' + ano + '* 🏁', 'Faturamento: ' + brl(r.tot) + ' em ' + r.n + ' vendas', 'Ticket médio: ' + brl(money(r.tot / r.n)),
-      'Melhor mês: ' + nomeMes(r.mesTop) + ' (' + brl(money(r.meses[r.mesTop])) + ')', 'Melhor dia: ' + fmtDayShort(r.diaTop) + ' (' + brl(money(r.dias[r.diaTop])) + ')',
-      'Gastos: ' + brl(r.gastos), '*Resultado: ' + brl(money(r.tot - r.gastos)) + '*'];
-    if (r.campeoes.length) t.push('Campeões: ' + r.campeoes.map(function (p, i) { return (i + 1) + '. ' + p.nome + ' (' + p.q + ' un.)'; }).join(', '));
-    return t.join('\n');
+      '</details>';
   }
   // Pulso do mês: números honestos tirados das vendas (ticket médio, ritmo, projeção rotulada como estimativa e
   // quanto falta por dia para a meta). Nada é inventado: sem vendas, nada aparece.
@@ -4769,13 +4722,6 @@
     }
     return '<div class="pulse" aria-label="Pulso do mês">' + ch.join('') + '</div>';
   }
-  document.getElementById('shareDay').addEventListener('click', function () { abreWhats(msgResumoDia(viewDay), 'Resumo do dia pronto — escolha o contato no WhatsApp (texto copiado)'); });
-  document.getElementById('resumoContent').addEventListener('click', function (ev) {
-    var b = ev.target.closest('[data-wa-fiado]'); if (!b) return;
-    var ids = _fiadoGrupos[+b.getAttribute('data-wa-fiado')] || [], all = loadVendas();
-    var vs = ids.map(function (id) { return all.find(function (v) { return v.id === id; }); }).filter(function (v) { return v && saldoFiado(v) > 0; });
-    if (vs.length) abreWhats(msgFiado(vs), 'Lembrete pronto — escolha o contato no WhatsApp (texto copiado)');
-  });
   /* ----- 8f. Gastos fixos (5), encomendas (8), retrabalho/devolução (E), espaço do navegador (P) ----- */
   // 5. Gastos fixos: o gasto lançado guarda "fixoId"; "lançado no mês" = existe gasto do mês com esse fixoId.
   function fixoLancado(f, mKey) { return expIndex().src.find(function (e) { return e.fixoId === f.id && e.day.slice(0, 7) === mKey; }) || null; }
@@ -4792,7 +4738,7 @@
         (l ? '<span class="tag ok">✓ lançado em ' + fmtDayShort(l.day) + '</span>' : venc ? '<span class="tag alerta">venceu · ainda não lançado</span>' : '<span class="tag neutra">a vencer</span>') + '</div>' +
         '<div class="s-right"><span class="s-total">' + brl(f.valor) + '</span>' + (l ? '' : '<button type="button" class="est-btn" data-fx-lanca="' + escAttr(f.id) + '">Lançar</button>') +
         '<button type="button" class="s-edit" data-fx-ed="' + escAttr(f.id) + '" aria-label="Editar ' + escAttr(f.desc) + '">✎</button><button type="button" class="s-del" data-fx-del="' + escAttr(f.id) + '" aria-label="Remover ' + escAttr(f.desc) + '">✕</button></div></div>';
-    }).join('') + '</div>' : '<div class="item-price">Cadastre aluguel, luz, internet… O sistema lembra todo mês e lança com um toque.</div>') +
+    }).join('') + '</div>' : '<div class="item-price">Cadastre aluguel, luz, internet… O sistema lembra todo mês e lança com um clique.</div>') +
       '<button type="button" class="clear-btn w100" id="fxNovo">+ Gasto fixo</button></div>';
     box.querySelector('#fxNovo').addEventListener('click', function () { editarFixo(null); });
     box.querySelectorAll('[data-fx-ed]').forEach(function (b) { b.addEventListener('click', function () { editarFixo(loadExtras().fixos.find(function (f) { return f.id === b.getAttribute('data-fx-ed'); })); }); });
@@ -4805,7 +4751,7 @@
     }); });
   }
   function editarFixo(f) {
-    formModal({ titulo: f ? 'Editar gasto fixo' : 'Novo gasto fixo', texto: 'Gasto que se repete todo mês. Lançar continua sendo com um toque (você confere antes).', ok: 'Salvar',
+    formModal({ titulo: f ? 'Editar gasto fixo' : 'Novo gasto fixo', texto: 'Gasto que se repete todo mês. Lançar continua sendo com um clique (você confere antes).', ok: 'Salvar',
       campos: [{ id: 'desc', label: 'Descrição', valor: f ? f.desc : '', ph: 'ex: aluguel da loja' }, { id: 'cat', label: 'Categoria', tipo: 'select', valor: f ? f.cat : 'aluguel', opcoes: EXPENSE_CATEGORIES.map(function (c) { return [c.id, c.label]; }) },
         { id: 'valor', label: 'Valor', tipo: 'money', valor: f ? moneyInput(f.valor) : '' }, { id: 'dia', label: 'Vence todo dia', tipo: 'number', valor: f ? String(f.dia) : '5', ajuda: 'De 1 a 31. Nos meses mais curtos, conta o último dia.' }],
       onOk: function (v) {
@@ -4969,7 +4915,7 @@
   function splitPartes() { return ['dinheiro', 'pix', 'cartao'].filter(function (k) { return num(splitVals[k]) > 0; }).map(function (k) { return { pay: k, valor: money(num(splitVals[k])) }; }); }
   function splitProblem() {
     var ps = splitPartes(), soma = money(ps.reduce(function (a, x) { return a + x.valor; }, 0)), t = finalInfo().total;
-    if (ps.length < 2) return 'Pagamento dividido: informe o valor de pelo menos duas formas (ou toque em "Usar uma forma só").';
+    if (ps.length < 2) return 'Pagamento dividido: informe o valor de pelo menos duas formas (ou clique em "Usar uma forma só").';
     if (Math.abs(soma - t) >= 0.005) return 'Pagamento dividido: as formas somam ' + brl(soma) + ', mas o total é ' + brl(t) + (soma < t ? ' (falta ' + brl(money(t - soma)) + ').' : ' (passou ' + brl(money(soma - t)) + ').');
     return '';
   }
@@ -5181,7 +5127,6 @@
     document.querySelectorAll('#resumoContent [data-hor-per],#resumoContent [data-hor-met]').forEach(function (b) { b.addEventListener('click', function () {
       if (b.hasAttribute('data-hor-per')) groupOpen._horPer = +b.getAttribute('data-hor-per'); else groupOpen._horMet = b.getAttribute('data-hor-met'); saveUi(); renderResumo();
     }); });
-    var rs = document.getElementById('retratoShare'); if (rs) rs.addEventListener('click', function () { abreWhats(msgRetrato(rs.getAttribute('data-ano')), 'Retrato do ano pronto — escolha o contato no WhatsApp (texto copiado)'); });
     document.querySelectorAll('#resumoContent .a12-b').forEach(function (b) { b.addEventListener('click', function () { if (b.getAttribute('data-mes') !== viewMonth) { viewMonth = b.getAttribute('data-mes'); renderApp(); window.scrollTo(0, 0); } }); });
     document.querySelectorAll('#resumoContent .cal [data-goday]').forEach(function (b) { b.addEventListener('click', function () { currentTab = 'vendas'; goToDay(b.getAttribute('data-goday')); window.scrollTo(0, 0); }); });
   }
@@ -5292,6 +5237,7 @@
     else if (currentTab === 'resumo') { var nm = document.getElementById('nextMonth'); if (nm) nm.disabled = viewMonth >= t.slice(0, 7); }
   }
   setInterval(checkDayChange, 20000);
+  setInterval(function () { if (isTodayKey(viewDay)) atualizaComparacao(); }, 60000); // "até esta hora" anda com o relógio
   document.addEventListener('visibilitychange', function () { if (!document.hidden) checkDayChange(); });
 
   function setupClear(footerId, btnId, btnLabel, msg, chkId, yesId, doClear) {
@@ -5459,7 +5405,6 @@
       ['Salvar backup agora', function () { fazerBackup(); }],
       ['Apagados recentemente (recuperar venda ou gasto)', function () { groupOpen._lix = true; saveUi(); irAba('resumo'); var c = document.getElementById('lixCard'); if (c) c.scrollIntoView({ block: 'start' }); else showToast('Nada foi apagado nos últimos ' + LIX_DIAS + ' dias'); }],
       ['Ajustes (dias da loja, maquininha, tamanho do texto)', function () { groupOpen._ajustes = true; saveUi(); irAba('resumo'); var c = document.getElementById('ajustesCard'); if (c) c.scrollIntoView({ block: 'start' }); }],
-      ['Compartilhar resumo do dia (WhatsApp)', function () { abreWhats(msgResumoDia(viewDay), 'Resumo do dia pronto — escolha o contato no WhatsApp (texto copiado)'); }],
       ['Tema: ' + temaProx().label, function () { trocarTema(); }]];
     acoes.forEach(function (a) { if (has(a[0])) add('Ações', '•', a[0], '', a[1]); });
     return out;
@@ -5506,7 +5451,7 @@
   function temaProx() { return TEMAS[(TEMAS.indexOf(temaAtual()) + 1) % TEMAS.length]; }
   function aplicarTema() {
     var t = temaAtual(); if (t.v) document.documentElement.setAttribute('data-theme', t.v); else document.documentElement.removeAttribute('data-theme');
-    var b = document.getElementById('themeBtn'); if (b) { b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + t.ic + '</svg>'; b.setAttribute('aria-label', 'Tema ' + t.label + ' (tocar muda para ' + temaProx().label + ')'); b.title = 'Tema: ' + t.label; }
+    var b = document.getElementById('themeBtn'); if (b) { b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + t.ic + '</svg>'; b.setAttribute('aria-label', 'Tema ' + t.label + ' (clicar muda para ' + temaProx().label + ')'); b.title = 'Tema: ' + t.label; }
   }
   function trocarTema() { var p = temaProx(); if (p.v) groupOpen._theme = p.v; else delete groupOpen._theme; saveUi(); aplicarTema(); showToast('Tema ' + temaAtual().label); }
   document.getElementById('themeBtn').addEventListener('click', trocarTema);
@@ -5514,13 +5459,14 @@
   function aplicaOculto() {
     var on = lsGet('chaveiro_oculto_v1') === '1', b = document.getElementById('hideBtn');
     document.body.classList.toggle('oculto', on);
+    atualizaComparacao(); // a dica do mouse da comparação também esconde o valor
     if (b) { b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.setAttribute('aria-label', on ? 'Mostrar valores' : 'Esconder valores da tela'); b.title = on ? 'Mostrar valores' : 'Esconder valores (para o cliente não ver o faturamento)';
       b.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (on ? '<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>' : '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>') + '</svg>'; }
   }
   document.getElementById('hideBtn').addEventListener('click', function () {
     var on = lsGet('chaveiro_oculto_v1') !== '1';
     try { localStorage.setItem('chaveiro_oculto_v1', on ? '1' : '0'); } catch (e) {}
-    aplicaOculto(); showToast(on ? 'Valores escondidos. Toque no olho de novo para mostrar.' : 'Valores visíveis');
+    aplicaOculto(); showToast(on ? 'Valores escondidos. Clique no olho de novo para mostrar.' : 'Valores visíveis');
   });
   aplicaOculto();
   aplicarTema();

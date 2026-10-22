@@ -375,6 +375,56 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
   ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
   await ctx.close();
 
+  console.log('Comparação justa, sem WhatsApp e "clique" no lugar de "toque"');
+  {
+    const brlT = n => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n).replace(/\s/g, ' ');
+    const minDo = ts => { const d = new Date(ts); return d.getHours() * 60 + d.getMinutes(); };
+    const soma = vs => vs.reduce((s, v) => s + v.total, 0);
+    { // venda lançada depois ("sem horário") na terça anterior: a hora gravada nela não é a hora da venda,
+      // então fica fora do "até esta hora" e aparece à parte
+      const D2 = gerar(), tsMan = new Date('2026-10-13T10:00:00').getTime();
+      D2.vendas.push({ id: tsMan + '-man', day: '2026-10-13', ts: tsMan, manual: true, items: [{ cat: 'carro', qty: 1, unitPrice: 50, desc: '' }], subtotal: 50, discount: 0, total: 50, pay: 'pix', cliente: '' });
+      ({ ctx, p, errs } = await abre(b, D2));
+      const ant = D2.vendas.filter(v => v.day === '2026-10-13'), ateHora = soma(ant.filter(v => !v.manual && minDo(v.ts) <= 15 * 60));
+      const txt = norm(await p.textContent('#dayCmp')).replace(/\s/g, ' '), dica = (await p.getAttribute('#dayCmp', 'title') || '').replace(/\s/g, ' ');
+      ok(txt.includes('até esta hora (' + brlT(ateHora) + ' + ' + brlT(50) + ' sem horário)'), `venda "sem horário" da semana passada fica fora da conta e aparece à parte: "${txt}"`);
+      ok(dica === 'Dia inteiro na semana passada: ' + brlT(soma(ant)) + '. Venda sem horário foi lançada depois: não dá para saber se foi antes desta hora.', 'a dica explica a venda sem horário: ' + dica);
+      ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+      await ctx.close();
+    }
+    ({ ctx, p, errs } = await abre(b, D));
+    // hoje (terça, 20/10, 15:00) contra a terça anterior só até as 15:00; o dia inteiro fica na dica do mouse
+    const ant = D.vendas.filter(v => v.day === '2026-10-13'), ateHora = soma(ant.filter(v => minDo(v.ts) <= 15 * 60)), inteiro = soma(ant);
+    const hoje = soma(D.vendas.filter(v => v.day === '2026-10-20'));
+    const txt = norm(await p.textContent('#dayCmp')).replace(/\s/g, ' '), dica = (await p.getAttribute('#dayCmp', 'title') || '').replace(/\s/g, ' ');
+    ok(ateHora < inteiro && txt.includes('até esta hora (' + brlT(ateHora) + ')') && txt.includes(brlT(Math.abs(hoje - ateHora))), `hoje compara só até a mesma hora da semana passada: "${txt}"`);
+    ok(dica === 'Dia inteiro na semana passada: ' + brlT(inteiro), 'o dia inteiro da semana passada fica na dica: ' + dica);
+    await p.click('#hideBtn'); await p.waitForTimeout(100);
+    ok(!(await p.getAttribute('#dayCmp', 'title')), 'com "Esconder valores", a dica do mouse não mostra o valor');
+    await p.click('#hideBtn'); await p.waitForTimeout(100);
+    await p.click('#prevDay'); await p.waitForTimeout(150);
+    const txt2 = norm(await p.textContent('#dayCmp')).replace(/\s/g, ' ');
+    ok(!txt2.includes('até esta hora') && txt2.includes('(' + brlT(soma(D.vendas.filter(v => v.day === '2026-10-12'))) + ')'), `dia que já passou continua dia inteiro com dia inteiro: "${txt2}"`);
+    await p.click('#nextDay'); await p.waitForTimeout(150);
+  }
+  { // WhatsApp não aparece em nenhuma aba (nem no Ctrl+K); "Copiar lista" continua no Estoque
+    const telas = [];
+    for (const tab of ['vendas', 'estoque', 'despesas', 'resumo']) {
+      await p.click(`[data-tab="${tab}"]`); await p.waitForTimeout(150);
+      await p.evaluate(() => document.querySelectorAll('details').forEach(d => { d.open = true; }));
+      telas.push(await p.evaluate(() => document.body.innerText + ' ' + [...document.querySelectorAll('[aria-label],[title]')].map(e => (e.getAttribute('aria-label') || '') + ' ' + (e.getAttribute('title') || '')).join(' ')));
+      if (tab === 'estoque') ok(await p.$('#buyCopy') !== null && await p.$('#buyWa') === null, 'lista de compras: "Copiar lista" continua, "Enviar no WhatsApp" saiu');
+    }
+    const todas = telas.join(' ');
+    ok(!/whats/i.test(todas) && !(await p.$('#shareDay, .s-wa, .wa-lembra, #retratoShare')), 'nenhuma opção de WhatsApp na tela (vendas, estoque, gastos, resumo)');
+    await p.click('[data-tab="vendas"]'); await p.keyboard.press('Control+k'); await p.keyboard.type('compartilhar'); await p.waitForTimeout(200);
+    ok(!/whats/i.test(await p.evaluate(() => document.body.innerText)), 'nem no Ctrl+K'); await p.keyboard.press('Escape');
+    const toques = (todas.match(/\b(toque|tocar)\b/gi) || []);
+    ok(toques.length === 0 && /clique para adicionar/i.test(todas), 'nenhum "toque" nos textos do notebook; agora é "clique" ' + toques.join(','));
+  }
+  ok(errs.length === 0, 'sem erros de JavaScript ' + errs.join(' | '));
+  await ctx.close();
+
   console.log('Excel da contadora (outubro)');
   ({ ctx, p, errs } = await abre(b, D));
   await p.click('[data-tab="resumo"]');
