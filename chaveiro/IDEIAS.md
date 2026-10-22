@@ -45,13 +45,22 @@ nunca aqui (dados reais da loja não entram no repositório).
   internet, continua do jeito de hoje (digitar na maquininha). Falta saber o modelo da maquininha.
 - Para essas duas: uma "ponte" na internet guarda a senha de acesso do Mercado Pago (o Mercado Pago exige que ela
   fique fora do navegador). A senha nunca fica no app nem no backup.
-
-## Passaram no filtro, esperando resposta (22/10/2026)
-
 - **Backup automático todo dia no Google Drive de vocês**, pela mesma ponte. Hoje o backup depende de clicar
   quando o app avisa, e as cópias automáticas ficam no próprio notebook.
 
+## Passaram no filtro, esperando resposta (22/10/2026)
+
+- **Estoque de cadeados, chaveirinhos, miolos e fechaduras** (ideia do BomSaldo). Já dá para cadastrar esses
+  produtos no Estoque (as categorias existem) e vender pela busca, que baixa o estoque; hoje eles saem pelos itens
+  rápidos e por "Outros", que não baixam. Mudança no app: com produtos cadastrados, o item rápido (Cadeado,
+  Chaveiro, Miolo) mostra os do estoque para escolher, com o preço; sem cadastro, continua como hoje.
+
 ## Esperam mais dados ou resposta da contadora
+
+- **Histórico de alterações das vendas** (ideia do GestãoClick): poucos dados; quase nenhuma venda é alterada
+  depois de registrada.
+- **Quem fez o serviço / pagamento de ajudante** (comissão, ideia de GestãoClick, eGestor e Simples Agenda): poucos
+  dados; poucos pagamentos de ajudante no período.
 
 - **Ler a nota (XML) do fornecedor na "Chegou mercadoria".** Só se o fornecedor mandar o arquivo da nota; hoje é
   mais ou menos uma compra por mês.
@@ -79,6 +88,11 @@ Nuvemshop PDV, Mais PDV, InfinitePay, MarketUP, Loyverse, Hiper, TagPlus, Conta 
 - Pix com QR na tela do app: recusado; com a maquininha integrada, o Pix é pago na maquininha.
 - Várias lojas, loja online, marketplaces, app de celular e WhatsApp: fora do jeito que a loja trabalha.
 - Estoque separado do carro de serviço: sem dados.
+- Avisos por SMS, WhatsApp ou e-mail: o WhatsApp foi tirado e não há fiado para cobrar.
+- Validade e lote de produto: não se aplica a chave e bateria do jeito que a loja vende.
+- Lista de preço de atacado: sem vendas para empresas nos dados.
+- Já existiam no app (nada a fazer): vender sem internet, troca e devolução, serviço com peça na mesma venda,
+  contador de chaves cortadas, estoque mínimo e lista de compras, relatórios, esconder o faturamento.
 
 ## Testadas e deixadas de fora (medidas com o robô, não refazer)
 
