@@ -391,6 +391,15 @@ const ultima = async p => { const vs = await lsJ(p, K.vendas); return vs[vs.leng
     const r = JSON.parse(execFileSync('python3', [path.join(__dirname, 'confere_excel.py'), xlsx, cen, '2026-10', AGORA], { encoding: 'utf8' }).trim().split('\n').pop());
     ok(r.falhas === 0, `planilha conferida contra os dados (${r.ok} verificações, ${r.falhas} falhas)`);
   } catch (e) { ok(false, 'conferência da planilha: ' + String(e.stdout || e.message).slice(0, 600)); }
+  // o mesmo arquivo aberto por programas de fora (LibreOffice e validador da Microsoft), se estiverem instalados
+  let vx; try { vx = execFileSync('python3', [path.join(__dirname, 'valida_excel.py'), xlsx], { encoding: 'utf8' }); } catch (e) { vx = String(e.stdout || e.message); }
+  try {
+    const r = JSON.parse(vx.trim().split('\n').pop()), lo = r.libreoffice, ms = r.microsoft;
+    if (lo === 'pulado') console.log('  PULADO LibreOffice não está instalado (rode .claude/hooks/session-start.sh)');
+    else ok(!lo.erro && lo.erros === 0 && lo.diferentes === 0, `LibreOffice recalculou as ${lo.formulas} fórmulas: nenhuma com erro e todas iguais ao que o arquivo mostra ` + (lo.erro || lo.detalhes.join(' | ')));
+    if (ms === 'pulado') console.log('  PULADO validador da Microsoft não está instalado (rode .claude/hooks/session-start.sh)');
+    else ok(!ms.erro && ms.erros === 0, `validador oficial da Microsoft: arquivo certo para ${(ms.versoes || []).join(', ')} ` + (ms.erro || ms.detalhes.join(' | ')));
+  } catch (e) { ok(false, 'validação do Excel por programas de fora: ' + vx.slice(-600)); }
 
   console.log(`\n${nOk} OK, ${nF} FALHAS`);
   if (process.env.MANTER) console.log('arquivos em ' + TMP); else fs.rmSync(TMP, { recursive: true, force: true });

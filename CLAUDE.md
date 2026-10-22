@@ -3,7 +3,7 @@
 App de um arquivo só (`chaveiro/Chaveiro_Vendas_e_Gastos.html`) usado no balcão de uma loja de chaves:
 registra vendas (estoque, chaves, serviços, "Outros"), estoque, gastos, fiado, encomendas e
 retrabalhos, mostra o resumo do mês e gera o Excel mensal da contadora. Funciona offline,
-direto do arquivo, no celular e no PC. A dona usa todo dia: estabilidade vem antes de novidade.
+direto do arquivo. É usado todo dia, no notebook: estabilidade vem antes de novidade.
 
 ## Regras
 - Nunca perder, alterar ou duplicar dados salvos. Manter compatível com dados e backups antigos
@@ -15,7 +15,9 @@ direto do arquivo, no celular e no PC. A dona usa todo dia: estabilidade vem ant
   (`.field-wrap`, `.money-input`, `.registrar-btn`, `.est-btn`, `.pay-btn`, `.pill`, `.tag`, `details.card`...).
 - JavaScript ES5 dentro de uma IIFE, sem bibliotecas externas e sem rede. Nada é carregado da internet:
   as fontes (Fraunces, IBM Plex Sans, JetBrains Mono, só latim) e o ícone estão embutidos no arquivo.
-- Alvo: Chrome no Android e no PC (iPhone não é usado).
+- Alvo: Chrome no notebook. Não propor ideias focadas em celular (o app é usado no notebook; iPhone não é usado).
+- Ideia nova só entra depois de aprovada: apresentar antes de fazer. As que passaram no filtro, as que esperam
+  mais dados e as recusadas ficam em `chaveiro/IDEIAS.md` (sem números reais da loja).
 - Textos para o usuário em português simples, sem termos técnicos.
 - Dados reais da loja nunca entram no repositório. Testes usam só `chaveiro/testes/dados.js`.
 
@@ -30,14 +32,14 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
 
 ## Balcão (decisões baseadas nos dados reais)
 - Controle clonável é o produto do estoque (Controle de portão / Controle clonavel): baixa do estoque e trava
-  quando acaba. Não mudar (decisão da dona).
+  quando acaba. Não mudar (decisão de quem usa o app).
 - Miolo, Cadeado e Chaveiro são itens rápidos de valor livre com "Qual?" opcional (eram 8 de 19 "Outros").
   Em "Outros", uma descrição que já tem item próprio (serviço, miolo, cadeado, chaveiro) sugere trocar; só sugere.
 - Gasto da categoria `pessoal` (Pessoal / da casa) fica fora do saldo e do resultado da loja (app, resumo do dia,
   retrato do ano, CSV e Excel). A aba Gastos do Excel lista todos; o Resumo mostra loja e pessoal separados.
   Sem gasto pessoal no mês, o Excel sai idêntico ao de antes. Nenhum gasto muda de categoria sozinho.
 - A categoria do gasto é sugerida pela descrição (memória dos gastos já lançados, depois palavras óbvias).
-- "Conferir o caixa do dia" foi retirado (pedido da dona).
+- "Conferir o caixa do dia" foi retirado (pedido de quem usa o app).
 - Serviços têm "Qual?" opcional; em Outros, "instalação/retirada/buscar…" sugere "Outro serviço" (descrição inteira).
 - Resumo: venda com a conta errada (itens/desconto/total não fecham) aparece com "Abrir e corrigir" (nunca corrige
   sozinho); "Vendas do mês" em ordem de valor; "Outros" abre o detalhe por descrição.
@@ -48,8 +50,14 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
 `./chaveiro/testes/rodar.sh` — abre o app no Chromium com relógio fixo (20/10/2026) e dados de
 exemplo: venda do estoque, pagamento dividido, fiado, gasto, persistência, backup/restauração,
 valores mais cobrados, venda em andamento que volta ao recarregar, apagados recentemente, cópias automáticas, comparação com o mês passado, tamanho do
-texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, itens rápidos e sugestão de item, gasto pessoal e categoria sugerida, serviço com "Qual?", Outros detalhado, ordem por valor, conta errada, dividir gasto, contraste do calendário escuro, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados).
+texto, aviso ao sair com venda pela metade, enviar backup/Excel e tela acesa (Android simulado), funcionar sem internet, itens rápidos e sugestão de item, gasto pessoal e categoria sugerida, serviço com "Qual?", Outros detalhado, ordem por valor, conta errada, dividir gasto, contraste do calendário escuro, dados antigos e o Excel (conferido por `confere_excel.py`, que recalcula tudo a partir dos dados,
+e aberto pelo LibreOffice e pelo validador oficial da Microsoft em `valida_excel.py`). Depois roda `lint.js` (ESLint: só ES5
+mais async/await, nada indefinido, recursos do Chrome do notebook) e `acessibilidade.js` (axe-core em 18 telas, claro e escuro).
 Rode antes de cada commit. `MANTER=1` guarda os arquivos gerados.
+As ferramentas extras (ESLint, axe-core, LibreOffice, .NET com o validador) são instaladas, com versões fixas, por
+`.claude/hooks/session-start.sh`, que roda sozinho no começo de cada sessão na nuvem; sem elas, essas partes aparecem como PULADO.
+Skills do projeto em `.claude/skills/`: chaveiro-testes, chaveiro-excel, chaveiro-laboratorio e chaveiro-entrega.
+`chaveiro/laboratorio/robo_caixa.js` refaz vendas de um backup pela tela do notebook e conta toques e letras (para medir ideias).
 `COMPLETO=1 ./chaveiro/testes/rodar.sh` também roda `caos.js` (robô com ações aleatórias e vendas completas,
 conferindo as regras dos dados a cada ação) e `backup_estragado.js` (restaura backups corrompidos: nada local
 pode sumir, mudar ou duplicar). Rode o completo antes de mexer em gravação, backup ou restauração.
