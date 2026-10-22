@@ -19,6 +19,39 @@ nunca aqui (dados reais da loja não entram no repositório).
   dica "Ctrl+Enter também registra" embaixo do botão. Medido com o robô nas vendas reais, na tela do notebook:
   32% menos rolagens por venda.
 
+## Aprovadas, esperando a vez (22/10/2026)
+
+- **"Outros" levando ao item certo.** Os botões "Mais usados em Outros" de chaveiro e chaverinho lançam no item
+  Chaveiro, com o mesmo clique. O aviso "Já existe… usar esse item" passa a reconhecer manutenção, solda,
+  elétrica, confecção, troca de miolo e abertura de fechadura; "Fiorino" (nome de carro) vira abertura de carro,
+  não de porta. Continua só sugerindo. Antes de fazer: perguntar à contadora se ela precisa separar serviço de
+  produto.
+- **"Que horas foi?" na venda lançada depois.** Ao lançar uma venda num dia que já passou, um campo opcional para
+  a hora. Sem hora, ela continua "sem horário", como hoje.
+
+## Passaram no filtro, esperando resposta (22/10/2026)
+
+- **O cursor volta sozinho para a busca do estoque** depois de registrar, depois de clicar num "mais vendido" e
+  ao abrir o app (só no notebook). Robô: 10% menos cliques e 12% menos rolagens, sem nenhuma ação a mais.
+- **Atalho na área de trabalho que abre o app numa janela própria** (sem abas e sem barra de endereço). Robô:
+  21% menos rolagens só pelo espaço a mais na tela.
+- **"+" no teclado = mais uma unidade do último produto** (com a busca do estoque vazia), no lugar de clicar no
+  "+" pequeno com o touchpad.
+- **Dois serviços novos: "Confecção de chave" e "Manutenção / conserto"**, com "Qual?" opcional. Hoje vão para
+  "Outros".
+- **Sugestão de categoria do gasto mais esperta.** A memória não repete "Outros gastos" (ela aprendeu antes de
+  existir "Pessoal"), e entram palavras da casa: mãe, irmão, cabelo, supermercado, churrasco, pizza, frutas,
+  ballet; "ajudar" sugere ajudante. Continua só sugerindo.
+- **Ajuste de estoque feito à mão fica anotado**, com data, num histórico do produto (entradas, vendas e ajustes).
+- **"Outros" sem descrição: o app pergunta "o que foi?"**, sem travar a venda.
+
+## Esperam mais dados
+
+- **Lembrete de "Chegou mercadoria" ao lançar gasto de mercadoria** (para o estoque subir junto): só uma compra
+  no período.
+- **Gasto que se repete todo mês vira "gasto fixo" com um clique:** só um mês de dados; precisa de dois para
+  saber o que se repete.
+
 ## Testadas e deixadas de fora (medidas com o robô, não refazer)
 
 - Barra flutuante com "Registrar" no notebook: nenhuma rolagem a menos.
@@ -26,6 +59,10 @@ nunca aqui (dados reais da loja não entram no repositório).
 - "Mais vendidos" logo abaixo da busca principal: ganho menor que a ordem escolhida.
 - Tela que sobe sozinha enquanto se digita na busca do estoque: ganho pequeno (2% menos rolagens) e a tela
   andaria sozinha, o que confunde.
+- Bloco "Serviços" logo depois de "Outros" e já aberto: nenhuma rolagem a menos.
+- Aviso do topo ("Seus dados estão só no navegador") escondido: nenhuma rolagem a menos.
+- Botões de "mais usados" para serviços: cada serviço é diferente, quase não se repetem; não ajudariam.
+- 10 "Mais vendidos" em vez de 6: um pouco menos de ações, mas 20% mais rolagens.
 
 ## Descartadas por serem de celular
 
@@ -55,3 +92,4 @@ celular e "Mais vendidos" compactos no celular.
 - Ritmo do estoque ("acaba em uns X dias").
 - Corrigir o nome dos dias do calendário do Resumo para leitor de tela, que o axe-core 4.14 acusa
   (por isso os testes usam a 4.13).
+- Conferir os gastos do mês numa lista, com um clique por gasto, e categoria "Impostos": não escolhida em 22/10.
