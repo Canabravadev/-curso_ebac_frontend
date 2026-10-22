@@ -14,8 +14,11 @@ no mesmo usuário e no mesmo Chrome, então os dados são os mesmos: estabilidad
   sem conferências internas, sem contabilidade inventada.
 - Não redesenhar o visual existente. Componentes novos usam as peças que já existem
   (`.field-wrap`, `.money-input`, `.registrar-btn`, `.est-btn`, `.pay-btn`, `.pill`, `.tag`, `details.card`...).
-- JavaScript ES5 dentro de uma IIFE, sem bibliotecas externas e sem rede. Nada é carregado da internet:
+- JavaScript ES5 dentro de uma IIFE, sem bibliotecas externas. Nada é carregado da internet:
   as fontes (Fraunces, IBM Plex Sans, JetBrains Mono, só latim) e o ícone estão embutidos no arquivo.
+- Internet liberada por quem usa o app (22/10/2026), só para integrações aprovadas (Mercado Pago, backup) e
+  sempre como extra: abrir, vender, salvar e fazer backup continuam funcionando sem internet. Senhas de acesso
+  (ex.: Mercado Pago) nunca ficam no app, no localStorage nem no backup; ficam numa "ponte" fora do navegador.
 - Alvo: Chrome atualizado no notebook (Linux Mint, tela 1366×768, tema escuro), usado com touchpad. Não propor
   ideias focadas em celular (iPhone não é usado).
 - Ideia nova só entra depois de aprovada: apresentar antes de fazer. As que passaram no filtro, as que esperam
@@ -54,6 +57,8 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
   escondida junto com os valores); venda "sem horário" (lançada depois) não tem hora conhecida, então fica fora do
   "até esta hora" e aparece à parte na mesma linha ("+ R$ X sem horário"); dias que já passaram comparam o dia inteiro.
 - O app é aberto direto do arquivo no Chrome; o backup ("Salvar backup") é feito quando o app avisa.
+- A maquininha é a Point do Mercado Pago (Mercado Pago/Mercado Livre); cartão e Pix passam por ela. A ligação
+  automática com o Mercado Pago e a maquininha integrada foram aprovadas (ver `chaveiro/IDEIAS.md`).
 - Serviços têm "Qual?" opcional; em Outros, "instalação/retirada/buscar…" sugere "Outro serviço" (descrição inteira).
 - Resumo: venda com a conta errada (itens/desconto/total não fecham) aparece com "Abrir e corrigir" (nunca corrige
   sozinho); "Vendas do mês" em ordem de valor; "Outros" abre o detalhe por descrição.
