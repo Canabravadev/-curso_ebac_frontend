@@ -3,7 +3,8 @@
 App de um arquivo só (`chaveiro/Chaveiro_Vendas_e_Gastos.html`) usado no balcão de uma loja de chaves:
 registra vendas (estoque, chaves, serviços, "Outros"), estoque, gastos, fiado, encomendas e
 retrabalhos, mostra o resumo do mês e gera o Excel mensal da contadora. Funciona offline,
-direto do arquivo. É usado todo dia, no notebook: estabilidade vem antes de novidade.
+direto do arquivo, no Chrome. É usado todo dia, no notebook, por duas pessoas (quem pede as mudanças e o pai):
+estabilidade vem antes de novidade.
 
 ## Regras
 - Nunca perder, alterar ou duplicar dados salvos. Manter compatível com dados e backups antigos
@@ -15,9 +16,12 @@ direto do arquivo. É usado todo dia, no notebook: estabilidade vem antes de nov
   (`.field-wrap`, `.money-input`, `.registrar-btn`, `.est-btn`, `.pay-btn`, `.pill`, `.tag`, `details.card`...).
 - JavaScript ES5 dentro de uma IIFE, sem bibliotecas externas e sem rede. Nada é carregado da internet:
   as fontes (Fraunces, IBM Plex Sans, JetBrains Mono, só latim) e o ícone estão embutidos no arquivo.
-- Alvo: Chrome no notebook. Não propor ideias focadas em celular (o app é usado no notebook; iPhone não é usado).
+- Alvo: Chrome atualizado no notebook (Linux Mint), usado com touchpad. Não propor ideias focadas em celular
+  (iPhone não é usado).
 - Ideia nova só entra depois de aprovada: apresentar antes de fazer. As que passaram no filtro, as que esperam
   mais dados e as recusadas ficam em `chaveiro/IDEIAS.md` (sem números reais da loja).
+- Erro encontrado pode ser corrigido sem perguntar, com teste que o pegue; depois, contar qual era o erro e por
+  que acontecia.
 - Textos para o usuário em português simples, sem termos técnicos.
 - Dados reais da loja nunca entram no repositório. Testes usam só `chaveiro/testes/dados.js`.
 
@@ -40,6 +44,8 @@ IndexedDB `chaveiro_copias` (só neste navegador). Preferências do aparelho (ex
   Sem gasto pessoal no mês, o Excel sai idêntico ao de antes. Nenhum gasto muda de categoria sozinho.
 - A categoria do gasto é sugerida pela descrição (memória dos gastos já lançados, depois palavras óbvias).
 - "Conferir o caixa do dia" foi retirado (pedido de quem usa o app).
+- As opções de WhatsApp (comprovante, lembrar fiado, resumo do dia, retrato do ano, lista de compras) não são usadas.
+- O app é aberto direto do arquivo no Chrome; o backup ("Salvar backup") é feito quando o app avisa.
 - Serviços têm "Qual?" opcional; em Outros, "instalação/retirada/buscar…" sugere "Outro serviço" (descrição inteira).
 - Resumo: venda com a conta errada (itens/desconto/total não fecham) aparece com "Abrir e corrigir" (nunca corrige
   sozinho); "Vendas do mês" em ordem de valor; "Outros" abre o detalhe por descrição.
