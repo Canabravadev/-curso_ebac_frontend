@@ -28,29 +28,43 @@ nunca aqui (dados reais da loja não entram no repositório).
   produto.
 - **"Que horas foi?" na venda lançada depois.** Ao lançar uma venda num dia que já passou, um campo opcional para
   a hora. Sem hora, ela continua "sem horário", como hoje.
-
-## Passaram no filtro, esperando resposta (22/10/2026)
-
 - **O cursor volta sozinho para a busca do estoque** depois de registrar, depois de clicar num "mais vendido" e
   ao abrir o app (só no notebook). Robô: 10% menos cliques e 12% menos rolagens, sem nenhuma ação a mais.
 - **Atalho na área de trabalho que abre o app numa janela própria** (sem abas e sem barra de endereço). Robô:
-  21% menos rolagens só pelo espaço a mais na tela.
+  21% menos rolagens só pelo espaço a mais na tela. O arquivo do app precisa ficar sempre com o mesmo nome.
 - **"+" no teclado = mais uma unidade do último produto** (com a busca do estoque vazia), no lugar de clicar no
   "+" pequeno com o touchpad.
-- **Dois serviços novos: "Confecção de chave" e "Manutenção / conserto"**, com "Qual?" opcional. Hoje vão para
-  "Outros".
-- **Sugestão de categoria do gasto mais esperta.** A memória não repete "Outros gastos" (ela aprendeu antes de
-  existir "Pessoal"), e entram palavras da casa: mãe, irmão, cabelo, supermercado, churrasco, pizza, frutas,
-  ballet; "ajudar" sugere ajudante. Continua só sugerindo.
-- **Ajuste de estoque feito à mão fica anotado**, com data, num histórico do produto (entradas, vendas e ajustes).
-- **"Outros" sem descrição: o app pergunta "o que foi?"**, sem travar a venda.
-
-## Esperam mais dados
-
-- **Lembrete de "Chegou mercadoria" ao lançar gasto de mercadoria** (para o estoque subir junto): só uma compra
-  no período.
-- **Gasto que se repete todo mês vira "gasto fixo" com um clique:** só um mês de dados; precisa de dois para
+- **Gasto que se repete todo mês vira "gasto fixo" com um clique.** Só quando houver dois meses de dados, para
   saber o que se repete.
+
+## Esperam mais dados ou resposta da contadora
+
+- **Conferir as vendas com o relatório do Mercado Pago.** O app lê a planilha baixada do site do Mercado Pago (sem
+  internet no app) e mostra o que está no Mercado Pago e não foi lançado, o que foi lançado como cartão ou Pix e não
+  está lá, e a taxa de verdade da maquininha. Nada é lançado sem clique. Precisa de um relatório de exemplo.
+- **Ler a nota (XML) do fornecedor na "Chegou mercadoria".** Só se o fornecedor mandar o arquivo da nota; hoje é
+  mais ou menos uma compra por mês.
+- **Nota fiscal (NFC-e de produto, NFS-e de serviço).** O app não emite nota: precisa de internet, certificado
+  digital e um emissor autorizado. Depende do que a contadora disser que a loja precisa.
+- **Maquininha integrada** (o valor da venda vai sozinho para a maquininha do Mercado Pago). Precisa de internet,
+  da maquininha certa e de um programa "ponte" para guardar a senha de acesso; muda o jeito do app.
+
+## Não passaram no filtro (análise dos outros sistemas, 22/10/2026)
+
+- Ligação automática com o Mercado Pago pela internet: a senha de acesso tem que ficar num servidor, e o app é um
+  arquivo que funciona sem internet. A conferência pela planilha dá o mesmo resultado sem esse risco.
+- Inteligência artificial dentro do app: precisa de internet, tem custo e os dados sairiam do notebook. Já existem
+  sugestões feitas pelo próprio app (categoria do gasto, mais vendidos, comprar), e a análise dos backups é feita
+  na conversa.
+- Guardar o segredo da chave de cada cliente: arriscado se o notebook for perdido ou roubado (não há senha).
+- Leitor de código de barras e etiquetas: chave virgem não tem código; a busca é pelo modelo.
+- Orçamento, agenda e ordem de serviço completos: "Encomendas e serviços pendentes" já existe e quase não é usado.
+- Cadastro de clientes, fidelidade, comissão de vendedor e login por pessoa: sem sinal de necessidade nos dados.
+- Boletos e cobrança: não há fiado no período.
+- DRE e conciliação contábil: é trabalho da contadora; o app não inventa contabilidade.
+- App de celular, loja online e WhatsApp: fora do jeito que a loja usa o app.
+- Backup automático na nuvem: precisa de internet; o backup e o arquivo de dados já existem.
+- Estoque separado do carro de serviço: sem dados.
 
 ## Testadas e deixadas de fora (medidas com o robô, não refazer)
 
@@ -93,3 +107,6 @@ celular e "Mais vendidos" compactos no celular.
 - Corrigir o nome dos dias do calendário do Resumo para leitor de tela, que o axe-core 4.14 acusa
   (por isso os testes usam a 4.13).
 - Conferir os gastos do mês numa lista, com um clique por gasto, e categoria "Impostos": não escolhida em 22/10.
+- Não escolhidas em 22/10: serviços novos "Confecção de chave" e "Manutenção / conserto"; "o que foi?" no
+  "Outros" sem descrição; sugestão de categoria do gasto mais esperta; ajuste de estoque anotado num histórico;
+  lembrete de "Chegou mercadoria" ao lançar gasto de mercadoria.
