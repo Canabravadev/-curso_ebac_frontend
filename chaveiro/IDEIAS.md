@@ -19,15 +19,16 @@ nunca aqui (dados reais da loja não entram no repositório).
   dica "Ctrl+Enter também registra" embaixo do botão. Medido com o robô nas vendas reais, na tela do notebook:
   32% menos rolagens por venda.
 - **O cursor volta sozinho para a busca do estoque** ao abrir o app, depois de registrar e depois de clicar num
-  "mais vendido" (só no notebook). "/" continua indo para a busca do histórico. Robô: 10% menos cliques e 10% menos
-  rolagens.
+  "mais vendido" (só no notebook). "/" continua indo para a busca do histórico. Robô: 10% menos cliques e cerca de
+  10% menos rolagens.
 - **Tecla "+" = mais uma unidade do último produto do estoque** posto na venda, com a busca vazia. A busca lembra:
   "outro modelo, ou + para mais um". O controle clonável continua travando quando acaba. Robô, junto com o cursor:
-  19% menos cliques no touchpad.
+  19% menos cliques no touchpad (o "+" troca clique por tecla; as rolagens ficam quase iguais).
 - **"Que horas foi?" na venda lançada depois.** Num dia que já passou, um botão opcional para pôr a hora da venda.
   Sem hora, ela fica "sem horário", como antes; "Sem horário" tira a hora digitada. Hoje continua "Vendeu mais cedo?".
 - **Atalho na área de trabalho** (Ajustes → "Baixar atalho"): abre o app no Chrome numa janela própria, sem abas e
-  sem barra de endereço. O arquivo do app precisa ficar sempre no mesmo lugar e com o mesmo nome.
+  sem barra de endereço. O arquivo do app precisa ficar sempre no mesmo lugar e com o mesmo nome. Robô: cerca de
+  20% menos rolagens que na janela normal do Chrome.
 
 ## Aprovadas, esperando a vez (22/10/2026)
 
