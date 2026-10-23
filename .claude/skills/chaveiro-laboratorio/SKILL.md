@@ -23,6 +23,7 @@ Uma ideia só passa se cumprir tudo:
    Amostra pequena não vira conclusão; diga "poucos dados ainda".
 2. Tem ganho medido. Para trabalho no balcão, `node chaveiro/laboratorio/robo_caixa.js dados.json [app.html]`
    refaz as vendas pela tela do notebook e conta toques e letras. Rode antes e depois e compare o TOTAL.
+   Medida com venda DIFERENTE ou NÃO CONSEGUIU não vale: o robô confere o dia, o total, a forma de pagamento e os itens.
 3. Não arrisca dado salvo e continua compatível com backups antigos.
 4. Não está recusada em `chaveiro/IDEIAS.md` e não existe já no app (procure no HTML).
 5. Não é ideia de celular (o app é usado no notebook) e não redesenha o visual.
