@@ -18,6 +18,17 @@ nunca aqui (dados reais da loja não entram no repositório).
 - **Tela de Vendas para o touchpad:** busca do estoque em cima, depois mais vendidos, "Outros" e os itens rápidos;
   dica "Ctrl+Enter também registra" embaixo do botão. Medido com o robô nas vendas reais, na tela do notebook:
   32% menos rolagens por venda.
+- **O cursor volta sozinho para a busca do estoque** ao abrir o app, depois de registrar e depois de clicar num
+  "mais vendido" (só no notebook). "/" continua indo para a busca do histórico. Robô: 10% menos cliques e cerca de
+  10% menos rolagens.
+- **Tecla "+" = mais uma unidade do último produto do estoque** posto na venda, com a busca vazia. A busca lembra:
+  "outro modelo, ou + para mais um". O controle clonável continua travando quando acaba. Robô, junto com o cursor:
+  19% menos cliques no touchpad (o "+" troca clique por tecla; as rolagens ficam quase iguais).
+- **"Que horas foi?" na venda lançada depois.** Num dia que já passou, um botão opcional para pôr a hora da venda.
+  Sem hora, ela fica "sem horário", como antes; "Sem horário" tira a hora digitada. Hoje continua "Vendeu mais cedo?".
+- **Atalho na área de trabalho** (Ajustes → "Baixar atalho"): abre o app no Chrome numa janela própria, sem abas e
+  sem barra de endereço. O arquivo do app precisa ficar sempre no mesmo lugar e com o mesmo nome. Robô: cerca de
+  20% menos rolagens que na janela normal do Chrome.
 
 ## Aprovadas, esperando a vez (22/10/2026)
 
@@ -26,14 +37,6 @@ nunca aqui (dados reais da loja não entram no repositório).
   elétrica, confecção, troca de miolo e abertura de fechadura; "Fiorino" (nome de carro) vira abertura de carro,
   não de porta. Continua só sugerindo. Antes de fazer: perguntar à contadora se ela precisa separar serviço de
   produto.
-- **"Que horas foi?" na venda lançada depois.** Ao lançar uma venda num dia que já passou, um campo opcional para
-  a hora. Sem hora, ela continua "sem horário", como hoje.
-- **O cursor volta sozinho para a busca do estoque** depois de registrar, depois de clicar num "mais vendido" e
-  ao abrir o app (só no notebook). Robô: 10% menos cliques e 12% menos rolagens, sem nenhuma ação a mais.
-- **Atalho na área de trabalho que abre o app numa janela própria** (sem abas e sem barra de endereço). Robô:
-  21% menos rolagens só pelo espaço a mais na tela. O arquivo do app precisa ficar sempre com o mesmo nome.
-- **"+" no teclado = mais uma unidade do último produto** (com a busca do estoque vazia), no lugar de clicar no
-  "+" pequeno com o touchpad.
 - **Gasto que se repete todo mês vira "gasto fixo" com um clique.** Só quando houver dois meses de dados, para
   saber o que se repete.
 - **Mercado Pago: vendas e saídas automáticas.** O app busca no Mercado Pago (pela internet) as vendas de cartão e
@@ -48,19 +51,7 @@ nunca aqui (dados reais da loja não entram no repositório).
 - **Backup automático todo dia no Google Drive de vocês**, pela mesma ponte. Hoje o backup depende de clicar
   quando o app avisa, e as cópias automáticas ficam no próprio notebook.
 
-## Passaram no filtro, esperando resposta (22/10/2026)
-
-- **Estoque de cadeados, chaveirinhos, miolos e fechaduras** (ideia do BomSaldo). Já dá para cadastrar esses
-  produtos no Estoque (as categorias existem) e vender pela busca, que baixa o estoque; hoje eles saem pelos itens
-  rápidos e por "Outros", que não baixam. Mudança no app: com produtos cadastrados, o item rápido (Cadeado,
-  Chaveiro, Miolo) mostra os do estoque para escolher, com o preço; sem cadastro, continua como hoje.
-
 ## Esperam mais dados ou resposta da contadora
-
-- **Histórico de alterações das vendas** (ideia do GestãoClick): poucos dados; quase nenhuma venda é alterada
-  depois de registrada.
-- **Quem fez o serviço / pagamento de ajudante** (comissão, ideia de GestãoClick, eGestor e Simples Agenda): poucos
-  dados; poucos pagamentos de ajudante no período.
 
 - **Ler a nota (XML) do fornecedor na "Chegou mercadoria".** Só se o fornecedor mandar o arquivo da nota; hoje é
   mais ou menos uma compra por mês.
@@ -139,3 +130,6 @@ celular e "Mais vendidos" compactos no celular.
   "Outros" sem descrição; sugestão de categoria do gasto mais esperta; ajuste de estoque anotado num histórico;
   lembrete de "Chegou mercadoria" ao lançar gasto de mercadoria.
 - Conferir as vendas pela planilha baixada do Mercado Pago: não escolhida (a preferida é a ligação automática).
+- Não escolhidas em 22/10 (ideias tiradas dos outros sistemas): estoque de cadeados, chaveirinhos, miolos e
+  fechaduras escolhidos no item rápido; histórico de alterações das vendas; quem fez o serviço / pagamento de
+  ajudante.
